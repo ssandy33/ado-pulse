@@ -4,11 +4,13 @@ import { useState, useEffect, useCallback, useMemo } from "react";
 import type { TeamSummaryApiResponse, PolicyAuditResponse, StalePRResponse } from "@/lib/ado/types";
 import { TeamSelector } from "./TeamSelector";
 import { TimeRangeSelector } from "./TimeRangeSelector";
+import { TabBar } from "./TabBar";
 import { KPICard } from "./KPICard";
 import { MemberTable } from "./MemberTable";
 import { RepoTable } from "./RepoTable";
 import { PolicyAuditTable } from "./PolicyAuditTable";
 import { StalePRTable } from "./StalePRTable";
+import { OrgHealthView } from "./OrgHealthView";
 import { SkeletonKPIRow, SkeletonTable } from "./SkeletonLoader";
 
 interface DashboardProps {
@@ -17,6 +19,7 @@ interface DashboardProps {
 }
 
 export function Dashboard({ creds, onDisconnect }: DashboardProps) {
+  const [activeTab, setActiveTab] = useState<"team" | "organization">("team");
   const [selectedTeam, setSelectedTeam] = useState("");
   const [days, setDays] = useState(14);
   const [data, setData] = useState<TeamSummaryApiResponse | null>(null);
@@ -142,6 +145,7 @@ export function Dashboard({ creds, onDisconnect }: DashboardProps) {
                   selectedTeam={selectedTeam}
                   onTeamChange={handleTeamChange}
                   adoHeaders={adoHeaders}
+                  disabled={activeTab === "organization"}
                 />
               </div>
             </div>
@@ -159,7 +163,7 @@ export function Dashboard({ creds, onDisconnect }: DashboardProps) {
                   })}
                 </span>
               )}
-              {selectedTeam && (
+              {(selectedTeam || activeTab === "organization") && (
                 <>
                   <button
                     onClick={fetchData}
@@ -196,8 +200,11 @@ export function Dashboard({ creds, onDisconnect }: DashboardProps) {
           </div>
         </div>
 
-        {/* Error State */}
-        {error && (
+        {/* Tab Bar */}
+        <TabBar activeTab={activeTab} onTabChange={setActiveTab} />
+
+        {/* Error State (team tab only) */}
+        {activeTab === "team" && error && (
           <div className="bg-pulse-red-bg border border-red-200 rounded-lg p-4 mb-6">
             <p className="text-sm text-pulse-red">{error}</p>
             <button
@@ -209,121 +216,131 @@ export function Dashboard({ creds, onDisconnect }: DashboardProps) {
           </div>
         )}
 
-        {/* Empty state — no team selected yet */}
-        {!selectedTeam && !loading && !error && (
-          <div className="flex flex-col items-center justify-center py-24 text-center">
-            <div className="w-12 h-12 rounded-full bg-pulse-accent/10 flex items-center justify-center mb-4">
-              <svg
-                className="w-6 h-6 text-pulse-accent"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                strokeWidth={1.5}
+        {/* ── Team Tab ── */}
+        {activeTab === "team" && (
+          <>
+            {/* Empty state — no team selected yet */}
+            {!selectedTeam && !loading && !error && (
+              <div className="flex flex-col items-center justify-center py-24 text-center">
+                <div className="w-12 h-12 rounded-full bg-pulse-accent/10 flex items-center justify-center mb-4">
+                  <svg
+                    className="w-6 h-6 text-pulse-accent"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    strokeWidth={1.5}
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M18 18.72a9.094 9.094 0 003.741-.479 3 3 0 00-4.682-2.72m.94 3.198l.001.031c0 .225-.012.447-.037.666A11.944 11.944 0 0112 21c-2.17 0-4.207-.576-5.963-1.584A6.062 6.062 0 016 18.719m12 0a5.971 5.971 0 00-.941-3.197m0 0A5.995 5.995 0 0012 12.75a5.995 5.995 0 00-5.058 2.772m0 0a3 3 0 00-4.681 2.72 8.986 8.986 0 003.74.477m.94-3.197a5.971 5.971 0 00-.94 3.197M15 6.75a3 3 0 11-6 0 3 3 0 016 0zm6 3a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0zm-13.5 0a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0z"
+                    />
+                  </svg>
+                </div>
+                <h2 className="text-[15px] font-semibold text-pulse-text mb-1">
+                  Select a team to get started
+                </h2>
+                <p className="text-[13px] text-pulse-muted max-w-[280px]">
+                  Choose a team from the dropdown above to view PR activity and review metrics.
+                </p>
+              </div>
+            )}
+
+            {/* KPI Row */}
+            {loading && <SkeletonKPIRow />}
+            {data && (
+              <div
+                className={`grid grid-cols-1 gap-4 mb-6 ${
+                  stalePRData && policyData
+                    ? "md:grid-cols-5"
+                    : policyData || stalePRData
+                      ? "md:grid-cols-4"
+                      : "md:grid-cols-3"
+                }`}
               >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M18 18.72a9.094 9.094 0 003.741-.479 3 3 0 00-4.682-2.72m.94 3.198l.001.031c0 .225-.012.447-.037.666A11.944 11.944 0 0112 21c-2.17 0-4.207-.576-5.963-1.584A6.062 6.062 0 016 18.719m12 0a5.971 5.971 0 00-.941-3.197m0 0A5.995 5.995 0 0012 12.75a5.995 5.995 0 00-5.058 2.772m0 0a3 3 0 00-4.681 2.72 8.986 8.986 0 003.74.477m.94-3.197a5.971 5.971 0 00-.94 3.197M15 6.75a3 3 0 11-6 0 3 3 0 016 0zm6 3a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0zm-13.5 0a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0z"
+                <KPICard
+                  title="PRs Merged"
+                  value={data.team.totalPRs}
+                  subtitle={`last ${data.period.days} days`}
                 />
-              </svg>
-            </div>
-            <h2 className="text-[15px] font-semibold text-pulse-text mb-1">
-              Select a team to get started
-            </h2>
-            <p className="text-[13px] text-pulse-muted max-w-[280px]">
-              Choose a team from the dropdown above to view PR activity and review metrics.
-            </p>
-          </div>
-        )}
-
-        {/* KPI Row */}
-        {loading && <SkeletonKPIRow />}
-        {data && (
-          <div
-            className={`grid grid-cols-1 gap-4 mb-6 ${
-              stalePRData && policyData
-                ? "md:grid-cols-5"
-                : policyData || stalePRData
-                  ? "md:grid-cols-4"
-                  : "md:grid-cols-3"
-            }`}
-          >
-            <KPICard
-              title="PRs Merged"
-              value={data.team.totalPRs}
-              subtitle={`last ${data.period.days} days`}
-            />
-            <KPICard
-              title="Active Contributors"
-              value={`${data.team.activeContributors} / ${data.team.totalMembers}`}
-              subtitle="team members"
-            />
-            <KPICard
-              title="Most Active Repo"
-              value={mostActiveRepo?.repoName || "\u2014"}
-              subtitle={
-                mostActiveRepo
-                  ? `${mostActiveRepo.totalPRs} PRs merged`
-                  : "no data"
-              }
-            />
-            {policyData && (
-              <KPICard
-                title="Policy Coverage"
-                value={`${policyData.coverage.compliant} / ${policyData.coverage.total}`}
-                subtitle="repos compliant"
-              />
+                <KPICard
+                  title="Active Contributors"
+                  value={`${data.team.activeContributors} / ${data.team.totalMembers}`}
+                  subtitle="team members"
+                />
+                <KPICard
+                  title="Most Active Repo"
+                  value={mostActiveRepo?.repoName || "\u2014"}
+                  subtitle={
+                    mostActiveRepo
+                      ? `${mostActiveRepo.totalPRs} PRs merged`
+                      : "no data"
+                  }
+                />
+                {policyData && (
+                  <KPICard
+                    title="Policy Coverage"
+                    value={`${policyData.coverage.compliant} / ${policyData.coverage.total}`}
+                    subtitle="repos compliant"
+                  />
+                )}
+                {stalePRData && (
+                  <KPICard
+                    title="Open PRs"
+                    value={stalePRData.summary.total}
+                    subtitle={
+                      stalePRData.summary.stale > 0 ? (
+                        <span className="text-red-600">{stalePRData.summary.stale} stale</span>
+                      ) : (
+                        <span className="text-emerald-600">all fresh</span>
+                      )
+                    }
+                  />
+                )}
+              </div>
             )}
+
+            {/* Developer Breakdown Table */}
+            {loading && (
+              <div className="mb-6">
+                <SkeletonTable rows={6} />
+              </div>
+            )}
+            {data && (
+              <div className="mb-6">
+                <MemberTable
+                  members={data.members}
+                  teamName={data.team.name}
+                />
+              </div>
+            )}
+
+            {/* Repo Table */}
+            {loading && <SkeletonTable rows={4} />}
+            {data && (
+              <div className="mb-6">
+                <RepoTable repos={data.byRepo} />
+              </div>
+            )}
+
+            {/* Stale PRs */}
+            {stalePRLoading && <SkeletonTable rows={4} />}
             {stalePRData && (
-              <KPICard
-                title="Open PRs"
-                value={stalePRData.summary.total}
-                subtitle={
-                  stalePRData.summary.stale > 0 ? (
-                    <span className="text-red-600">{stalePRData.summary.stale} stale</span>
-                  ) : (
-                    <span className="text-emerald-600">all fresh</span>
-                  )
-                }
-              />
+              <div className="mb-6">
+                <StalePRTable data={stalePRData} />
+              </div>
             )}
-          </div>
+
+            {/* Branch Policy Audit */}
+            {policyLoading && <SkeletonTable rows={4} />}
+            {policyData && <PolicyAuditTable data={policyData} />}
+          </>
         )}
 
-        {/* Developer Breakdown Table */}
-        {loading && (
-          <div className="mb-6">
-            <SkeletonTable rows={6} />
-          </div>
+        {/* ── Organization Tab ── */}
+        {activeTab === "organization" && (
+          <OrgHealthView adoHeaders={adoHeaders} days={days} />
         )}
-        {data && (
-          <div className="mb-6">
-            <MemberTable
-              members={data.members}
-              teamName={data.team.name}
-            />
-          </div>
-        )}
-
-        {/* Repo Table */}
-        {loading && <SkeletonTable rows={4} />}
-        {data && (
-          <div className="mb-6">
-            <RepoTable repos={data.byRepo} />
-          </div>
-        )}
-
-        {/* Stale PRs */}
-        {stalePRLoading && <SkeletonTable rows={4} />}
-        {stalePRData && (
-          <div className="mb-6">
-            <StalePRTable data={stalePRData} />
-          </div>
-        )}
-
-        {/* Branch Policy Audit */}
-        {policyLoading && <SkeletonTable rows={4} />}
-        {policyData && <PolicyAuditTable data={policyData} />}
       </div>
     </div>
   );

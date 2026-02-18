@@ -7,12 +7,14 @@ interface TeamSelectorProps {
   selectedTeam: string;
   onTeamChange: (team: string) => void;
   adoHeaders: Record<string, string>;
+  disabled?: boolean;
 }
 
 export function TeamSelector({
   selectedTeam,
   onTeamChange,
   adoHeaders,
+  disabled,
 }: TeamSelectorProps) {
   const [teams, setTeams] = useState<Team[]>([]);
   const [loading, setLoading] = useState(true);
@@ -45,6 +47,17 @@ export function TeamSelector({
   if (loading) {
     return (
       <span className="text-pulse-dim text-sm">Loading teams...</span>
+    );
+  }
+
+  if (disabled) {
+    return (
+      <span
+        className="text-pulse-dim cursor-default text-sm"
+        title="Team filter does not apply to org-level data"
+      >
+        {selectedTeam || "Select team"}
+      </span>
     );
   }
 

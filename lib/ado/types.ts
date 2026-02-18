@@ -115,3 +115,45 @@ export interface TeamSummaryApiResponse {
   members: MemberSummary[];
   byRepo: RepoSummary[];
 }
+
+// ── Org Health types ──────────────────────────────────────────────
+
+export interface UnmatchedAuthor {
+  identity: string;
+  prCount: number;
+  repos: string[];
+  type: "service" | "external" | "unknown";
+}
+export interface UnmatchedAuthorsResponse {
+  authors: UnmatchedAuthor[];
+}
+
+export interface PolicyComplianceRepo {
+  repoName: string;
+  status: "compliant" | "non_compliant";
+  activePolicies: string[];
+}
+export interface PolicyComplianceResponse {
+  compliant: number;
+  total: number;
+  repos: PolicyComplianceRepo[];
+}
+
+export interface UserNoTeam {
+  displayName: string;
+  prCount: number;
+  repos: string[];
+  lastPRDate: string | null;
+}
+export interface UsersNoTeamResponse {
+  users: UserNoTeam[];
+}
+
+export interface GhostMember {
+  displayName: string;
+  teamName: string;
+  lastPRDate: string | null;
+}
+export interface GhostMembersResponse {
+  members: GhostMember[];
+}
