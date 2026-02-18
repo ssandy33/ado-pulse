@@ -27,7 +27,7 @@ function parseOrgUrl(input: string): { org: string; project: string } | null {
 }
 
 export function ConnectionForm({ onConnect }: ConnectionFormProps) {
-  const [orgUrl, setOrgUrl] = useState("");
+  const [orgUrl, setOrgUrl] = useState("https://dev.azure.com/arrivia/softeng");
   const [pat, setPat] = useState("");
   const [error, setError] = useState("");
   const [connecting, setConnecting] = useState(false);
