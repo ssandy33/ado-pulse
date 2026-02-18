@@ -55,9 +55,30 @@ export interface MemberSummary {
 }
 
 export interface RepoSummary {
+  repoId: string;
   repoName: string;
   totalPRs: number;
   contributors: string[];
+}
+
+export type PolicyStatus = "enabled" | "disabled" | "not_configured";
+
+export interface RepoPolicyStatus {
+  repoName: string;
+  repoId: string;
+  policies: {
+    minReviewers: PolicyStatus;
+    buildValidation: PolicyStatus;
+    workItemLinking: PolicyStatus;
+    commentResolution: PolicyStatus;
+    mergeStrategy: PolicyStatus;
+  };
+  compliance: "full" | "partial" | "none";
+}
+
+export interface PolicyAuditResponse {
+  coverage: { compliant: number; total: number };
+  repos: RepoPolicyStatus[];
 }
 
 export interface TeamSummaryApiResponse {

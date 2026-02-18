@@ -83,12 +83,16 @@ export async function GET(request: NextRequest) {
     // Compute repo breakdown
     const repoMap = new Map<
       string,
-      { totalPRs: number; contributors: Set<string> }
+      { repoId: string; totalPRs: number; contributors: Set<string> }
     >();
     for (const pr of teamPRs) {
       const repoName = pr.repository.name;
       if (!repoMap.has(repoName)) {
-        repoMap.set(repoName, { totalPRs: 0, contributors: new Set() });
+        repoMap.set(repoName, {
+          repoId: pr.repository.id,
+          totalPRs: 0,
+          contributors: new Set(),
+        });
       }
       const entry = repoMap.get(repoName)!;
       entry.totalPRs++;
@@ -97,6 +101,7 @@ export async function GET(request: NextRequest) {
 
     const byRepo: RepoSummary[] = Array.from(repoMap.entries())
       .map(([repoName, data]) => ({
+        repoId: data.repoId,
         repoName,
         totalPRs: data.totalPRs,
         contributors: Array.from(data.contributors),

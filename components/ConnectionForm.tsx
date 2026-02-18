@@ -146,7 +146,9 @@ export function ConnectionForm({ onConnect }: ConnectionFormProps) {
           <p className="text-[11px] text-pulse-muted leading-relaxed">
             Your PAT needs{" "}
             <span className="font-medium text-pulse-secondary">Code (Read)</span>{" "}
-            scope. Credentials stay in your browser &mdash; nothing is stored
+            and{" "}
+            <span className="font-medium text-pulse-secondary">Policy (Read)</span>{" "}
+            scopes. Credentials stay in your browser &mdash; nothing is stored
             server-side.
           </p>
         </div>
