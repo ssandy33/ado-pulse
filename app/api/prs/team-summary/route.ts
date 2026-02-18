@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getTeamMembers } from "@/lib/ado/teams";
 import { getPullRequests, getReviewsGivenByMember } from "@/lib/ado/pullRequests";
+import { batchAsync } from "@/lib/ado/client";
 import { extractConfig, jsonWithCache, handleApiError } from "@/lib/ado/helpers";
 import type {
   MemberSummary,
@@ -37,9 +38,10 @@ export async function GET(request: NextRequest) {
       memberNameSet.has(pr.createdBy.uniqueName.toLowerCase())
     );
 
-    // Fetch review counts per member in parallel
-    const reviewCounts = await Promise.all(
-      members.map((m) => getReviewsGivenByMember(configOrError, m.id, days))
+    // Fetch review counts per member in batches of 5
+    const reviewCounts = await batchAsync(
+      members.map((m) => () => getReviewsGivenByMember(configOrError, m.id, days)),
+      5
     );
 
     // Compute per-member stats

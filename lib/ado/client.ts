@@ -24,21 +24,48 @@ export function projectUrl(config: AdoConfig, path: string): string {
 }
 
 export async function adoFetch<T>(config: AdoConfig, url: string): Promise<T> {
-  const res = await fetch(url, {
-    headers: {
-      Authorization: authHeader(config.pat),
-      "Content-Type": "application/json",
-    },
-    next: { revalidate: 300 },
-  });
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 30000);
 
-  if (!res.ok) {
-    throw new AdoApiError(
-      `ADO API error: ${res.status} ${res.statusText}`,
-      res.status,
-      url
-    );
+  try {
+    const res = await fetch(url, {
+      headers: {
+        Authorization: authHeader(config.pat),
+        "Content-Type": "application/json",
+      },
+      signal: controller.signal,
+      next: { revalidate: 300 },
+    });
+
+    if (!res.ok) {
+      throw new AdoApiError(
+        `ADO API error: ${res.status} ${res.statusText}`,
+        res.status,
+        url
+      );
+    }
+
+    return res.json() as Promise<T>;
+  } catch (error) {
+    if (error instanceof Error && error.name === "AbortError") {
+      throw new AdoApiError("ADO API request timed out", 504, url);
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeout);
   }
+}
 
-  return res.json() as Promise<T>;
+/** Run async tasks in batches to avoid overwhelming ADO API */
+export async function batchAsync<T>(
+  tasks: (() => Promise<T>)[],
+  concurrency = 5
+): Promise<T[]> {
+  const results: T[] = [];
+  for (let i = 0; i < tasks.length; i += concurrency) {
+    const batch = tasks.slice(i, i + concurrency);
+    const batchResults = await Promise.all(batch.map((fn) => fn()));
+    results.push(...batchResults);
+  }
+  return results;
 }
