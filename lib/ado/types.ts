@@ -29,6 +29,7 @@ export interface PullRequest {
     id: string;
     name: string;
   };
+  reviewers: { id: string; displayName: string; uniqueName: string }[];
   workItemRefs: { id: string; url: string }[];
 }
 
@@ -79,6 +80,24 @@ export interface RepoPolicyStatus {
 export interface PolicyAuditResponse {
   coverage: { compliant: number; total: number };
   repos: RepoPolicyStatus[];
+}
+
+export type Staleness = "fresh" | "aging" | "stale";
+
+export interface OpenPR {
+  id: number;
+  title: string;
+  author: string;
+  repoName: string;
+  createdDate: string;
+  ageInDays: number;
+  reviewerCount: number;
+  staleness: Staleness;
+}
+
+export interface StalePRResponse {
+  summary: { fresh: number; aging: number; stale: number; total: number };
+  prs: OpenPR[];
 }
 
 export interface TeamSummaryApiResponse {

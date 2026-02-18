@@ -1,9 +1,11 @@
 "use client";
 
+import type { ReactNode } from "react";
+
 interface KPICardProps {
   title: string;
   value: string | number;
-  subtitle: string;
+  subtitle: ReactNode;
 }
 
 export function KPICard({ title, value, subtitle }: KPICardProps) {

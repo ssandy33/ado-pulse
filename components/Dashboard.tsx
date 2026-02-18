@@ -1,13 +1,14 @@
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from "react";
-import type { TeamSummaryApiResponse, PolicyAuditResponse } from "@/lib/ado/types";
+import type { TeamSummaryApiResponse, PolicyAuditResponse, StalePRResponse } from "@/lib/ado/types";
 import { TeamSelector } from "./TeamSelector";
 import { TimeRangeSelector } from "./TimeRangeSelector";
 import { KPICard } from "./KPICard";
 import { MemberTable } from "./MemberTable";
 import { RepoTable } from "./RepoTable";
 import { PolicyAuditTable } from "./PolicyAuditTable";
+import { StalePRTable } from "./StalePRTable";
 import { SkeletonKPIRow, SkeletonTable } from "./SkeletonLoader";
 
 interface DashboardProps {
@@ -24,6 +25,8 @@ export function Dashboard({ creds, onDisconnect }: DashboardProps) {
   const [refreshedAt, setRefreshedAt] = useState<Date | null>(null);
   const [policyData, setPolicyData] = useState<PolicyAuditResponse | null>(null);
   const [policyLoading, setPolicyLoading] = useState(false);
+  const [stalePRData, setStalePRData] = useState<StalePRResponse | null>(null);
+  const [stalePRLoading, setStalePRLoading] = useState(false);
 
   const adoHeaders = useMemo(
     () => ({
@@ -41,6 +44,7 @@ export function Dashboard({ creds, onDisconnect }: DashboardProps) {
     setError(null);
     setData(null);
     setPolicyData(null);
+    setStalePRData(null);
 
     try {
       const res = await fetch(
@@ -87,6 +91,25 @@ export function Dashboard({ creds, onDisconnect }: DashboardProps) {
         // Policy fetch failures are silent (non-critical section)
       })
       .finally(() => setPolicyLoading(false));
+  }, [data, adoHeaders]);
+
+  // Fetch stale PRs when team-summary data arrives
+  useEffect(() => {
+    if (!data) return;
+
+    setStalePRLoading(true);
+    fetch(
+      `/api/prs/stale?team=${encodeURIComponent(data.team.name)}`,
+      { headers: adoHeaders }
+    )
+      .then((res) => (res.ok ? res.json() : null))
+      .then((json: StalePRResponse | null) => {
+        if (json) setStalePRData(json);
+      })
+      .catch(() => {
+        // Stale PR fetch failures are silent (non-critical section)
+      })
+      .finally(() => setStalePRLoading(false));
   }, [data, adoHeaders]);
 
   const handleTeamChange = (team: string) => {
@@ -218,7 +241,11 @@ export function Dashboard({ creds, onDisconnect }: DashboardProps) {
         {data && (
           <div
             className={`grid grid-cols-1 gap-4 mb-6 ${
-              policyData ? "md:grid-cols-4" : "md:grid-cols-3"
+              stalePRData && policyData
+                ? "md:grid-cols-5"
+                : policyData || stalePRData
+                  ? "md:grid-cols-4"
+                  : "md:grid-cols-3"
             }`}
           >
             <KPICard
@@ -247,6 +274,19 @@ export function Dashboard({ creds, onDisconnect }: DashboardProps) {
                 subtitle="repos compliant"
               />
             )}
+            {stalePRData && (
+              <KPICard
+                title="Open PRs"
+                value={stalePRData.summary.total}
+                subtitle={
+                  stalePRData.summary.stale > 0 ? (
+                    <span className="text-red-600">{stalePRData.summary.stale} stale</span>
+                  ) : (
+                    <span className="text-emerald-600">all fresh</span>
+                  )
+                }
+              />
+            )}
           </div>
         )}
 
@@ -270,6 +310,14 @@ export function Dashboard({ creds, onDisconnect }: DashboardProps) {
         {data && (
           <div className="mb-6">
             <RepoTable repos={data.byRepo} />
+          </div>
+        )}
+
+        {/* Stale PRs */}
+        {stalePRLoading && <SkeletonTable rows={4} />}
+        {stalePRData && (
+          <div className="mb-6">
+            <StalePRTable data={stalePRData} />
           </div>
         )}
 

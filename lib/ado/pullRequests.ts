@@ -17,6 +17,17 @@ export async function getPullRequests(
   return data.value;
 }
 
+export async function getOpenPullRequests(
+  config: AdoConfig
+): Promise<PullRequest[]> {
+  const url = projectUrl(
+    config,
+    `_apis/git/pullrequests?searchCriteria.status=active&$top=500&api-version=7.1`
+  );
+  const data = await adoFetch<AdoListResponse<PullRequest>>(config, url);
+  return data.value;
+}
+
 export async function getReviewsGivenByMember(
   config: AdoConfig,
   memberId: string,
