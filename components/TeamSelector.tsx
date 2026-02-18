@@ -44,9 +44,7 @@ export function TeamSelector({
 
   if (loading) {
     return (
-      <span className="text-pulse-muted font-mono text-sm">
-        Loading teams...
-      </span>
+      <span className="text-pulse-dim text-sm">Loading teams...</span>
     );
   }
 
@@ -54,13 +52,21 @@ export function TeamSelector({
     <div className="relative inline-block" ref={ref}>
       <button
         onClick={() => setOpen(!open)}
-        className="text-pulse-accent font-mono text-sm hover:text-pulse-text transition-colors cursor-pointer inline-flex items-center gap-1"
+        className="text-pulse-accent font-medium text-sm hover:text-pulse-accent-hover transition-colors cursor-pointer inline-flex items-center gap-1"
       >
         {selectedTeam || "Select team"}
-        <span className="text-xs">&#9662;</span>
+        <svg
+          className={`w-3.5 h-3.5 transition-transform ${open ? "rotate-180" : ""}`}
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+          strokeWidth={2}
+        >
+          <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+        </svg>
       </button>
       {open && (
-        <div className="absolute top-full left-0 mt-1 z-50 bg-pulse-card border border-pulse-border rounded-lg shadow-lg py-1 min-w-[240px] max-h-[300px] overflow-y-auto">
+        <div className="absolute top-full left-0 mt-1.5 z-50 bg-pulse-card border border-pulse-border rounded-lg shadow-lg py-1 min-w-[240px] max-h-[300px] overflow-y-auto">
           {teams.map((team) => (
             <button
               key={team.id}
@@ -68,10 +74,10 @@ export function TeamSelector({
                 onTeamChange(team.name);
                 setOpen(false);
               }}
-              className={`block w-full text-left px-4 py-2 text-sm font-mono hover:bg-pulse-border/50 transition-colors cursor-pointer ${
+              className={`block w-full text-left px-4 py-2 text-[13px] hover:bg-pulse-hover transition-colors cursor-pointer ${
                 team.name === selectedTeam
-                  ? "text-pulse-accent"
-                  : "text-pulse-text"
+                  ? "text-pulse-accent font-medium"
+                  : "text-pulse-secondary"
               }`}
             >
               {team.name}

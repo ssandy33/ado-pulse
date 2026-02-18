@@ -74,22 +74,19 @@ export function Dashboard({ creds, onDisconnect }: DashboardProps) {
 
   return (
     <div className="min-h-screen bg-pulse-bg">
-      <div className="max-w-7xl mx-auto px-4 py-6">
+      <div className="max-w-7xl mx-auto px-6 py-6">
         {/* Header */}
-        <div className="mb-6">
+        <div className="mb-8">
           <div className="flex items-center justify-between flex-wrap gap-4">
             <div>
-              <div className="flex items-center gap-3 mb-1">
-                <div className="w-1 h-6 bg-pulse-accent rounded-full" />
-                <h1 className="text-xl font-semibold text-pulse-text">
-                  PR Hygiene Dashboard
-                </h1>
-              </div>
-              <div className="flex items-center gap-1 text-sm font-mono text-pulse-muted ml-4">
+              <h1 className="text-lg font-semibold text-pulse-text">
+                PR Hygiene
+              </h1>
+              <div className="flex items-center gap-1.5 text-[13px] text-pulse-muted mt-0.5">
                 <span>{creds.org}</span>
-                <span>/</span>
+                <span className="text-pulse-dim">/</span>
                 <span>{creds.project}</span>
-                <span>/</span>
+                <span className="text-pulse-dim">/</span>
                 <TeamSelector
                   selectedTeam={selectedTeam}
                   onTeamChange={handleTeamChange}
@@ -97,16 +94,13 @@ export function Dashboard({ creds, onDisconnect }: DashboardProps) {
                 />
               </div>
             </div>
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-3">
               {refreshedAt && (
-                <span className="text-xs font-mono text-pulse-muted">
-                  refreshed{" "}
+                <span className="text-[11px] text-pulse-dim">
                   {refreshedAt.toLocaleDateString("en-US", {
                     month: "short",
                     day: "numeric",
-                    year: "numeric",
                   })}{" "}
-                  at{" "}
                   {refreshedAt.toLocaleTimeString("en-US", {
                     hour: "numeric",
                     minute: "2-digit",
@@ -117,18 +111,31 @@ export function Dashboard({ creds, onDisconnect }: DashboardProps) {
               <button
                 onClick={fetchData}
                 disabled={loading}
-                className="text-pulse-muted hover:text-pulse-text transition-colors text-sm font-mono cursor-pointer disabled:opacity-50"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[12px] font-medium text-pulse-muted bg-pulse-card border border-pulse-border rounded-lg hover:text-pulse-text hover:bg-pulse-hover transition-colors cursor-pointer disabled:opacity-50"
                 title="Refresh"
               >
-                &#x21bb; refresh
+                <svg
+                  className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`}
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  strokeWidth={2}
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                  />
+                </svg>
+                Refresh
               </button>
               <TimeRangeSelector days={days} onDaysChange={handleDaysChange} />
               <button
                 onClick={onDisconnect}
-                className="text-pulse-muted hover:text-red-400 transition-colors text-xs font-mono cursor-pointer"
+                className="text-[12px] text-pulse-dim hover:text-pulse-red transition-colors cursor-pointer"
                 title="Disconnect"
               >
-                disconnect
+                Disconnect
               </button>
             </div>
           </div>
@@ -136,11 +143,11 @@ export function Dashboard({ creds, onDisconnect }: DashboardProps) {
 
         {/* Error State */}
         {error && (
-          <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-4 mb-6">
-            <p className="text-red-400 text-sm font-mono">{error}</p>
+          <div className="bg-pulse-red-bg border border-red-200 rounded-lg p-4 mb-6">
+            <p className="text-sm text-pulse-red">{error}</p>
             <button
               onClick={fetchData}
-              className="mt-2 text-xs font-mono text-red-400 hover:text-red-300 underline cursor-pointer"
+              className="mt-2 text-[12px] font-medium text-pulse-red hover:underline cursor-pointer"
             >
               Retry
             </button>
@@ -163,7 +170,7 @@ export function Dashboard({ creds, onDisconnect }: DashboardProps) {
             />
             <KPICard
               title="Most Active Repo"
-              value={mostActiveRepo?.repoName || "—"}
+              value={mostActiveRepo?.repoName || "\u2014"}
               subtitle={
                 mostActiveRepo
                   ? `${mostActiveRepo.totalPRs} PRs merged`

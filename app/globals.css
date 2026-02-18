@@ -3,23 +3,31 @@
 @theme inline {
   --color-pulse-bg: #f8fafc;
   --color-pulse-card: #ffffff;
-  --color-pulse-border: #e2e8f0;
-  --color-pulse-accent: #3b82f6;
-  --color-pulse-accent-hover: #2563eb;
-  --color-pulse-text: #1e293b;
-  --color-pulse-muted: #64748b;
-  --color-pulse-dim: #94a3b8;
-  --color-pulse-input: #f1f5f9;
-  --color-pulse-input-border: #cbd5e1;
+  --color-pulse-border: #e5e7eb;
+  --color-pulse-accent: #2563eb;
+  --color-pulse-accent-hover: #1d4ed8;
+  --color-pulse-text: #111827;
+  --color-pulse-secondary: #374151;
+  --color-pulse-muted: #6b7280;
+  --color-pulse-dim: #9ca3af;
+  --color-pulse-input: #f9fafb;
+  --color-pulse-input-border: #d1d5db;
+  --color-pulse-hover: #f3f4f6;
+  --color-pulse-green: #059669;
+  --color-pulse-green-bg: #ecfdf5;
+  --color-pulse-amber: #d97706;
+  --color-pulse-amber-bg: #fffbeb;
+  --color-pulse-red: #dc2626;
+  --color-pulse-red-bg: #fef2f2;
   --font-sans: var(--font-inter);
   --font-mono: var(--font-dm-mono);
-  --animate-fade-up: fadeUp 0.4s ease both;
+  --animate-fade-up: fadeUp 0.35s ease both;
 }
 
 @keyframes fadeUp {
   from {
     opacity: 0;
-    transform: translateY(12px);
+    transform: translateY(8px);
   }
   to {
     opacity: 1;
@@ -31,4 +39,6 @@ body {
   background-color: var(--color-pulse-bg);
   color: var(--color-pulse-text);
   font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
