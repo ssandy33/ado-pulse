@@ -23,8 +23,6 @@ services:
   app:
     build: .
     # No ports exposed — only accessible via Caddy through Docker network
-    env_file:
-      - .env
     environment:
       - NODE_OPTIONS=--max-old-space-size=512
     healthcheck:

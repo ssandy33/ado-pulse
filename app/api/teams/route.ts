@@ -1,16 +1,19 @@
+import { NextRequest, NextResponse } from "next/server";
 import { getProjectTeams } from "@/lib/ado/teams";
-import { jsonWithCache, handleApiError } from "@/lib/ado/helpers";
+import { extractConfig, jsonWithCache, handleApiError } from "@/lib/ado/helpers";
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const configOrError = extractConfig(request);
+  if (configOrError instanceof NextResponse) return configOrError;
+
   try {
-    const teams = await getProjectTeams();
-    const defaultTeam = process.env.ADO_DEFAULT_TEAM || "";
+    const teams = await getProjectTeams(configOrError);
 
     return jsonWithCache({
       teams,
-      default: defaultTeam,
-      org: process.env.ADO_ORG || "",
-      project: process.env.ADO_PROJECT || "",
+      default: "",
+      org: configOrError.org,
+      project: configOrError.project,
     });
   } catch (error) {
     return handleApiError(error);

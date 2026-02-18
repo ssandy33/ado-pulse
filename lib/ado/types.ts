@@ -1,3 +1,9 @@
+export interface AdoConfig {
+  org: string;
+  project: string;
+  pat: string;
+}
+
 export interface Team {
   id: string;
   name: string;

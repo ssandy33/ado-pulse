@@ -1,3 +1,5 @@
+import type { AdoConfig } from "./types";
+
 export class AdoApiError extends Error {
   constructor(
     message: string,
@@ -9,40 +11,22 @@ export class AdoApiError extends Error {
   }
 }
 
-function getConfig() {
-  const org = process.env.ADO_ORG;
-  const project = process.env.ADO_PROJECT;
-  const pat = process.env.ADO_PAT;
-
-  if (!org || !project || !pat) {
-    throw new Error(
-      "Missing required environment variables: ADO_ORG, ADO_PROJECT, ADO_PAT"
-    );
-  }
-
-  return { org, project, pat };
-}
-
 function authHeader(pat: string): string {
   return `Basic ${Buffer.from(":" + pat).toString("base64")}`;
 }
 
-export function orgUrl(path: string): string {
-  const { org } = getConfig();
-  return `https://dev.azure.com/${org}/${path}`;
+export function orgUrl(config: AdoConfig, path: string): string {
+  return `https://dev.azure.com/${config.org}/${path}`;
 }
 
-export function projectUrl(path: string): string {
-  const { org, project } = getConfig();
-  return `https://dev.azure.com/${org}/${project}/${path}`;
+export function projectUrl(config: AdoConfig, path: string): string {
+  return `https://dev.azure.com/${config.org}/${config.project}/${path}`;
 }
 
-export async function adoFetch<T>(url: string): Promise<T> {
-  const { pat } = getConfig();
-
+export async function adoFetch<T>(config: AdoConfig, url: string): Promise<T> {
   const res = await fetch(url, {
     headers: {
-      Authorization: authHeader(pat),
+      Authorization: authHeader(config.pat),
       "Content-Type": "application/json",
     },
     next: { revalidate: 300 },

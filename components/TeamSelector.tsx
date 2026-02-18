@@ -6,13 +6,13 @@ import type { TeamsApiResponse, Team } from "@/lib/ado/types";
 interface TeamSelectorProps {
   selectedTeam: string;
   onTeamChange: (team: string) => void;
-  onMetaLoaded?: (meta: { org: string; project: string }) => void;
+  adoHeaders: Record<string, string>;
 }
 
 export function TeamSelector({
   selectedTeam,
   onTeamChange,
-  onMetaLoaded,
+  adoHeaders,
 }: TeamSelectorProps) {
   const [teams, setTeams] = useState<Team[]>([]);
   const [loading, setLoading] = useState(true);
@@ -20,15 +20,12 @@ export function TeamSelector({
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    fetch("/api/teams")
+    fetch("/api/teams", { headers: adoHeaders })
       .then((res) => res.json())
-      .then((data: TeamsApiResponse & { org?: string; project?: string }) => {
+      .then((data: TeamsApiResponse) => {
         setTeams(data.teams);
         if (!selectedTeam && data.default) {
           onTeamChange(data.default);
-        }
-        if (onMetaLoaded && data.org && data.project) {
-          onMetaLoaded({ org: data.org, project: data.project });
         }
       })
       .catch(() => {})

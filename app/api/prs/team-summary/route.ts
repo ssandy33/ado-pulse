@@ -1,7 +1,7 @@
-import { NextRequest } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { getTeamMembers } from "@/lib/ado/teams";
 import { getPullRequests, getReviewsGivenByMember } from "@/lib/ado/pullRequests";
-import { jsonWithCache, handleApiError } from "@/lib/ado/helpers";
+import { extractConfig, jsonWithCache, handleApiError } from "@/lib/ado/helpers";
 import type {
   MemberSummary,
   RepoSummary,
@@ -9,11 +9,13 @@ import type {
 } from "@/lib/ado/types";
 
 export async function GET(request: NextRequest) {
+  const configOrError = extractConfig(request);
+  if (configOrError instanceof NextResponse) return configOrError;
+
   try {
     const searchParams = request.nextUrl.searchParams;
     const days = parseInt(searchParams.get("days") || "14", 10);
-    const teamName =
-      searchParams.get("team") || process.env.ADO_DEFAULT_TEAM || "";
+    const teamName = searchParams.get("team") || "";
 
     if (!teamName) {
       return jsonWithCache({ error: "No team specified" });
@@ -21,8 +23,8 @@ export async function GET(request: NextRequest) {
 
     // Fetch members and PRs in parallel
     const [members, allPRs] = await Promise.all([
-      getTeamMembers(teamName),
-      getPullRequests(days),
+      getTeamMembers(configOrError, teamName),
+      getPullRequests(configOrError, days),
     ]);
 
     // Build a set of team member uniqueNames (lowercase for case-insensitive match)
@@ -37,7 +39,7 @@ export async function GET(request: NextRequest) {
 
     // Fetch review counts per member in parallel
     const reviewCounts = await Promise.all(
-      members.map((m) => getReviewsGivenByMember(m.id, days))
+      members.map((m) => getReviewsGivenByMember(configOrError, m.id, days))
     );
 
     // Compute per-member stats

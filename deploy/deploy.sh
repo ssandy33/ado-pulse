@@ -114,27 +114,15 @@ if [ "$ENABLE_AUTH" = "y" ]; then
     echo ""
 fi
 
-echo ""
-echo ">>> ADO Configuration"
-read -p "  ADO Organization: " ADO_ORG
-read -p "  ADO Project: " ADO_PROJECT
-read -sp "  ADO PAT: " ADO_PAT
-echo ""
-read -p "  Default Team [Platform Engineering]: " ADO_DEFAULT_TEAM
-ADO_DEFAULT_TEAM="${ADO_DEFAULT_TEAM:-Platform Engineering}"
-
 # --------------------------------------------------
 # 8. Create .env file
 # --------------------------------------------------
 echo ">>> Creating .env file..."
+echo "(ADO credentials are entered in the browser — not stored on server)"
 cat > "$APP_DIR/.env" <<EOF
 DOMAIN=${DOMAIN}
 BASIC_AUTH_USER=${BASIC_AUTH_USER}
 BASIC_AUTH_PASS=${BASIC_AUTH_PASS}
-ADO_ORG=${ADO_ORG}
-ADO_PROJECT=${ADO_PROJECT}
-ADO_PAT=${ADO_PAT}
-ADO_DEFAULT_TEAM=${ADO_DEFAULT_TEAM}
 EOF
 
 chmod 600 "$APP_DIR/.env"

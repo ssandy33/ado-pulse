@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import type { TeamSummaryApiResponse } from "@/lib/ado/types";
 import { TeamSelector } from "./TeamSelector";
 import { TimeRangeSelector } from "./TimeRangeSelector";
@@ -9,15 +9,26 @@ import { MemberTable } from "./MemberTable";
 import { RepoTable } from "./RepoTable";
 import { SkeletonKPIRow, SkeletonTable } from "./SkeletonLoader";
 
-export function Dashboard() {
+interface DashboardProps {
+  creds: { org: string; project: string; pat: string };
+  onDisconnect: () => void;
+}
+
+export function Dashboard({ creds, onDisconnect }: DashboardProps) {
   const [selectedTeam, setSelectedTeam] = useState("");
   const [days, setDays] = useState(14);
   const [data, setData] = useState<TeamSummaryApiResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [refreshedAt, setRefreshedAt] = useState<Date | null>(null);
-  const [meta, setMeta] = useState<{ org: string; project: string } | null>(
-    null
+
+  const adoHeaders = useMemo(
+    () => ({
+      "x-ado-org": creds.org,
+      "x-ado-project": creds.project,
+      "x-ado-pat": creds.pat,
+    }),
+    [creds]
   );
 
   const fetchData = useCallback(async () => {
@@ -29,7 +40,8 @@ export function Dashboard() {
 
     try {
       const res = await fetch(
-        `/api/prs/team-summary?days=${days}&team=${encodeURIComponent(selectedTeam)}`
+        `/api/prs/team-summary?days=${days}&team=${encodeURIComponent(selectedTeam)}`,
+        { headers: adoHeaders }
       );
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
@@ -43,7 +55,7 @@ export function Dashboard() {
     } finally {
       setLoading(false);
     }
-  }, [selectedTeam, days]);
+  }, [selectedTeam, days, adoHeaders]);
 
   useEffect(() => {
     fetchData();
@@ -74,14 +86,14 @@ export function Dashboard() {
                 </h1>
               </div>
               <div className="flex items-center gap-1 text-sm font-mono text-pulse-muted ml-4">
-                <span>{meta?.org || "org"}</span>
+                <span>{creds.org}</span>
                 <span>/</span>
-                <span>{meta?.project || "project"}</span>
+                <span>{creds.project}</span>
                 <span>/</span>
                 <TeamSelector
                   selectedTeam={selectedTeam}
                   onTeamChange={handleTeamChange}
-                  onMetaLoaded={setMeta}
+                  adoHeaders={adoHeaders}
                 />
               </div>
             </div>
@@ -111,6 +123,13 @@ export function Dashboard() {
                 &#x21bb; refresh
               </button>
               <TimeRangeSelector days={days} onDaysChange={handleDaysChange} />
+              <button
+                onClick={onDisconnect}
+                className="text-pulse-muted hover:text-red-400 transition-colors text-xs font-mono cursor-pointer"
+                title="Disconnect"
+              >
+                disconnect
+              </button>
             </div>
           </div>
         </div>
