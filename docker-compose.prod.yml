@@ -1,8 +1,41 @@
 services:
-  app:
-    image: ado-pulse:latest
+  caddy:
+    image: caddy:2-alpine
     ports:
-      - "3001:3000"
-    env_file:
-      - .env.local
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile
+      - ./deploy/caddy-entrypoint.sh:/entrypoint.sh
+      - caddy_data:/data
+      - caddy_config:/config
+    environment:
+      - DOMAIN=${DOMAIN}
+      - BASIC_AUTH_USER=${BASIC_AUTH_USER:-}
+      - BASIC_AUTH_PASS=${BASIC_AUTH_PASS:-}
+    entrypoint: /entrypoint.sh
+    depends_on:
+      app:
+        condition: service_healthy
     restart: unless-stopped
+    mem_limit: 256m
+
+  app:
+    build: .
+    # No ports exposed — only accessible via Caddy through Docker network
+    env_file:
+      - .env
+    environment:
+      - NODE_OPTIONS=--max-old-space-size=512
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:3000/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    restart: unless-stopped
+    mem_limit: 1g
+
+volumes:
+  caddy_data:
+  caddy_config:
