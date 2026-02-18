@@ -6,23 +6,51 @@ interface ConnectionFormProps {
   onConnect: (creds: { org: string; project: string; pat: string }) => void;
 }
 
+function parseOrgUrl(input: string): { org: string; project: string } | null {
+  const cleaned = input.trim().replace(/\/+$/, "");
+
+  // Try URL format: https://dev.azure.com/{org}/{project}
+  const urlMatch = cleaned.match(
+    /dev\.azure\.com\/([^/]+)\/([^/]+)/
+  );
+  if (urlMatch) {
+    return { org: urlMatch[1], project: urlMatch[2] };
+  }
+
+  // Try plain format: {org}/{project}
+  const plainMatch = cleaned.match(/^([^/]+)\/([^/]+)$/);
+  if (plainMatch) {
+    return { org: plainMatch[1], project: plainMatch[2] };
+  }
+
+  return null;
+}
+
 export function ConnectionForm({ onConnect }: ConnectionFormProps) {
-  const [org, setOrg] = useState("");
-  const [project, setProject] = useState("");
+  const [orgUrl, setOrgUrl] = useState("");
   const [pat, setPat] = useState("");
   const [error, setError] = useState("");
   const [connecting, setConnecting] = useState(false);
 
   const handleConnect = async () => {
-    if (!org.trim() || !project.trim() || !pat.trim()) return;
+    if (!orgUrl.trim() || !pat.trim()) return;
     setError("");
+
+    const parsed = parseOrgUrl(orgUrl);
+    if (!parsed) {
+      setError(
+        "Enter your org and project — e.g. https://dev.azure.com/arrivia/softeng"
+      );
+      return;
+    }
+
     setConnecting(true);
 
     try {
       const res = await fetch("/api/teams", {
         headers: {
-          "x-ado-org": org.trim(),
-          "x-ado-project": project.trim(),
+          "x-ado-org": parsed.org,
+          "x-ado-project": parsed.project,
           "x-ado-pat": pat.trim(),
         },
       });
@@ -31,13 +59,13 @@ export function ConnectionForm({ onConnect }: ConnectionFormProps) {
         const body = await res.json().catch(() => ({ error: "Unknown error" }));
         if (res.status === 401) {
           throw new Error(
-            "Authentication failed — check your PAT and organization"
+            "Authentication failed — check your PAT and organization URL"
           );
         }
         throw new Error(body.error || `Connection failed (${res.status})`);
       }
 
-      onConnect({ org: org.trim(), project: project.trim(), pat: pat.trim() });
+      onConnect({ org: parsed.org, project: parsed.project, pat: pat.trim() });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Connection failed");
     } finally {
@@ -64,34 +92,18 @@ export function ConnectionForm({ onConnect }: ConnectionFormProps) {
         <div className="flex flex-col gap-4 mb-6">
           <div>
             <label
-              htmlFor="org"
+              htmlFor="org-url"
               className="block text-[11px] text-pulse-muted font-mono uppercase tracking-[1px] mb-1.5"
             >
-              Organization
+              ADO Organization URL
             </label>
             <input
-              id="org"
+              id="org-url"
               type="text"
               className="w-full px-3.5 py-2.5 bg-pulse-input border border-pulse-input-border rounded-md text-pulse-text text-sm font-mono outline-none transition-colors focus:border-pulse-accent placeholder:text-pulse-dim/50"
-              placeholder="e.g. arrivia"
-              value={org}
-              onChange={(e) => setOrg(e.target.value)}
-            />
-          </div>
-          <div>
-            <label
-              htmlFor="project"
-              className="block text-[11px] text-pulse-muted font-mono uppercase tracking-[1px] mb-1.5"
-            >
-              Project
-            </label>
-            <input
-              id="project"
-              type="text"
-              className="w-full px-3.5 py-2.5 bg-pulse-input border border-pulse-input-border rounded-md text-pulse-text text-sm font-mono outline-none transition-colors focus:border-pulse-accent placeholder:text-pulse-dim/50"
-              placeholder="e.g. softeng"
-              value={project}
-              onChange={(e) => setProject(e.target.value)}
+              placeholder="https://dev.azure.com/your-org/your-project"
+              value={orgUrl}
+              onChange={(e) => setOrgUrl(e.target.value)}
             />
           </div>
           <div>
