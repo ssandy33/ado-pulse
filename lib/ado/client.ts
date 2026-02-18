@@ -34,7 +34,7 @@ export async function adoFetch<T>(config: AdoConfig, url: string): Promise<T> {
         "Content-Type": "application/json",
       },
       signal: controller.signal,
-      next: { revalidate: 300 },
+      cache: "no-store",
     });
 
     if (!res.ok) {
