@@ -9,22 +9,69 @@ export async function GET(request: NextRequest) {
   const response: UnmatchedAuthorsResponse = {
     authors: [
       {
-        identity: "build-service@contoso.com",
+        uniqueName: "build-service@contoso.com",
+        displayName: "Build Service",
         prCount: 12,
         repos: ["infra-deploy"],
-        type: "service",
+        lastPRDate: "2025-12-01T10:30:00Z",
+        likelyType: "service-account",
+        prs: [
+          {
+            pullRequestId: 4501,
+            title: "Auto-update deployment manifests",
+            repoName: "infra-deploy",
+            creationDate: "2025-12-01T10:30:00Z",
+            url: "https://dev.azure.com/contoso/MyProject/_git/infra-deploy/pullrequest/4501",
+          },
+          {
+            pullRequestId: 4480,
+            title: "Bump Helm chart versions",
+            repoName: "infra-deploy",
+            creationDate: "2025-11-28T08:15:00Z",
+            url: "https://dev.azure.com/contoso/MyProject/_git/infra-deploy/pullrequest/4480",
+          },
+        ],
       },
       {
-        identity: "contractor@partner.com",
+        uniqueName: "contractor@partner.com",
+        displayName: "Jane Contractor",
         prCount: 5,
         repos: ["web-app", "api-gw"],
-        type: "external",
+        lastPRDate: "2025-11-20T14:00:00Z",
+        likelyType: "external",
+        prs: [
+          {
+            pullRequestId: 4412,
+            title: "Add OAuth2 login flow",
+            repoName: "web-app",
+            creationDate: "2025-11-20T14:00:00Z",
+            url: "https://dev.azure.com/contoso/MyProject/_git/web-app/pullrequest/4412",
+          },
+          {
+            pullRequestId: 4390,
+            title: "Fix CORS headers on gateway",
+            repoName: "api-gw",
+            creationDate: "2025-11-15T09:45:00Z",
+            url: "https://dev.azure.com/contoso/MyProject/_git/api-gw/pullrequest/4390",
+          },
+        ],
       },
       {
-        identity: "unknown-user@domain.com",
+        uniqueName: "unknown-user@domain.com",
+        displayName: "unknown-user@domain.com",
         prCount: 2,
         repos: ["legacy-tools"],
-        type: "unknown",
+        lastPRDate: "2025-10-05T16:20:00Z",
+        likelyType: "unknown",
+        prs: [
+          {
+            pullRequestId: 4200,
+            title: "Patch legacy XML parser",
+            repoName: "legacy-tools",
+            creationDate: "2025-10-05T16:20:00Z",
+            url: "https://dev.azure.com/contoso/MyProject/_git/legacy-tools/pullrequest/4200",
+          },
+        ],
       },
     ],
   };

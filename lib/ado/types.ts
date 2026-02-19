@@ -118,12 +118,24 @@ export interface TeamSummaryApiResponse {
 
 // ── Org Health types ──────────────────────────────────────────────
 
+export interface UnmatchedAuthorPR {
+  pullRequestId: number;
+  title: string;
+  repoName: string;
+  creationDate: string;
+  url: string;
+}
+
 export interface UnmatchedAuthor {
-  identity: string;
+  uniqueName: string;
+  displayName: string;
   prCount: number;
   repos: string[];
-  type: "service" | "external" | "unknown";
+  lastPRDate: string;
+  likelyType: "service-account" | "external" | "unknown";
+  prs: UnmatchedAuthorPR[];
 }
+
 export interface UnmatchedAuthorsResponse {
   authors: UnmatchedAuthor[];
 }
