@@ -20,7 +20,7 @@ jobs:
             echo "${{ secrets.DEPLOY_SSH_KEY }}" > ~/.ssh/deploy_key
             chmod 600 ~/.ssh/deploy_key
             ssh -o StrictHostKeyChecking=no -o ConnectTimeout=30 \
-              -i ~/.ssh/deploy_key -p 2222 \
+              -i ~/.ssh/deploy_key \
               ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} \
               'cd /opt/ado-pulse && git fetch origin main && git reset --hard origin/main && docker compose -f docker-compose.prod.yml build && docker compose -f docker-compose.prod.yml up -d && docker compose -f docker-compose.prod.yml restart caddy && docker compose -f docker-compose.prod.yml ps && docker image prune -f'
             rm -f ~/.ssh/deploy_key
