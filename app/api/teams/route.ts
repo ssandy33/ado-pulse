@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getProjectTeams } from "@/lib/ado/teams";
 import { extractConfig, jsonWithCache, handleApiError } from "@/lib/ado/helpers";
+import { readSettings } from "@/lib/settings";
 
 export async function GET(request: NextRequest) {
   const configOrError = extractConfig(request);
@@ -8,6 +9,24 @@ export async function GET(request: NextRequest) {
 
   try {
     const teams = await getProjectTeams(configOrError);
+
+    const pinnedOnly = request.nextUrl.searchParams.get("pinnedOnly") === "true";
+    if (pinnedOnly) {
+      const settings = await readSettings();
+      const pinned = settings.teamVisibility?.pinnedTeams ?? [];
+      if (pinned.length > 0) {
+        const pinnedSet = new Set(pinned);
+        const filtered = teams
+          .filter((t) => pinnedSet.has(t.name))
+          .sort((a, b) => a.name.localeCompare(b.name));
+        return jsonWithCache({
+          teams: filtered,
+          default: "",
+          org: configOrError.org,
+          project: configOrError.project,
+        });
+      }
+    }
 
     return jsonWithCache({
       teams,

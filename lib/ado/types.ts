@@ -69,6 +69,7 @@ export interface MemberRoleExclusion {
 
 export interface SettingsData {
   memberRoles?: { exclusions: MemberRoleExclusion[] };
+  teamVisibility?: { pinnedTeams: string[] };
 }
 
 export interface RepoSummary {

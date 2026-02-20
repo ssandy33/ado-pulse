@@ -29,7 +29,7 @@ function TeamDropdown({
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    fetch("/api/teams", { headers: adoHeaders })
+    fetch("/api/teams?pinnedOnly=true", { headers: adoHeaders })
       .then((res) => res.json())
       .then((data: TeamsApiResponse) => setTeams(data.teams))
       .catch(() => {})

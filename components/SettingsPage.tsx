@@ -1,6 +1,7 @@
 "use client";
 
 import { MemberRolesSettings } from "./MemberRolesSettings";
+import { TeamVisibilitySettings } from "./TeamVisibilitySettings";
 
 interface SettingsPageProps {
   adoHeaders: Record<string, string>;
@@ -28,10 +29,9 @@ export function SettingsPage({
         days={days}
       />
 
-      <hr className="my-8 border-pulse-border" />
-      <p className="text-[12px] text-pulse-dim">
-        More settings coming soon.
-      </p>
+      <div className="my-8" />
+
+      <TeamVisibilitySettings adoHeaders={adoHeaders} />
     </div>
   );
 }
