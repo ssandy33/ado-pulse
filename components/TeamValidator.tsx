@@ -96,7 +96,7 @@ export function TeamValidator({ adoHeaders, days, preSelectedTeam }: TeamValidat
   const [data, setData] = useState<TeamValidatorResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
+  const [expandedRow, setExpandedRow] = useState<string | null>(null);
 
   useEffect(() => {
     if (preSelectedTeam) setSelectedTeam(preSelectedTeam);
@@ -108,7 +108,7 @@ export function TeamValidator({ adoHeaders, days, preSelectedTeam }: TeamValidat
     setLoading(true);
     setError(null);
     setData(null);
-    setExpandedRows(new Set());
+    setExpandedRow(null);
 
     fetch(
       `/api/org-health/team-validator?team=${encodeURIComponent(selectedTeam)}&days=${days}`,
@@ -130,40 +130,40 @@ export function TeamValidator({ adoHeaders, days, preSelectedTeam }: TeamValidat
   }, [fetchValidator]);
 
   const toggleRow = (key: string) => {
-    setExpandedRows((prev) => {
-      const next = new Set(prev);
-      if (next.has(key)) next.delete(key);
-      else next.add(key);
-      return next;
-    });
+    setExpandedRow((prev) => (prev === key ? null : key));
   };
 
   return (
     <div className="mb-6">
       <div className="bg-pulse-card border border-pulse-border rounded-lg overflow-hidden">
         {/* Header */}
-        <div className="px-4 py-3 border-b border-pulse-border flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <h3 className="text-[13px] font-semibold text-pulse-text">
-              Team Validator
-            </h3>
-            <TeamDropdown
-              selectedTeam={selectedTeam}
-              onTeamChange={setSelectedTeam}
-              adoHeaders={adoHeaders}
-            />
+        <div className="px-4 py-3 border-b border-pulse-border">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <h3 className="text-[13px] font-semibold text-pulse-text">
+                Team Validator
+              </h3>
+              <TeamDropdown
+                selectedTeam={selectedTeam}
+                onTeamChange={setSelectedTeam}
+                adoHeaders={adoHeaders}
+              />
+            </div>
+            {data && (
+              <span className="text-[11px] text-pulse-dim">
+                {data.team.name} &middot; {data.period.days} days
+              </span>
+            )}
           </div>
-          {data && (
-            <span className="text-[11px] text-pulse-dim">
-              {data.teamRepos.length} repos scanned
-            </span>
-          )}
+          <p className="text-[11px] text-pulse-muted mt-1">
+            Check whether roster member emails resolve to actual PR activity.
+          </p>
         </div>
 
         <div className="p-4">
           {!selectedTeam && !loading && (
             <p className="text-[13px] text-pulse-muted text-center py-6">
-              Select a team above to validate roster identity matching.
+              Select a team to begin.
             </p>
           )}
 
@@ -183,168 +183,138 @@ export function TeamValidator({ adoHeaders, days, preSelectedTeam }: TeamValidat
 
           {data && (
             <>
-              {/* Summary cards */}
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
-                <div className="bg-pulse-bg rounded-md p-3">
-                  <div className="text-[11px] text-pulse-muted uppercase tracking-wide mb-1">Roster Size</div>
-                  <div className="text-lg font-semibold text-pulse-text">{data.summary.rosterSize}</div>
-                </div>
-                <div className="bg-pulse-bg rounded-md p-3">
-                  <div className="text-[11px] text-pulse-muted uppercase tracking-wide mb-1">Found in PR Data</div>
-                  <div className="text-lg font-semibold text-pulse-text">{data.summary.matchedInPRData}</div>
-                </div>
-                <div className="bg-pulse-bg rounded-md p-3">
-                  <div className="text-[11px] text-pulse-muted uppercase tracking-wide mb-1">Gap Authors</div>
-                  <div className={`text-lg font-semibold ${data.summary.gapAuthorCount > 0 ? "text-amber-600" : "text-pulse-text"}`}>
-                    {data.summary.gapAuthorCount}
-                  </div>
-                </div>
-                <div className="bg-pulse-bg rounded-md p-3">
-                  <div className="text-[11px] text-pulse-muted uppercase tracking-wide mb-1">Possible Mismatches</div>
-                  <div className={`text-lg font-semibold ${data.summary.possibleMismatches > 0 ? "text-red-600" : "text-pulse-text"}`}>
-                    {data.summary.possibleMismatches}
-                  </div>
-                </div>
-              </div>
-
-              {/* Roster members table */}
-              <div className="mb-4">
-                <h4 className="text-[12px] font-medium text-pulse-text mb-2">
-                  Roster Members
-                </h4>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-[12px]">
-                    <thead>
-                      <tr className="text-left text-pulse-muted border-b border-pulse-border">
-                        <th className="px-3 py-2 font-medium w-8"></th>
-                        <th className="px-3 py-2 font-medium">Name</th>
-                        <th className="px-3 py-2 font-medium">Identity</th>
-                        <th className="px-3 py-2 font-medium text-right">PRs</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {data.rosterMembers.map((member) => (
-                        <tr
-                          key={member.uniqueName}
-                          className="border-b border-pulse-border/50 last:border-0"
-                        >
-                          <td className="px-3 py-2 text-center">
-                            {member.foundInPRData ? (
-                              <span className="text-emerald-500" title="Found in PR data">&#10003;</span>
-                            ) : (
-                              <span className="text-red-500" title="Not found in PR data">&#10007;</span>
-                            )}
-                          </td>
-                          <td className="px-3 py-2 text-pulse-text">{member.displayName}</td>
-                          <td className="px-3 py-2 font-mono text-pulse-muted">{member.uniqueName}</td>
-                          <td className="px-3 py-2 text-right text-pulse-text">{member.prCount}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-
-              {/* Gap authors table */}
-              {data.gapAuthors.length > 0 && (
-                <div>
-                  <h4 className="text-[12px] font-medium text-pulse-text mb-2">
-                    Gap Authors ({data.gapAuthors.length})
+              {/* Roster identity check table */}
+              <div className="overflow-x-auto">
+                <div className="px-3 py-2 mb-1">
+                  <h4 className="text-[11px] font-medium text-pulse-muted uppercase tracking-wide">
+                    Roster Identity Check
                   </h4>
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-[12px]">
-                      <thead>
-                        <tr className="text-left text-pulse-muted border-b border-pulse-border">
-                          <th className="px-3 py-2 font-medium w-8"></th>
-                          <th className="px-3 py-2 font-medium">Identity</th>
-                          <th className="px-3 py-2 font-medium">Display Name</th>
-                          <th className="px-3 py-2 font-medium text-right">PRs</th>
-                          <th className="px-3 py-2 font-medium">Possible Match</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {data.gapAuthors.map((author) => (
-                          <>
-                            <tr
-                              key={author.uniqueName}
-                              className={`border-b border-pulse-border/50 cursor-pointer hover:bg-pulse-hover/50 ${
-                                author.possibleMatch ? "border-l-2 border-l-amber-400" : ""
-                              }`}
-                              onClick={() => toggleRow(author.uniqueName)}
-                            >
-                              <td className="px-3 py-2 text-center text-pulse-muted">
-                                <svg
-                                  className={`w-3 h-3 inline transition-transform ${
-                                    expandedRows.has(author.uniqueName) ? "rotate-90" : ""
-                                  }`}
-                                  fill="none"
-                                  viewBox="0 0 24 24"
-                                  stroke="currentColor"
-                                  strokeWidth={2}
-                                >
-                                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-                                </svg>
-                              </td>
-                              <td className="px-3 py-2 font-mono text-pulse-muted">{author.uniqueName}</td>
-                              <td className="px-3 py-2 text-pulse-text">{author.displayName}</td>
-                              <td className="px-3 py-2 text-right text-pulse-text">{author.prCount}</td>
-                              <td className="px-3 py-2">
-                                {author.possibleMatch ? (
-                                  <span className="text-amber-600 font-medium">{author.possibleMatchName}</span>
-                                ) : (
-                                  <span className="text-pulse-dim">--</span>
+                </div>
+                <table className="w-full text-[12px]">
+                  <thead>
+                    <tr className="text-left text-pulse-muted border-b border-pulse-border">
+                      <th className="px-3 py-2 font-medium">Roster Member</th>
+                      <th className="px-3 py-2 font-medium">Email Matched</th>
+                      <th className="px-3 py-2 font-medium text-right">PRs Found</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {data.rosterMembers.map((member) => {
+                      const isExpanded = expandedRow === member.uniqueName;
+                      const canExpand = member.foundInProjectPRs && member.prs.length > 0;
+
+                      return (
+                        <tr key={member.uniqueName} className="contents">
+                          {/* Main row */}
+                          <tr
+                            className={`border-b border-pulse-border/50 ${
+                              !member.foundInProjectPRs ? "border-l-2 border-l-red-300" : ""
+                            } ${canExpand ? "cursor-pointer hover:bg-pulse-hover/50" : ""}`}
+                            onClick={() => canExpand && toggleRow(member.uniqueName)}
+                          >
+                            <td className="px-3 py-2">
+                              <div className="flex items-center gap-1.5">
+                                {canExpand && (
+                                  <svg
+                                    className={`w-3 h-3 text-pulse-muted transition-transform flex-shrink-0 ${
+                                      isExpanded ? "rotate-90" : ""
+                                    }`}
+                                    fill="none"
+                                    viewBox="0 0 24 24"
+                                    stroke="currentColor"
+                                    strokeWidth={2}
+                                  >
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                                  </svg>
                                 )}
+                                <div>
+                                  <div className="text-pulse-text">{member.displayName}</div>
+                                  <div className="text-[11px] font-mono text-pulse-muted">{member.uniqueName}</div>
+                                </div>
+                              </div>
+                            </td>
+                            <td className="px-3 py-2">
+                              {member.foundInProjectPRs ? (
+                                <span className="text-emerald-600 font-medium">&#10003; Found</span>
+                              ) : (
+                                <span className="text-red-600 font-medium">&#10007; Not found</span>
+                              )}
+                            </td>
+                            <td className="px-3 py-2 text-right text-pulse-text">{member.matchedPRCount}</td>
+                          </tr>
+                          {/* Expanded PR list */}
+                          {isExpanded && (
+                            <tr>
+                              <td colSpan={3} className="px-0 py-0">
+                                <div className="bg-pulse-bg/50 px-8 py-2">
+                                  <table className="w-full text-[11px]">
+                                    <thead>
+                                      <tr className="text-pulse-muted">
+                                        <th className="text-left px-2 py-1 font-medium">PR</th>
+                                        <th className="text-left px-2 py-1 font-medium">Title</th>
+                                        <th className="text-left px-2 py-1 font-medium">Repo</th>
+                                        <th className="text-left px-2 py-1 font-medium">Date</th>
+                                        <th className="text-right px-2 py-1 font-medium"></th>
+                                      </tr>
+                                    </thead>
+                                    <tbody>
+                                      {member.prs.map((pr) => (
+                                        <tr
+                                          key={pr.pullRequestId}
+                                          className="border-t border-pulse-border/30"
+                                        >
+                                          <td className="px-2 py-1 text-pulse-muted">#{pr.pullRequestId}</td>
+                                          <td className="px-2 py-1 text-pulse-text">{pr.title}</td>
+                                          <td className="px-2 py-1 text-pulse-muted">{pr.repoName}</td>
+                                          <td className="px-2 py-1 text-pulse-muted">
+                                            {new Date(pr.creationDate).toLocaleDateString("en-US", {
+                                              month: "short",
+                                              day: "numeric",
+                                            })}
+                                          </td>
+                                          <td className="px-2 py-1 text-right">
+                                            <a
+                                              href={pr.url}
+                                              target="_blank"
+                                              rel="noopener noreferrer"
+                                              className="text-pulse-accent hover:underline"
+                                              onClick={(e) => e.stopPropagation()}
+                                            >
+                                              &#8599;
+                                            </a>
+                                          </td>
+                                        </tr>
+                                      ))}
+                                    </tbody>
+                                  </table>
+                                </div>
                               </td>
                             </tr>
-                            {expandedRows.has(author.uniqueName) && (
-                              <tr key={`${author.uniqueName}-prs`}>
-                                <td colSpan={5} className="px-0 py-0">
-                                  <div className="bg-pulse-bg/50 px-8 py-2">
-                                    <table className="w-full text-[11px]">
-                                      <thead>
-                                        <tr className="text-pulse-muted">
-                                          <th className="text-left px-2 py-1 font-medium">PR</th>
-                                          <th className="text-left px-2 py-1 font-medium">Title</th>
-                                          <th className="text-left px-2 py-1 font-medium">Repo</th>
-                                          <th className="text-left px-2 py-1 font-medium">Date</th>
-                                        </tr>
-                                      </thead>
-                                      <tbody>
-                                        {author.prs.map((pr) => (
-                                          <tr
-                                            key={pr.pullRequestId}
-                                            className="border-t border-pulse-border/30"
-                                          >
-                                            <td className="px-2 py-1 text-pulse-muted">#{pr.pullRequestId}</td>
-                                            <td className="px-2 py-1 text-pulse-text">{pr.title}</td>
-                                            <td className="px-2 py-1 text-pulse-muted">{pr.repoName}</td>
-                                            <td className="px-2 py-1 text-pulse-muted">
-                                              {new Date(pr.creationDate).toLocaleDateString("en-US", {
-                                                month: "short",
-                                                day: "numeric",
-                                              })}
-                                            </td>
-                                          </tr>
-                                        ))}
-                                      </tbody>
-                                    </table>
-                                  </div>
-                                </td>
-                              </tr>
-                            )}
-                          </>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              )}
+                          )}
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
 
-              {data.gapAuthors.length === 0 && (
-                <p className="text-[12px] text-pulse-muted text-center py-3">
-                  No gap authors found — all PRs in team repos are attributed to roster members.
+              {/* Explanatory footer */}
+              <div className="mt-3 space-y-2">
+                <p className="text-[11px] text-pulse-muted">
+                  <span className="text-emerald-600 font-medium">&#10003; Found</span> rows are expandable — click to see PRs.{" "}
+                  <span className="text-red-600 font-medium">&#10007; Not found</span> means the email
+                  was never used to author a PR this period.
                 </p>
-              )}
+
+                {data.apiLimitHit && (
+                  <div className="flex items-center gap-2 text-[12px] text-amber-600 bg-amber-50 border border-amber-200 rounded-md px-3 py-2">
+                    <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                    </svg>
+                    <span>API limit hit — may be incomplete (500 PR ceiling)</span>
+                  </div>
+                )}
+              </div>
             </>
           )}
         </div>

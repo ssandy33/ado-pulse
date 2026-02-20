@@ -8,7 +8,7 @@ import type {
   RepoSummary,
   TeamSummaryApiResponse,
   DataDiagnostics,
-  UnmatchedInTeamRepo,
+  DiagnosticRosterMember,
 } from "@/lib/ado/types";
 
 export async function GET(request: NextRequest) {
@@ -114,94 +114,67 @@ export async function GET(request: NextRequest) {
       (m) => m.prCount > 0
     ).length;
 
-    // ── Diagnostics computation ──────────────────────────────────
-    const teamRepoNames = Array.from(repoMap.keys());
-
-    // Count all PRs (from anyone) in the repos the team touches
-    const prsInTeamRepos = allPRs.filter((pr) =>
-      teamRepoNames.includes(pr.repository.name)
+    // ── Diagnostics: roster identity resolution ────────────────────
+    // Check whether each roster member's email appears anywhere in
+    // ALL project PR data (not scoped to any repo).
+    const allPRAuthors = new Set(
+      allPRs.map((pr) => pr.createdBy.uniqueName.toLowerCase())
     );
-    const PRsInTeamRepos = prsInTeamRepos.length;
-    const teamMatchedPRs = teamPRs.length;
-    const gapPRs = PRsInTeamRepos - teamMatchedPRs;
-    const matchRate =
-      PRsInTeamRepos > 0
-        ? Math.round((teamMatchedPRs / PRsInTeamRepos) * 100)
-        : 100;
 
-    // Find unmatched authors in team repos
-    const rosterWords = members.flatMap((m) => {
-      const parts = m.displayName.toLowerCase().split(/[\s.\-_@]+/);
-      return parts.filter((w) => w.length >= 4);
+    const diagRosterMembers: DiagnosticRosterMember[] = members.map((m) => {
+      const key = m.uniqueName.toLowerCase();
+      const foundInProjectPRs = allPRAuthors.has(key);
+      const matchedPRCount = allPRs.filter(
+        (pr) => pr.createdBy.uniqueName.toLowerCase() === key
+      ).length;
+      return {
+        uniqueName: m.uniqueName,
+        displayName: m.displayName,
+        matchedPRCount,
+        foundInProjectPRs,
+      };
     });
 
-    const unmatchedInTeamRepos: UnmatchedInTeamRepo[] = [];
-    const unmatchedMap = new Map<
-      string,
-      { displayName: string; count: number }
-    >();
+    const membersWithPRs = diagRosterMembers.filter(
+      (m) => m.foundInProjectPRs && m.matchedPRCount > 0
+    ).length;
+    const membersNotFound = diagRosterMembers.filter(
+      (m) => !m.foundInProjectPRs
+    ).length;
+    const membersFoundButZero = diagRosterMembers.filter(
+      (m) => m.foundInProjectPRs && m.matchedPRCount === 0
+    ).length;
 
-    for (const pr of prsInTeamRepos) {
-      const authorKey = pr.createdBy.uniqueName.toLowerCase();
-      if (!memberNameSet.has(authorKey)) {
-        const existing = unmatchedMap.get(authorKey);
-        if (existing) {
-          existing.count++;
-        } else {
-          unmatchedMap.set(authorKey, {
-            displayName: pr.createdBy.displayName,
-            count: 1,
-          });
-        }
-      }
+    const totalRosterMembers = members.length;
+    const ratio = totalRosterMembers > 0 ? membersWithPRs / totalRosterMembers : 1;
+    let confidence: DataDiagnostics["confidence"];
+    if (membersWithPRs === 0 && allPRs.length > 0) {
+      confidence = "zero";
+    } else if (ratio < 0.5) {
+      confidence = "low";
+    } else if (ratio < 0.8) {
+      confidence = "medium";
+    } else {
+      confidence = "high";
     }
-
-    for (const [uniqueName, { displayName, count }] of unmatchedMap) {
-      const authorWords = displayName
-        .toLowerCase()
-        .split(/[\s.\-_@]+/)
-        .filter((w) => w.length >= 4);
-      let possibleMatchName: string | null = null;
-
-      for (const member of members) {
-        const memberWords = member.displayName
-          .toLowerCase()
-          .split(/[\s.\-_@]+/)
-          .filter((w) => w.length >= 4);
-        const overlap = authorWords.some((aw) => memberWords.includes(aw));
-        if (overlap) {
-          possibleMatchName = member.displayName;
-          break;
-        }
-      }
-
-      unmatchedInTeamRepos.push({
-        uniqueName,
-        displayName,
-        prCount: count,
-        possibleMatch: possibleMatchName !== null,
-        possibleMatchName,
-      });
-    }
-
-    const rosterIdentities = members.map((m) => m.uniqueName);
-
-    const diagnostics: DataDiagnostics = {
-      totalProjectPRs: allPRs.length,
-      teamMatchedPRs,
-      gapPRs,
-      matchRate,
-      teamRepos: teamRepoNames,
-      PRsInTeamRepos,
-      apiLimitHit: allPRs.length === 500,
-      rosterIdentities,
-      unmatchedInTeamRepos,
-      zeroActivityWarning: teamMatchedPRs === 0 && allPRs.length > 0,
-    };
 
     const now = new Date();
     const from = new Date();
     from.setDate(from.getDate() - days);
+
+    const diagnostics: DataDiagnostics = {
+      period: { days, from: from.toISOString(), to: now.toISOString() },
+      apiLimitHit: allPRs.length === 500,
+      totalProjectPRs: allPRs.length,
+      rosterMembers: diagRosterMembers,
+      summary: {
+        totalRosterMembers,
+        membersWithPRs,
+        membersNotFound,
+        membersFoundButZero,
+      },
+      confidence,
+    };
 
     const response: TeamSummaryApiResponse = {
       period: {

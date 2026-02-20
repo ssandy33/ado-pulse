@@ -100,25 +100,25 @@ export interface StalePRResponse {
   prs: OpenPR[];
 }
 
-export interface UnmatchedInTeamRepo {
+export interface DiagnosticRosterMember {
   uniqueName: string;
   displayName: string;
-  prCount: number;
-  possibleMatch: boolean;
-  possibleMatchName: string | null;
+  matchedPRCount: number;
+  foundInProjectPRs: boolean;
 }
 
 export interface DataDiagnostics {
-  totalProjectPRs: number;
-  teamMatchedPRs: number;
-  gapPRs: number;
-  matchRate: number;
-  teamRepos: string[];
-  PRsInTeamRepos: number;
+  period: { days: number; from: string; to: string };
   apiLimitHit: boolean;
-  rosterIdentities: string[];
-  unmatchedInTeamRepos: UnmatchedInTeamRepo[];
-  zeroActivityWarning: boolean;
+  totalProjectPRs: number;
+  rosterMembers: DiagnosticRosterMember[];
+  summary: {
+    totalRosterMembers: number;
+    membersWithPRs: number;
+    membersNotFound: number;
+    membersFoundButZero: number;
+  };
+  confidence: "high" | "medium" | "low" | "zero";
 }
 
 export interface TeamSummaryApiResponse {
@@ -194,37 +194,26 @@ export interface GhostMembersResponse {
 
 // ── Team Validator types ────────────────────────────────────────
 
-export interface RosterMemberResult {
-  displayName: string;
-  uniqueName: string;
-  foundInPRData: boolean;
-  prCount: number;
-}
-
-export interface GapAuthorPR {
+export interface ValidatorMemberPR {
   pullRequestId: number;
   title: string;
   repoName: string;
   creationDate: string;
+  url: string;
 }
 
-export interface GapAuthor {
+export interface ValidatorRosterMember {
   uniqueName: string;
   displayName: string;
-  prCount: number;
-  possibleMatch: boolean;
-  possibleMatchName: string | null;
-  prs: GapAuthorPR[];
+  foundInProjectPRs: boolean;
+  matchedPRCount: number;
+  prs: ValidatorMemberPR[];
 }
 
 export interface TeamValidatorResponse {
-  rosterMembers: RosterMemberResult[];
-  gapAuthors: GapAuthor[];
-  summary: {
-    rosterSize: number;
-    matchedInPRData: number;
-    gapAuthorCount: number;
-    possibleMismatches: number;
-  };
-  teamRepos: string[];
+  period: { days: number; from: string; to: string };
+  team: { name: string; totalMembers: number };
+  apiLimitHit: boolean;
+  totalProjectPRs: number;
+  rosterMembers: ValidatorRosterMember[];
 }

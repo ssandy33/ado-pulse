@@ -2,11 +2,7 @@ import { NextRequest } from "next/server";
 import { getTeamMembers } from "@/lib/ado/teams";
 import { getPullRequests } from "@/lib/ado/pullRequests";
 import { extractConfig, jsonWithCache, handleApiError } from "@/lib/ado/helpers";
-import type {
-  TeamValidatorResponse,
-  RosterMemberResult,
-  GapAuthor,
-} from "@/lib/ado/types";
+import type { TeamValidatorResponse, ValidatorRosterMember } from "@/lib/ado/types";
 
 export async function GET(request: NextRequest) {
   const configOrError = extractConfig(request);
@@ -26,118 +22,53 @@ export async function GET(request: NextRequest) {
       getPullRequests(configOrError, days),
     ]);
 
-    const memberNameSet = new Set(
-      members.map((m) => m.uniqueName.toLowerCase())
+    const { org, project } = configOrError;
+
+    // Build set of all PR author emails across the entire project
+    const allPRAuthors = new Set(
+      allPRs.map((pr) => pr.createdBy.uniqueName.toLowerCase())
     );
 
-    // Determine team repos (repos where any team member has a PR)
-    const teamPRs = allPRs.filter((pr) =>
-      memberNameSet.has(pr.createdBy.uniqueName.toLowerCase())
-    );
-    const teamRepoNames = [
-      ...new Set(teamPRs.map((pr) => pr.repository.name)),
-    ];
+    // For each roster member, check identity resolution against all project PRs
+    const rosterMembers: ValidatorRosterMember[] = members.map((m) => {
+      const key = m.uniqueName.toLowerCase();
+      const foundInProjectPRs = allPRAuthors.has(key);
+      const memberPRs = allPRs.filter(
+        (pr) => pr.createdBy.uniqueName.toLowerCase() === key
+      );
 
-    // PRs in team repos from non-team authors
-    const prsInTeamRepos = allPRs.filter((pr) =>
-      teamRepoNames.includes(pr.repository.name)
-    );
-
-    // Roster members: check who shows up in PR data
-    const rosterMembers: RosterMemberResult[] = members.map((m) => {
-      const count = allPRs.filter(
-        (pr) =>
-          pr.createdBy.uniqueName.toLowerCase() === m.uniqueName.toLowerCase()
-      ).length;
       return {
-        displayName: m.displayName,
         uniqueName: m.uniqueName,
-        foundInPRData: count > 0,
-        prCount: count,
-      };
-    });
-
-    // Sort: unmatched first, then by name
-    rosterMembers.sort((a, b) => {
-      if (a.foundInPRData !== b.foundInPRData)
-        return a.foundInPRData ? 1 : -1;
-      return a.displayName.localeCompare(b.displayName);
-    });
-
-    // Gap authors: non-team authors with PRs in team repos
-    const gapMap = new Map<
-      string,
-      { displayName: string; prs: typeof prsInTeamRepos }
-    >();
-
-    for (const pr of prsInTeamRepos) {
-      const authorKey = pr.createdBy.uniqueName.toLowerCase();
-      if (!memberNameSet.has(authorKey)) {
-        const existing = gapMap.get(authorKey);
-        if (existing) {
-          existing.prs.push(pr);
-        } else {
-          gapMap.set(authorKey, {
-            displayName: pr.createdBy.displayName,
-            prs: [pr],
-          });
-        }
-      }
-    }
-
-    const gapAuthors: GapAuthor[] = [];
-    for (const [uniqueName, { displayName, prs }] of gapMap) {
-      const authorWords = displayName
-        .toLowerCase()
-        .split(/[\s.\-_@]+/)
-        .filter((w) => w.length >= 4);
-
-      let possibleMatchName: string | null = null;
-      for (const member of members) {
-        const memberWords = member.displayName
-          .toLowerCase()
-          .split(/[\s.\-_@]+/)
-          .filter((w) => w.length >= 4);
-        if (authorWords.some((aw) => memberWords.includes(aw))) {
-          possibleMatchName = member.displayName;
-          break;
-        }
-      }
-
-      gapAuthors.push({
-        uniqueName,
-        displayName,
-        prCount: prs.length,
-        possibleMatch: possibleMatchName !== null,
-        possibleMatchName,
-        prs: prs.map((pr) => ({
+        displayName: m.displayName,
+        foundInProjectPRs,
+        matchedPRCount: memberPRs.length,
+        prs: memberPRs.map((pr) => ({
           pullRequestId: pr.pullRequestId,
           title: pr.title,
           repoName: pr.repository.name,
           creationDate: pr.creationDate,
+          url: `https://dev.azure.com/${org}/${project}/_git/${encodeURIComponent(pr.repository.name)}/pullrequest/${pr.pullRequestId}`,
         })),
-      });
-    }
-
-    // Sort gap authors: possible matches first, then by prCount desc
-    gapAuthors.sort((a, b) => {
-      if (a.possibleMatch !== b.possibleMatch)
-        return a.possibleMatch ? -1 : 1;
-      return b.prCount - a.prCount;
+      };
     });
 
-    const matchedInPRData = rosterMembers.filter((m) => m.foundInPRData).length;
+    // Sort: not-found first, then by display name
+    rosterMembers.sort((a, b) => {
+      if (a.foundInProjectPRs !== b.foundInProjectPRs)
+        return a.foundInProjectPRs ? 1 : -1;
+      return a.displayName.localeCompare(b.displayName);
+    });
+
+    const now = new Date();
+    const from = new Date();
+    from.setDate(from.getDate() - days);
 
     const response: TeamValidatorResponse = {
+      period: { days, from: from.toISOString(), to: now.toISOString() },
+      team: { name: teamName, totalMembers: members.length },
+      apiLimitHit: allPRs.length === 500,
+      totalProjectPRs: allPRs.length,
       rosterMembers,
-      gapAuthors,
-      summary: {
-        rosterSize: members.length,
-        matchedInPRData,
-        gapAuthorCount: gapAuthors.length,
-        possibleMismatches: gapAuthors.filter((a) => a.possibleMatch).length,
-      },
-      teamRepos: teamRepoNames,
     };
 
     return jsonWithCache(response, 120);
