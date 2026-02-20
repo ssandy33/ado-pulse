@@ -20,20 +20,27 @@ export async function getProjectTeams(config: AdoConfig): Promise<Team[]> {
 
 export async function getTeamMembers(
   config: AdoConfig,
-  teamName: string
+  teamName: string,
+  teamId?: string
 ): Promise<TeamMember[]> {
-  const teams = await getProjectTeams(config);
-  const team = teams.find(
-    (t) => t.name.toLowerCase() === teamName.toLowerCase()
-  );
+  let resolvedId = teamId;
 
-  if (!team) {
-    throw new Error(`Team "${teamName}" not found`);
+  if (!resolvedId) {
+    const teams = await getProjectTeams(config);
+    const team = teams.find(
+      (t) => t.name.toLowerCase() === teamName.toLowerCase()
+    );
+
+    if (!team) {
+      throw new Error(`Team "${teamName}" not found`);
+    }
+
+    resolvedId = team.id;
   }
 
   const url = orgUrl(
     config,
-    `_apis/projects/${encodeURIComponent(config.project)}/teams/${encodeURIComponent(team.id)}/members?api-version=7.1`
+    `_apis/projects/${encodeURIComponent(config.project)}/teams/${encodeURIComponent(resolvedId)}/members?api-version=7.1`
   );
   const data = await adoFetch<AdoListResponse<AdoTeamMemberWrapper>>(config, url);
 

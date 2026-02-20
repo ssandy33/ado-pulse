@@ -52,11 +52,19 @@ export function Dashboard({ creds, onDisconnect }: DashboardProps) {
     setPolicyData(null);
     setStalePRData(null);
 
+    // Fire team-summary and stale PR fetch in parallel
+    const summaryPromise = fetch(
+      `/api/prs/team-summary?days=${days}&team=${encodeURIComponent(selectedTeam)}`,
+      { headers: adoHeaders }
+    );
+
+    const stalePromise = fetch(
+      `/api/prs/stale?team=${encodeURIComponent(selectedTeam)}`,
+      { headers: adoHeaders }
+    );
+
     try {
-      const res = await fetch(
-        `/api/prs/team-summary?days=${days}&team=${encodeURIComponent(selectedTeam)}`,
-        { headers: adoHeaders }
-      );
+      const res = await summaryPromise;
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
         throw new Error(body.error || `API error: ${res.status}`);
@@ -68,6 +76,20 @@ export function Dashboard({ creds, onDisconnect }: DashboardProps) {
       setError(err instanceof Error ? err.message : "Failed to load data");
     } finally {
       setLoading(false);
+    }
+
+    // Await stale PR result (already in-flight)
+    setStalePRLoading(true);
+    try {
+      const staleRes = await stalePromise;
+      if (staleRes.ok) {
+        const json: StalePRResponse = await staleRes.json();
+        setStalePRData(json);
+      }
+    } catch {
+      // Stale PR fetch failures are silent (non-critical section)
+    } finally {
+      setStalePRLoading(false);
     }
   }, [selectedTeam, days, adoHeaders]);
 
@@ -99,24 +121,6 @@ export function Dashboard({ creds, onDisconnect }: DashboardProps) {
       .finally(() => setPolicyLoading(false));
   }, [data, adoHeaders]);
 
-  // Fetch stale PRs when team-summary data arrives
-  useEffect(() => {
-    if (!data) return;
-
-    setStalePRLoading(true);
-    fetch(
-      `/api/prs/stale?team=${encodeURIComponent(data.team.name)}`,
-      { headers: adoHeaders }
-    )
-      .then((res) => (res.ok ? res.json() : null))
-      .then((json: StalePRResponse | null) => {
-        if (json) setStalePRData(json);
-      })
-      .catch(() => {
-        // Stale PR fetch failures are silent (non-critical section)
-      })
-      .finally(() => setStalePRLoading(false));
-  }, [data, adoHeaders]);
 
   const handleTeamChange = (team: string) => {
     setSelectedTeam(team);

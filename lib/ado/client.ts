@@ -23,7 +23,17 @@ export function projectUrl(config: AdoConfig, path: string): string {
   return `https://dev.azure.com/${config.org}/${config.project}/${path}`;
 }
 
-export async function adoFetch<T>(config: AdoConfig, url: string): Promise<T> {
+// ── In-memory TTL cache with request coalescing ──
+
+interface CacheEntry {
+  promise: Promise<unknown>;
+  expiresAt: number;
+}
+
+const CACHE_TTL_MS = 60_000; // 60 seconds
+const fetchCache = new Map<string, CacheEntry>();
+
+async function _adoFetchRaw<T>(config: AdoConfig, url: string): Promise<T> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 30000);
 
@@ -54,6 +64,26 @@ export async function adoFetch<T>(config: AdoConfig, url: string): Promise<T> {
   } finally {
     clearTimeout(timeout);
   }
+}
+
+export function adoFetch<T>(config: AdoConfig, url: string): Promise<T> {
+  const now = Date.now();
+  const cached = fetchCache.get(url);
+
+  if (cached && cached.expiresAt > now) {
+    return cached.promise as Promise<T>;
+  }
+
+  const promise = _adoFetchRaw<T>(config, url);
+
+  fetchCache.set(url, { promise, expiresAt: now + CACHE_TTL_MS });
+
+  // Remove from cache on rejection so errors aren't served stale
+  promise.catch(() => {
+    fetchCache.delete(url);
+  });
+
+  return promise;
 }
 
 /** Run async tasks in batches to avoid overwhelming ADO API */
