@@ -10,20 +10,17 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Deploy via SSH
-        uses: appleboy/ssh-action@v1
+        uses: nick-fields/retry@v3
         with:
-          host: ${{ secrets.DEPLOY_HOST }}
-          username: ${{ secrets.DEPLOY_USER }}
-          key: ${{ secrets.DEPLOY_SSH_KEY }}
-          port: 2222
-          command_timeout: 15m
-          retry_count: 3
-          retry_wait: 10
-          script: |
-            cd /opt/ado-pulse
-            git pull origin main
-            docker compose -f docker-compose.prod.yml build
-            docker compose -f docker-compose.prod.yml up -d
-            docker compose -f docker-compose.prod.yml restart caddy
-            docker compose -f docker-compose.prod.yml ps
-            docker image prune -f
+          timeout_minutes: 15
+          max_attempts: 3
+          retry_wait_seconds: 15
+          command: |
+            mkdir -p ~/.ssh
+            echo "${{ secrets.DEPLOY_SSH_KEY }}" > ~/.ssh/deploy_key
+            chmod 600 ~/.ssh/deploy_key
+            ssh -o StrictHostKeyChecking=no -o ConnectTimeout=30 \
+              -i ~/.ssh/deploy_key -p 2222 \
+              ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} \
+              'cd /opt/ado-pulse && git pull origin main && docker compose -f docker-compose.prod.yml build && docker compose -f docker-compose.prod.yml up -d && docker compose -f docker-compose.prod.yml restart caddy && docker compose -f docker-compose.prod.yml ps && docker image prune -f'
+            rm -f ~/.ssh/deploy_key
