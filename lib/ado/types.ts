@@ -53,6 +53,22 @@ export interface MemberSummary {
   isActive: boolean;
   reviewsGiven: number;
   reviewFlagged: boolean;
+  isExcluded: boolean;
+  role: string | null;
+}
+
+// ── Settings types ──────────────────────────────────────────────
+
+export interface MemberRoleExclusion {
+  uniqueName: string;
+  displayName: string;
+  role: string;
+  excludeFromMetrics: boolean;
+  addedAt: string;
+}
+
+export interface SettingsData {
+  memberRoles?: { exclusions: MemberRoleExclusion[] };
 }
 
 export interface RepoSummary {

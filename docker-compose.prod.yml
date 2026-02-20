@@ -23,6 +23,8 @@ services:
   app:
     build: .
     # No ports exposed — only accessible via Caddy through Docker network
+    volumes:
+      - ./data:/app/data
     environment:
       - NODE_OPTIONS=--max-old-space-size=768
     healthcheck:

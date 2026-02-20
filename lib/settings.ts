@@ -1,0 +1,25 @@
+import fs from "fs/promises";
+import path from "path";
+import type { SettingsData, MemberRoleExclusion } from "@/lib/ado/types";
+
+const SETTINGS_PATH = path.join(process.cwd(), "data", "settings.json");
+
+export async function readSettings(): Promise<SettingsData> {
+  try {
+    const raw = await fs.readFile(SETTINGS_PATH, "utf-8");
+    return JSON.parse(raw) as SettingsData;
+  } catch {
+    return {};
+  }
+}
+
+export async function writeSettings(data: SettingsData): Promise<void> {
+  const dir = path.dirname(SETTINGS_PATH);
+  await fs.mkdir(dir, { recursive: true });
+  await fs.writeFile(SETTINGS_PATH, JSON.stringify(data, null, 2), "utf-8");
+}
+
+export async function getExclusions(): Promise<MemberRoleExclusion[]> {
+  const settings = await readSettings();
+  return settings.memberRoles?.exclusions ?? [];
+}

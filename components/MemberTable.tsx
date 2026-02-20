@@ -15,9 +15,10 @@ interface MemberTableProps {
   teamName: string;
 }
 
-type StatusKind = "active" | "low-reviews" | "reviewing" | "inactive";
+type StatusKind = "active" | "low-reviews" | "reviewing" | "inactive" | "non-contributor";
 
 function getStatus(member: MemberSummary): StatusKind {
+  if (member.isExcluded) return "non-contributor";
   if (member.prCount > 0 && !member.reviewFlagged) return "active";
   if (member.prCount > 0 && member.reviewFlagged) return "low-reviews";
   if (member.prCount === 0 && member.reviewsGiven > 0) return "reviewing";
@@ -29,6 +30,7 @@ const STATUS_VARIANT: Record<StatusKind, StatusVariant> = {
   "low-reviews": "warning",
   reviewing: "info",
   inactive: "neutral",
+  "non-contributor": "neutral",
 };
 
 const STATUS_LABEL: Record<StatusKind, string> = {
@@ -36,6 +38,7 @@ const STATUS_LABEL: Record<StatusKind, string> = {
   "low-reviews": "Low reviews",
   reviewing: "Reviewing",
   inactive: "Inactive",
+  "non-contributor": "Non-contributor",
 };
 
 function formatDate(dateStr: string | null): string {
@@ -60,9 +63,14 @@ const COLUMNS: DataTableColumn[] = [
   { header: "Status" },
 ];
 
-const ALL_STATUSES: StatusKind[] = ["active", "low-reviews", "reviewing", "inactive"];
+const ALL_STATUSES: StatusKind[] = ["active", "low-reviews", "reviewing", "inactive", "non-contributor"];
 
 export function MemberTable({ members, teamName }: MemberTableProps) {
+  // Sort: non-excluded first, then excluded at bottom
+  const sortedMembers = [...members].sort((a, b) => {
+    if (a.isExcluded !== b.isExcluded) return a.isExcluded ? 1 : -1;
+    return 0; // preserve server sort within groups
+  });
   return (
     <SectionCard
       title="Developer Breakdown"
@@ -83,15 +91,20 @@ export function MemberTable({ members, teamName }: MemberTableProps) {
       }
     >
       <DataTable columns={COLUMNS}>
-        {members.map((member) => {
+        {sortedMembers.map((member) => {
           const status = getStatus(member);
           return (
             <tr
               key={member.id}
-              className="hover:bg-pulse-hover transition-colors"
+              className={`hover:bg-pulse-hover transition-colors ${member.isExcluded ? "opacity-50" : ""}`}
             >
               <td className="px-5 py-3 text-[13px] font-medium text-pulse-text">
                 {member.displayName}
+                {member.role && (
+                  <span className="ml-2 inline-flex px-1.5 py-0.5 rounded text-[10px] font-medium bg-gray-100 text-gray-500 ring-1 ring-gray-200">
+                    {member.role}
+                  </span>
+                )}
               </td>
               <td className="px-5 py-3 font-mono text-[13px] text-pulse-text text-right tabular-nums">
                 {member.prCount}

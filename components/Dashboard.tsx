@@ -13,6 +13,7 @@ import { StalePRTable } from "./StalePRTable";
 import { OrgHealthView } from "./OrgHealthView";
 import { DataConfidencePanel } from "./DataConfidencePanel";
 import { IdentityDebug } from "./IdentityDebug";
+import { SettingsPage } from "./SettingsPage";
 import { SkeletonKPIRow, SkeletonTable } from "./SkeletonLoader";
 
 interface DashboardProps {
@@ -363,6 +364,11 @@ export function Dashboard({ creds, onDisconnect }: DashboardProps) {
         {/* ── Debug Tab ── */}
         {activeTab === "debug" && (
           <IdentityDebug adoHeaders={adoHeaders} selectedTeam={selectedTeam} days={days} />
+        )}
+
+        {/* ── Settings Tab ── */}
+        {activeTab === "settings" && (
+          <SettingsPage adoHeaders={adoHeaders} selectedTeam={selectedTeam} days={days} />
         )}
       </div>
     </div>

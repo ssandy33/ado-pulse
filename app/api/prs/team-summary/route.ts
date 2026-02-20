@@ -3,6 +3,7 @@ import { getTeamMembers } from "@/lib/ado/teams";
 import { getPullRequests, getReviewsGivenByMember } from "@/lib/ado/pullRequests";
 import { batchAsync } from "@/lib/ado/client";
 import { extractConfig, jsonWithCache, handleApiError } from "@/lib/ado/helpers";
+import { getExclusions } from "@/lib/settings";
 import type {
   MemberSummary,
   RepoSummary,
@@ -76,11 +77,32 @@ export async function GET(request: NextRequest) {
         isActive: prCount > 0,
         reviewsGiven,
         reviewFlagged,
+        isExcluded: false,
+        role: null,
       };
     });
 
-    // Sort by PR count descending
-    memberSummaries.sort((a, b) => b.prCount - a.prCount);
+    // ── Apply member role exclusions ──────────────────────────────
+    const exclusions = await getExclusions();
+    const excludedSet = new Map(
+      exclusions
+        .filter((e) => e.excludeFromMetrics)
+        .map((e) => [e.uniqueName.toLowerCase(), e.role])
+    );
+
+    for (const m of memberSummaries) {
+      const role = excludedSet.get(m.uniqueName.toLowerCase());
+      if (role !== undefined) {
+        m.isExcluded = true;
+        m.role = role || null;
+      }
+    }
+
+    // Sort: non-excluded first (by prCount desc), then excluded (by prCount desc)
+    memberSummaries.sort((a, b) => {
+      if (a.isExcluded !== b.isExcluded) return a.isExcluded ? 1 : -1;
+      return b.prCount - a.prCount;
+    });
 
     // Compute repo breakdown
     const repoMap = new Map<
@@ -110,9 +132,14 @@ export async function GET(request: NextRequest) {
       }))
       .sort((a, b) => b.totalPRs - a.totalPRs);
 
-    const activeContributors = memberSummaries.filter(
+    const nonExcludedMembers = memberSummaries.filter((m) => !m.isExcluded);
+    const activeContributors = nonExcludedMembers.filter(
       (m) => m.prCount > 0
     ).length;
+    const totalPRsFromContributors = nonExcludedMembers.reduce(
+      (sum, m) => sum + m.prCount,
+      0
+    );
 
     // ── Diagnostics: roster identity resolution ────────────────────
     // Check whether each roster member's email appears anywhere in
@@ -121,7 +148,15 @@ export async function GET(request: NextRequest) {
       allPRs.map((pr) => pr.createdBy.uniqueName.toLowerCase())
     );
 
-    const diagRosterMembers: DiagnosticRosterMember[] = members.map((m) => {
+    // Filter excluded members from diagnostics
+    const nonExcludedUniqueNames = new Set(
+      nonExcludedMembers.map((m) => m.uniqueName.toLowerCase())
+    );
+    const diagMembers = members.filter((m) =>
+      nonExcludedUniqueNames.has(m.uniqueName.toLowerCase())
+    );
+
+    const diagRosterMembers: DiagnosticRosterMember[] = diagMembers.map((m) => {
       const key = m.uniqueName.toLowerCase();
       const foundInProjectPRs = allPRAuthors.has(key);
       const matchedPRCount = allPRs.filter(
@@ -145,7 +180,7 @@ export async function GET(request: NextRequest) {
       (m) => m.foundInProjectPRs && m.matchedPRCount === 0
     ).length;
 
-    const totalRosterMembers = members.length;
+    const totalRosterMembers = diagMembers.length;
     const ratio = totalRosterMembers > 0 ? membersWithPRs / totalRosterMembers : 1;
     let confidence: DataDiagnostics["confidence"];
     if (membersWithPRs === 0 && allPRs.length > 0) {
@@ -184,9 +219,9 @@ export async function GET(request: NextRequest) {
       },
       team: {
         name: teamName,
-        totalPRs: teamPRs.length,
+        totalPRs: totalPRsFromContributors,
         activeContributors,
-        totalMembers: members.length,
+        totalMembers: nonExcludedMembers.length,
       },
       members: memberSummaries,
       byRepo,
