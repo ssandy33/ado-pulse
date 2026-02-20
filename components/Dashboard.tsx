@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useMemo } from "react";
 import type { TeamSummaryApiResponse, PolicyAuditResponse, StalePRResponse } from "@/lib/ado/types";
 import { TeamSelector } from "./TeamSelector";
 import { TimeRangeSelector } from "./TimeRangeSelector";
-import { TabBar } from "./TabBar";
+import { TabBar, type TabKey } from "./TabBar";
 import { KPICard } from "./KPICard";
 import { MemberTable } from "./MemberTable";
 import { RepoTable } from "./RepoTable";
@@ -12,6 +12,7 @@ import { PolicyAuditTable } from "./PolicyAuditTable";
 import { StalePRTable } from "./StalePRTable";
 import { OrgHealthView } from "./OrgHealthView";
 import { DataConfidencePanel } from "./DataConfidencePanel";
+import { IdentityDebug } from "./IdentityDebug";
 import { SkeletonKPIRow, SkeletonTable } from "./SkeletonLoader";
 
 interface DashboardProps {
@@ -20,7 +21,7 @@ interface DashboardProps {
 }
 
 export function Dashboard({ creds, onDisconnect }: DashboardProps) {
-  const [activeTab, setActiveTab] = useState<"team" | "organization">("team");
+  const [activeTab, setActiveTab] = useState<TabKey>("team");
   const [selectedTeam, setSelectedTeam] = useState("");
   const [days, setDays] = useState(14);
   const [data, setData] = useState<TeamSummaryApiResponse | null>(null);
@@ -147,7 +148,7 @@ export function Dashboard({ creds, onDisconnect }: DashboardProps) {
                   selectedTeam={selectedTeam}
                   onTeamChange={handleTeamChange}
                   adoHeaders={adoHeaders}
-                  disabled={activeTab === "organization"}
+                  disabled={activeTab !== "team"}
                 />
               </div>
             </div>
@@ -353,6 +354,11 @@ export function Dashboard({ creds, onDisconnect }: DashboardProps) {
         {/* ── Organization Tab ── */}
         {activeTab === "organization" && (
           <OrgHealthView adoHeaders={adoHeaders} days={days} validatorTeam={validatorTeam} />
+        )}
+
+        {/* ── Debug Tab ── */}
+        {activeTab === "debug" && (
+          <IdentityDebug adoHeaders={adoHeaders} days={days} />
         )}
       </div>
     </div>
