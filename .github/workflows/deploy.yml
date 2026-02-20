@@ -16,6 +16,9 @@ jobs:
           username: ${{ secrets.DEPLOY_USER }}
           key: ${{ secrets.DEPLOY_SSH_KEY }}
           port: 2222
+          command_timeout: 15m
+          retry_count: 3
+          retry_wait: 10
           script: |
             cd /opt/ado-pulse
             git pull origin main
