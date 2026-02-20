@@ -1,14 +1,13 @@
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from "react";
-import type { TeamSummaryApiResponse, PolicyAuditResponse, StalePRResponse } from "@/lib/ado/types";
+import type { TeamSummaryApiResponse, StalePRResponse } from "@/lib/ado/types";
 import { TeamSelector } from "./TeamSelector";
 import { TimeRangeSelector } from "./TimeRangeSelector";
 import { TabBar, type TabKey } from "./TabBar";
 import { KPICard } from "./KPICard";
 import { MemberTable } from "./MemberTable";
 import { RepoTable } from "./RepoTable";
-import { PolicyAuditTable } from "./PolicyAuditTable";
 import { StalePRTable } from "./StalePRTable";
 import { OrgHealthView } from "./OrgHealthView";
 import { DataConfidencePanel } from "./DataConfidencePanel";
@@ -29,8 +28,6 @@ export function Dashboard({ creds, onDisconnect }: DashboardProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [refreshedAt, setRefreshedAt] = useState<Date | null>(null);
-  const [policyData, setPolicyData] = useState<PolicyAuditResponse | null>(null);
-  const [policyLoading, setPolicyLoading] = useState(false);
   const [stalePRData, setStalePRData] = useState<StalePRResponse | null>(null);
   const [stalePRLoading, setStalePRLoading] = useState(false);
   const [validatorTeam, setValidatorTeam] = useState("");
@@ -50,7 +47,6 @@ export function Dashboard({ creds, onDisconnect }: DashboardProps) {
     setLoading(true);
     setError(null);
     setData(null);
-    setPolicyData(null);
     setStalePRData(null);
 
     // Fire team-summary and stale PR fetch in parallel
@@ -97,31 +93,6 @@ export function Dashboard({ creds, onDisconnect }: DashboardProps) {
   useEffect(() => {
     fetchData();
   }, [fetchData]);
-
-  // Fetch policy audit when team-summary data arrives
-  useEffect(() => {
-    if (!data || data.byRepo.length === 0) return;
-
-    const repos = data.byRepo.slice(0, 20).map((r) => ({
-      repoId: r.repoId,
-      repoName: r.repoName,
-    }));
-
-    setPolicyLoading(true);
-    fetch(
-      `/api/policies/team-audit?repos=${encodeURIComponent(JSON.stringify(repos))}`,
-      { headers: adoHeaders }
-    )
-      .then((res) => (res.ok ? res.json() : null))
-      .then((json: PolicyAuditResponse | null) => {
-        if (json) setPolicyData(json);
-      })
-      .catch(() => {
-        // Policy fetch failures are silent (non-critical section)
-      })
-      .finally(() => setPolicyLoading(false));
-  }, [data, adoHeaders]);
-
 
   const handleTeamChange = (team: string) => {
     setSelectedTeam(team);
@@ -259,11 +230,7 @@ export function Dashboard({ creds, onDisconnect }: DashboardProps) {
             {data && (
               <div
                 className={`grid grid-cols-1 gap-4 mb-6 ${
-                  stalePRData && policyData
-                    ? "md:grid-cols-5"
-                    : policyData || stalePRData
-                      ? "md:grid-cols-4"
-                      : "md:grid-cols-3"
+                  stalePRData ? "md:grid-cols-4" : "md:grid-cols-3"
                 }`}
               >
                 <KPICard
@@ -285,13 +252,6 @@ export function Dashboard({ creds, onDisconnect }: DashboardProps) {
                       : "no data"
                   }
                 />
-                {policyData && (
-                  <KPICard
-                    title="Policy Coverage"
-                    value={`${policyData.coverage.compliant} / ${policyData.coverage.total}`}
-                    subtitle="repos compliant"
-                  />
-                )}
                 {stalePRData && (
                   <KPICard
                     title="Open PRs"
@@ -350,9 +310,6 @@ export function Dashboard({ creds, onDisconnect }: DashboardProps) {
               </div>
             )}
 
-            {/* Branch Policy Audit */}
-            {policyLoading && <SkeletonTable rows={4} />}
-            {policyData && <PolicyAuditTable data={policyData} />}
           </>
         )}
 
