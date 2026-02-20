@@ -132,6 +132,7 @@ export function MemberRolesSettings({
       return next;
     });
     setDirty(true);
+    setSaveError(null);
   };
 
   const updateRole = (uniqueName: string, displayName: string, role: string) => {
@@ -152,6 +153,7 @@ export function MemberRolesSettings({
       return next;
     });
     setDirty(true);
+    setSaveError(null);
   };
 
   const handleSave = async () => {
