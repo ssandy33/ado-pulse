@@ -16,7 +16,6 @@ jobs:
           username: ${{ secrets.DEPLOY_USER }}
           key: ${{ secrets.DEPLOY_SSH_KEY }}
           port: 2222
-          debug: true
           script: |
             cd /opt/ado-pulse
             git pull origin main
