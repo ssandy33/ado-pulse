@@ -1,11 +1,11 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
-import type { TeamsApiResponse, Team } from "@/lib/ado/types";
+import { useState, useEffect, useCallback } from "react";
 import { SkeletonTable } from "./SkeletonLoader";
 
 interface IdentityDebugProps {
   adoHeaders: Record<string, string>;
+  selectedTeam: string;
   days: number;
 }
 
@@ -45,83 +45,6 @@ function truncateId(id: string): string {
   return id.length > 8 ? id.slice(0, 8) + "..." : id;
 }
 
-function TeamDropdown({
-  selectedTeam,
-  onTeamChange,
-  adoHeaders,
-}: {
-  selectedTeam: string;
-  onTeamChange: (team: string) => void;
-  adoHeaders: Record<string, string>;
-}) {
-  const [teams, setTeams] = useState<Team[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    fetch("/api/teams", { headers: adoHeaders })
-      .then((res) => res.json())
-      .then((data: TeamsApiResponse) => setTeams(data.teams))
-      .catch(() => {})
-      .finally(() => setLoading(false));
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
-  useEffect(() => {
-    function handleClickOutside(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) {
-        setOpen(false);
-      }
-    }
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
-
-  if (loading) {
-    return <span className="text-pulse-dim text-[12px]">Loading teams...</span>;
-  }
-
-  return (
-    <div className="relative inline-block" ref={ref}>
-      <button
-        onClick={() => setOpen(!open)}
-        className="inline-flex items-center gap-1 text-[13px] font-medium text-pulse-accent hover:text-pulse-accent-hover transition-colors cursor-pointer"
-      >
-        {selectedTeam || "Select a team"}
-        <svg
-          className={`w-3.5 h-3.5 transition-transform ${open ? "rotate-180" : ""}`}
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
-          strokeWidth={2}
-        >
-          <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-        </svg>
-      </button>
-      {open && (
-        <div className="absolute top-full left-0 mt-1.5 z-50 bg-pulse-card border border-pulse-border rounded-lg shadow-lg py-1 min-w-[240px] max-h-[300px] overflow-y-auto">
-          {teams.map((team) => (
-            <button
-              key={team.id}
-              onClick={() => {
-                onTeamChange(team.name);
-                setOpen(false);
-              }}
-              className={`block w-full text-left px-4 py-2 text-[13px] hover:bg-pulse-hover transition-colors cursor-pointer ${
-                team.name === selectedTeam
-                  ? "text-pulse-accent font-medium"
-                  : "text-pulse-secondary"
-              }`}
-            >
-              {team.name}
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
 function MatchBadge({ matchType }: { matchType: "exact" | "lowercase" | "none" }) {
   if (matchType === "exact") {
     return <span className="text-emerald-600 font-medium text-[11px]">&#10003; exact</span>;
@@ -132,8 +55,7 @@ function MatchBadge({ matchType }: { matchType: "exact" | "lowercase" | "none" }
   return <span className="text-red-600 font-medium text-[11px]">&#10007; none</span>;
 }
 
-export function IdentityDebug({ adoHeaders, days }: IdentityDebugProps) {
-  const [selectedTeam, setSelectedTeam] = useState("");
+export function IdentityDebug({ adoHeaders, selectedTeam, days }: IdentityDebugProps) {
   const [data, setData] = useState<IdentityCheckResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -177,11 +99,9 @@ export function IdentityDebug({ adoHeaders, days }: IdentityDebugProps) {
               <h3 className="text-[13px] font-semibold text-pulse-text">
                 Identity Debug
               </h3>
-              <TeamDropdown
-                selectedTeam={selectedTeam}
-                onTeamChange={setSelectedTeam}
-                adoHeaders={adoHeaders}
-              />
+              {selectedTeam && (
+                <span className="text-[13px] font-medium text-pulse-accent">{selectedTeam}</span>
+              )}
             </div>
             {data && (
               <span className="text-[11px] text-pulse-dim">
@@ -198,7 +118,7 @@ export function IdentityDebug({ adoHeaders, days }: IdentityDebugProps) {
         <div className="p-4">
           {!selectedTeam && !loading && (
             <p className="text-[13px] text-pulse-muted text-center py-6">
-              Select a team to begin.
+              Select a team using the dropdown above to begin.
             </p>
           )}
 

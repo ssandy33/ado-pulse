@@ -362,7 +362,7 @@ export function Dashboard({ creds, onDisconnect }: DashboardProps) {
 
         {/* ── Debug Tab ── */}
         {activeTab === "debug" && (
-          <IdentityDebug adoHeaders={adoHeaders} days={days} />
+          <IdentityDebug adoHeaders={adoHeaders} selectedTeam={selectedTeam} days={days} />
         )}
       </div>
     </div>
