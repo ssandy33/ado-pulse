@@ -40,6 +40,7 @@ export function MemberRolesSettings({
   );
   const [saving, setSaving] = useState(false);
   const [savedFeedback, setSavedFeedback] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const [dirty, setDirty] = useState(false);
   const feedbackTimer = useRef<ReturnType<typeof setTimeout>>(null);
 
@@ -155,6 +156,7 @@ export function MemberRolesSettings({
 
   const handleSave = async () => {
     setSaving(true);
+    setSaveError(null);
     try {
       const exclusions: MemberRoleExclusion[] = Array.from(
         localEdits.values()
@@ -174,16 +176,19 @@ export function MemberRolesSettings({
         body: JSON.stringify({ exclusions }),
       });
 
-      if (res.ok) {
-        const data = await res.json();
-        setSavedExclusions(data.exclusions ?? []);
-        setDirty(false);
-        setSavedFeedback(true);
-        if (feedbackTimer.current) clearTimeout(feedbackTimer.current);
-        feedbackTimer.current = setTimeout(() => setSavedFeedback(false), 2000);
+      if (!res.ok) {
+        setSaveError("Failed to save. Please try again.");
+        return;
       }
+
+      const data = await res.json();
+      setSavedExclusions(data.exclusions ?? []);
+      setDirty(false);
+      setSavedFeedback(true);
+      if (feedbackTimer.current) clearTimeout(feedbackTimer.current);
+      feedbackTimer.current = setTimeout(() => setSavedFeedback(false), 2000);
     } catch {
-      // silent
+      setSaveError("Failed to save. Please try again.");
     } finally {
       setSaving(false);
     }
@@ -206,7 +211,12 @@ export function MemberRolesSettings({
             </p>
           </div>
           <div className="flex items-center gap-3">
-            {dirty && (
+            {saveError && (
+              <span className="text-[11px] text-red-600 font-medium">
+                {saveError}
+              </span>
+            )}
+            {dirty && !saveError && (
               <span className="text-[11px] text-amber-600 font-medium">
                 Unsaved changes
               </span>
