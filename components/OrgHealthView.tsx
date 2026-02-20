@@ -12,12 +12,14 @@ import { UnmatchedAuthorsTable } from "./UnmatchedAuthorsTable";
 import { PolicyComplianceTable } from "./PolicyComplianceTable";
 import { UsersNoTeamTable } from "./UsersNoTeamTable";
 import { GhostMembersTable } from "./GhostMembersTable";
+import { TeamValidator } from "./TeamValidator";
 import { SkeletonKPIRow, SkeletonTable } from "./SkeletonLoader";
 import { StatusDot } from "./ui";
 
 interface OrgHealthViewProps {
   adoHeaders: Record<string, string>;
   days: number;
+  validatorTeam?: string;
 }
 
 interface SectionState<T> {
@@ -81,7 +83,7 @@ function SectionError({
   );
 }
 
-export function OrgHealthView({ adoHeaders, days }: OrgHealthViewProps) {
+export function OrgHealthView({ adoHeaders, days, validatorTeam }: OrgHealthViewProps) {
   const unmatched = useOrgFetch<UnmatchedAuthorsResponse>(
     "/api/org-health/unmatched-authors",
     adoHeaders,
@@ -210,6 +212,13 @@ export function OrgHealthView({ adoHeaders, days }: OrgHealthViewProps) {
         )}
         {ghosts.data && <GhostMembersTable data={ghosts.data} />}
       </div>
+
+      {/* Team Validator */}
+      <TeamValidator
+        adoHeaders={adoHeaders}
+        days={days}
+        preSelectedTeam={validatorTeam}
+      />
     </>
   );
 }

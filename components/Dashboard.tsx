@@ -11,6 +11,7 @@ import { RepoTable } from "./RepoTable";
 import { PolicyAuditTable } from "./PolicyAuditTable";
 import { StalePRTable } from "./StalePRTable";
 import { OrgHealthView } from "./OrgHealthView";
+import { DataConfidencePanel } from "./DataConfidencePanel";
 import { SkeletonKPIRow, SkeletonTable } from "./SkeletonLoader";
 
 interface DashboardProps {
@@ -30,6 +31,7 @@ export function Dashboard({ creds, onDisconnect }: DashboardProps) {
   const [policyLoading, setPolicyLoading] = useState(false);
   const [stalePRData, setStalePRData] = useState<StalePRResponse | null>(null);
   const [stalePRLoading, setStalePRLoading] = useState(false);
+  const [validatorTeam, setValidatorTeam] = useState("");
 
   const adoHeaders = useMemo(
     () => ({
@@ -300,6 +302,17 @@ export function Dashboard({ creds, onDisconnect }: DashboardProps) {
               </div>
             )}
 
+            {/* Data Confidence Panel */}
+            {data && data.diagnostics && (
+              <DataConfidencePanel
+                diagnostics={data.diagnostics}
+                onInvestigate={() => {
+                  setValidatorTeam(data.team.name);
+                  setActiveTab("organization");
+                }}
+              />
+            )}
+
             {/* Developer Breakdown Table */}
             {loading && (
               <div className="mb-6">
@@ -339,7 +352,7 @@ export function Dashboard({ creds, onDisconnect }: DashboardProps) {
 
         {/* ── Organization Tab ── */}
         {activeTab === "organization" && (
-          <OrgHealthView adoHeaders={adoHeaders} days={days} />
+          <OrgHealthView adoHeaders={adoHeaders} days={days} validatorTeam={validatorTeam} />
         )}
       </div>
     </div>

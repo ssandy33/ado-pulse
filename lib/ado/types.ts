@@ -100,6 +100,27 @@ export interface StalePRResponse {
   prs: OpenPR[];
 }
 
+export interface UnmatchedInTeamRepo {
+  uniqueName: string;
+  displayName: string;
+  prCount: number;
+  possibleMatch: boolean;
+  possibleMatchName: string | null;
+}
+
+export interface DataDiagnostics {
+  totalProjectPRs: number;
+  teamMatchedPRs: number;
+  gapPRs: number;
+  matchRate: number;
+  teamRepos: string[];
+  PRsInTeamRepos: number;
+  apiLimitHit: boolean;
+  rosterIdentities: string[];
+  unmatchedInTeamRepos: UnmatchedInTeamRepo[];
+  zeroActivityWarning: boolean;
+}
+
 export interface TeamSummaryApiResponse {
   period: {
     days: number;
@@ -114,6 +135,7 @@ export interface TeamSummaryApiResponse {
   };
   members: MemberSummary[];
   byRepo: RepoSummary[];
+  diagnostics: DataDiagnostics;
 }
 
 // ── Org Health types ──────────────────────────────────────────────
@@ -168,4 +190,41 @@ export interface GhostMember {
 }
 export interface GhostMembersResponse {
   members: GhostMember[];
+}
+
+// ── Team Validator types ────────────────────────────────────────
+
+export interface RosterMemberResult {
+  displayName: string;
+  uniqueName: string;
+  foundInPRData: boolean;
+  prCount: number;
+}
+
+export interface GapAuthorPR {
+  pullRequestId: number;
+  title: string;
+  repoName: string;
+  creationDate: string;
+}
+
+export interface GapAuthor {
+  uniqueName: string;
+  displayName: string;
+  prCount: number;
+  possibleMatch: boolean;
+  possibleMatchName: string | null;
+  prs: GapAuthorPR[];
+}
+
+export interface TeamValidatorResponse {
+  rosterMembers: RosterMemberResult[];
+  gapAuthors: GapAuthor[];
+  summary: {
+    rosterSize: number;
+    matchedInPRData: number;
+    gapAuthorCount: number;
+    possibleMismatches: number;
+  };
+  teamRepos: string[];
 }
