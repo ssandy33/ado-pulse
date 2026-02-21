@@ -13,6 +13,27 @@ interface TimeTrackingTabProps {
   range: TimeRange;
 }
 
+function WorkItemLink({ id, org, project, children }: {
+  id: number | null;
+  org: string;
+  project: string;
+  children?: React.ReactNode;
+}) {
+  if (!id) return <>{children}</>;
+  const url = `https://dev.azure.com/${org}/${project}/_workitems/edit/${id}`;
+  return (
+    <a
+      href={url}
+      target="_blank"
+      rel="noopener noreferrer"
+      onClick={(e) => e.stopPropagation()}
+      className="text-pulse-accent hover:underline"
+    >
+      {children ?? `#${id}`}
+    </a>
+  );
+}
+
 function pct(part: number, total: number): string {
   if (total === 0) return "0%";
   return `${Math.round((part / total) * 100)}%`;
@@ -42,7 +63,7 @@ function StatusBadge({ status }: { status: "logged" | "not-logging" | "excluded"
   );
 }
 
-function WrongLevelBanner({ entries }: { entries: WrongLevelEntry[] }) {
+function WrongLevelBanner({ entries, org, project }: { entries: WrongLevelEntry[]; org: string; project: string }) {
   const [expanded, setExpanded] = useState(false);
 
   if (entries.length === 0) return null;
@@ -89,7 +110,7 @@ function WrongLevelBanner({ entries }: { entries: WrongLevelEntry[] }) {
                 {entries.map((entry, i) => (
                   <tr key={`${entry.workItemId}-${i}`} className="border-b border-amber-100 last:border-0">
                     <td className="px-2 py-1.5 text-amber-900">
-                      #{entry.workItemId} {entry.title}
+                      <WorkItemLink id={entry.workItemId} org={org} project={project}>#{entry.workItemId}</WorkItemLink>{" "}{entry.title}
                     </td>
                     <td className="px-2 py-1.5 text-amber-700">{entry.workItemType}</td>
                     <td className="px-2 py-1.5 text-amber-700">{entry.memberName}</td>
@@ -105,10 +126,12 @@ function WrongLevelBanner({ entries }: { entries: WrongLevelEntry[] }) {
   );
 }
 
-function MemberRow({ member, isExpanded, onToggle }: {
+function MemberRow({ member, isExpanded, onToggle, org, project }: {
   member: MemberTimeEntry;
   isExpanded: boolean;
   onToggle: () => void;
+  org: string;
+  project: string;
 }) {
   const hasFeatures = member.features.length > 0;
   const status: "logged" | "not-logging" | "excluded" = member.isExcluded
@@ -184,7 +207,7 @@ function MemberRow({ member, isExpanded, onToggle }: {
                       className="border-t border-pulse-border/30"
                     >
                       <td className="px-2 py-1 text-pulse-text">
-                        {f.featureId ? `#${f.featureId} ` : ""}
+                        {f.featureId ? <><WorkItemLink id={f.featureId} org={org} project={project} />{" "}</> : ""}
                         {f.featureTitle}
                         {f.loggedAtWrongLevel && (
                           <span className="ml-1 text-[10px] text-amber-600">(wrong level)</span>
@@ -274,9 +297,11 @@ function buildFeatureRows(members: MemberTimeEntry[]): FeatureRowData[] {
   });
 }
 
-function FeatureBreakdownRow({ row, isExpanded, onToggle }: {
+function FeatureBreakdownRow({ row, isExpanded, onToggle, org, project }: {
   row: FeatureRowData;
   isExpanded: boolean;
+  org: string;
+  project: string;
   onToggle: () => void;
 }) {
   const memberCount = row.members.length;
@@ -301,7 +326,7 @@ function FeatureBreakdownRow({ row, isExpanded, onToggle }: {
               {row.isNoFeature ? (
                 <span className="text-amber-700">Unclassified — no parent feature</span>
               ) : (
-                <>{row.featureTitle} <span className="text-pulse-muted">#{row.featureId}</span></>
+                <>{row.featureTitle} <WorkItemLink id={row.featureId} org={org} project={project} /></>
               )}
             </span>
           </div>
@@ -391,6 +416,8 @@ export function TimeTrackingTab({
   selectedTeam,
   range,
 }: TimeTrackingTabProps) {
+  const org = adoHeaders["x-ado-org"] || "";
+  const project = adoHeaders["x-ado-project"] || "";
   const [data, setData] = useState<TeamTimeData | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -573,7 +600,7 @@ export function TimeTrackingTab({
           </div>
 
           {/* Wrong-Level Banner */}
-          <WrongLevelBanner entries={data.wrongLevelEntries} />
+          <WrongLevelBanner entries={data.wrongLevelEntries} org={org} project={project} />
 
           {/* View Toggle */}
           <div className="flex items-center gap-3 mb-4">
@@ -635,6 +662,8 @@ export function TimeTrackingTab({
                           prev === member.uniqueName ? null : member.uniqueName
                         )
                       }
+                      org={org}
+                      project={project}
                     />
                   ))}
                 </tbody>
@@ -676,6 +705,8 @@ export function TimeTrackingTab({
                         onToggle={() =>
                           setExpandedRow((prev) => prev === key ? null : key)
                         }
+                        org={org}
+                        project={project}
                       />
                     );
                   })}
