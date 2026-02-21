@@ -1,13 +1,73 @@
 import { NextRequest, NextResponse } from "next/server";
 import { extractConfig, jsonWithCache, handleApiError } from "@/lib/ado/helpers";
+import { adoFetch, projectUrl, batchAsync } from "@/lib/ado/client";
+import type { AdoConfig } from "@/lib/ado/types";
+import { resolveFeature } from "@/lib/ado/workItems";
 import {
   getSevenPaceConfig,
   sevenPaceFetch,
 } from "@/lib/sevenPace";
-import { getWorkItems } from "@/lib/ado/workItems";
 import { getLookbackDateRange } from "@/lib/dateUtils";
 
 const LOOKBACK_DAYS = 30;
+
+// Extended field set — includes System.State for status display
+const WI_FIELDS =
+  "System.Title,System.WorkItemType,System.State,System.Parent,Custom.FeatureExpense";
+const BATCH_SIZE = 200;
+
+interface WorkItemExt {
+  id: number;
+  fields: {
+    "System.Title"?: string;
+    "System.WorkItemType"?: string;
+    "System.State"?: string;
+    "System.Parent"?: number;
+    "Custom.FeatureExpense"?: string;
+  };
+}
+
+interface WorkItemsResponse {
+  count: number;
+  value: WorkItemExt[];
+}
+
+async function fetchWorkItemsWithState(
+  config: AdoConfig,
+  ids: number[]
+): Promise<Map<number, WorkItemExt>> {
+  const result = new Map<number, WorkItemExt>();
+  if (ids.length === 0) return result;
+
+  const uniqueIds = [...new Set(ids)];
+  const batches: number[][] = [];
+  for (let i = 0; i < uniqueIds.length; i += BATCH_SIZE) {
+    batches.push(uniqueIds.slice(i, i + BATCH_SIZE));
+  }
+
+  const fetchBatch = (batchIds: number[]) => async () => {
+    const idParam = batchIds.join(",");
+    const url = projectUrl(
+      config,
+      `_apis/wit/workitems?ids=${idParam}&fields=${WI_FIELDS}&api-version=7.1`
+    );
+    const data = await adoFetch<WorkItemsResponse>(config, url);
+    return data.value;
+  };
+
+  const batchResults = await batchAsync(
+    batches.map((b) => fetchBatch(b)),
+    3
+  );
+
+  for (const items of batchResults) {
+    for (const item of items) {
+      result.set(item.id, item);
+    }
+  }
+
+  return result;
+}
 
 interface RawWorklogUser {
   id: string;
@@ -117,7 +177,7 @@ export async function GET(request: NextRequest) {
       (wl) => wl.user?.id === matchedUser.id
     );
 
-    // 5. Collect unique work item IDs and batch fetch details
+    // 5. Collect unique work item IDs and batch fetch details (with System.State)
     const workItemIds = [
       ...new Set(
         userWorklogs
@@ -126,7 +186,18 @@ export async function GET(request: NextRequest) {
       ),
     ];
 
-    const workItemMap = await getWorkItems(configOrError, workItemIds);
+    const workItemMap = await fetchWorkItemsWithState(configOrError, workItemIds);
+
+    // 5b. Resolve parent Feature + CapEx/OpEx for each work item
+    // resolveFeature expects a compatible cache; the extra System.State field is ignored
+    const featureCache = new Map(
+      [...workItemMap.entries()].map(([id, wi]) => [id, wi as { id: number; fields: { "System.Title"?: string; "System.WorkItemType"?: string; "System.Parent"?: number; "Custom.FeatureExpense"?: string } }])
+    );
+    const featureMap = new Map<number, { featureId: number | null; featureTitle: string; expenseType: string }>();
+    for (const wiId of workItemIds) {
+      const resolved = await resolveFeature(configOrError, wiId, featureCache);
+      featureMap.set(wiId, resolved);
+    }
 
     // 6. Aggregate worklogs by work item
     const byWorkItem = new Map<
@@ -135,6 +206,10 @@ export async function GET(request: NextRequest) {
         workItemId: number;
         title: string;
         type: string;
+        state: string;
+        featureId: number | null;
+        featureTitle: string;
+        classification: string;
         totalHours: number;
         entryCount: number;
         activities: Set<string>;
@@ -154,10 +229,15 @@ export async function GET(request: NextRequest) {
 
       if (!byWorkItem.has(wiId)) {
         const wi = workItemMap.get(wiId);
+        const feature = featureMap.get(wiId);
         byWorkItem.set(wiId, {
           workItemId: wiId,
           title: wi?.fields["System.Title"] || (wiId === 0 ? "No Work Item" : `Work Item #${wiId}`),
           type: wi?.fields["System.WorkItemType"] || "Unknown",
+          state: wi?.fields["System.State"] || "Unknown",
+          featureId: feature?.featureId ?? null,
+          featureTitle: feature?.featureTitle ?? "No Feature",
+          classification: feature?.expenseType ?? "Unclassified",
           totalHours: 0,
           entryCount: 0,
           activities: new Set(),
@@ -183,6 +263,10 @@ export async function GET(request: NextRequest) {
         workItemId: wi.workItemId,
         title: wi.title,
         type: wi.type,
+        state: wi.state,
+        featureId: wi.featureId,
+        featureTitle: wi.featureTitle,
+        classification: wi.classification,
         totalHours: Math.round(wi.totalHours * 100) / 100,
         entryCount: wi.entryCount,
         activities: [...wi.activities],

@@ -448,6 +448,10 @@ interface UserTimeWorkItem {
   workItemId: number;
   title: string;
   type: string;
+  state: string;
+  featureId: number | null;
+  featureTitle: string;
+  classification: string;
   totalHours: number;
   entryCount: number;
   activities: string[];
@@ -652,6 +656,9 @@ export function UserTimeLogLookup({
                       <th className="px-3 py-2 font-medium w-8"></th>
                       <th className="px-3 py-2 font-medium">Work Item</th>
                       <th className="px-3 py-2 font-medium">Type</th>
+                      <th className="px-3 py-2 font-medium">State</th>
+                      <th className="px-3 py-2 font-medium">Feature</th>
+                      <th className="px-3 py-2 font-medium">Cap/Op</th>
                       <th className="px-3 py-2 font-medium text-right">Hours</th>
                       <th className="px-3 py-2 font-medium text-right">Entries</th>
                       <th className="px-3 py-2 font-medium">Activities</th>
@@ -691,6 +698,32 @@ export function UserTimeLogLookup({
                           <td className="px-3 py-2 text-pulse-muted">
                             {wi.type}
                           </td>
+                          <td className="px-3 py-2 text-pulse-muted">
+                            {wi.state}
+                          </td>
+                          <td className="px-3 py-2">
+                            {wi.featureId ? (
+                              <span className="text-pulse-text text-[11px]">
+                                #{wi.featureId}{" "}
+                                <span className="text-pulse-muted">{wi.featureTitle}</span>
+                              </span>
+                            ) : (
+                              <span className="text-pulse-dim text-[11px]">—</span>
+                            )}
+                          </td>
+                          <td className="px-3 py-2">
+                            <span
+                              className={`text-[11px] font-medium px-1.5 py-0.5 rounded ${
+                                wi.classification === "CapEx"
+                                  ? "text-blue-700 bg-blue-50"
+                                  : wi.classification === "OpEx"
+                                  ? "text-purple-700 bg-purple-50"
+                                  : "text-pulse-dim"
+                              }`}
+                            >
+                              {wi.classification}
+                            </span>
+                          </td>
                           <td className="px-3 py-2 text-right text-pulse-text font-medium">
                             {wi.totalHours.toFixed(1)}h
                           </td>
@@ -703,7 +736,7 @@ export function UserTimeLogLookup({
                         </tr>
                         {expandedRows.has(wi.workItemId) && (
                           <tr key={`${wi.workItemId}-entries`}>
-                            <td colSpan={6} className="px-0 py-0">
+                            <td colSpan={9} className="px-0 py-0">
                               <div className="bg-pulse-bg/50 border-y border-pulse-border/30">
                                 <table className="w-full text-[11px]">
                                   <thead>

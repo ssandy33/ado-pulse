@@ -20,6 +20,36 @@ jest.mock("@/lib/ado/helpers", () => ({
   }),
 }));
 
+// Mock ADO client (used by fetchWorkItemsWithState in the route)
+jest.mock("@/lib/ado/client", () => ({
+  adoFetch: jest.fn().mockResolvedValue({
+    count: 1,
+    value: [
+      {
+        id: 12345,
+        fields: {
+          "System.Title": "Test Story",
+          "System.WorkItemType": "User Story",
+          "System.State": "Active",
+          "System.Parent": 99999,
+          "Custom.FeatureExpense": undefined,
+        },
+      },
+    ],
+  }),
+  projectUrl: jest.fn(
+    (_config: unknown, path: string) =>
+      `https://dev.azure.com/test-org/test-project/${path}`
+  ),
+  batchAsync: jest.fn(async (tasks: (() => Promise<unknown>)[]) => {
+    const results = [];
+    for (const task of tasks) {
+      results.push(await task());
+    }
+    return results;
+  }),
+}));
+
 // Mock 7pace modules
 jest.mock("@/lib/sevenPace", () => ({
   getSevenPaceConfig: jest.fn().mockResolvedValue({
@@ -55,25 +85,16 @@ jest.mock("@/lib/sevenPace", () => ({
   }),
 }));
 
-// Mock ADO work items
+// Mock resolveFeature from workItems
 jest.mock("@/lib/ado/workItems", () => ({
-  getWorkItems: jest.fn().mockResolvedValue(
-    new Map([
-      [
-        12345,
-        {
-          id: 12345,
-          fields: {
-            "System.Title": "Test Story",
-            "System.WorkItemType": "User Story",
-          },
-        },
-      ],
-    ])
-  ),
+  resolveFeature: jest.fn().mockResolvedValue({
+    featureId: 99999,
+    featureTitle: "Test Feature",
+    expenseType: "CapEx",
+  }),
 }));
 
-// Mock settings reader (used by extractConfig fallback)
+// Mock settings reader
 jest.mock("@/lib/settings", () => ({
   readSettings: jest.fn().mockResolvedValue({}),
 }));
@@ -144,5 +165,15 @@ describe("GET /api/debug/user-time — date window", () => {
     expect(res.status).toBe(400);
     const body = await res.json();
     expect(body.error).toMatch(/email/i);
+  });
+
+  it("includes feature and classification in work items", async () => {
+    const res = await GET(makeRequest({ email: "test@arrivia.com" }));
+    const body = await res.json();
+    expect(body.workItems).toHaveLength(1);
+    expect(body.workItems[0].featureId).toBe(99999);
+    expect(body.workItems[0].featureTitle).toBe("Test Feature");
+    expect(body.workItems[0].classification).toBe("CapEx");
+    expect(body.workItems[0].state).toBe("Active");
   });
 });
