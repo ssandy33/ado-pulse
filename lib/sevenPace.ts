@@ -166,12 +166,12 @@ export async function getSevenPaceWorklogs(
   // Build URL for diagnostics (use literal $ — matches actual request)
   const baseUrl = config.baseUrl.endsWith("/") ? config.baseUrl : config.baseUrl + "/";
   const qs = Object.entries(params).map(([k, v]) => `${k}=${encodeURIComponent(v)}`).join("&");
-  const requestUrl = `${baseUrl}workLogs?${qs}`;
+  const requestUrl = `${baseUrl}workLogs/all?${qs}`;
 
-  // Fetch raw to inspect response shape
+  // Use /workLogs/all to get org-wide worklogs (requires Admin/Budget/Product role)
   const result = await sevenPaceFetch<Record<string, unknown>>(
     config,
-    "workLogs",
+    "workLogs/all",
     params
   );
 
@@ -202,7 +202,7 @@ export async function getSevenPaceWorklogs(
     try {
       const probe = await sevenPaceFetch<Record<string, unknown>>(
         config,
-        "workLogs",
+        "workLogs/all",
         { "api-version": "3.2", "_count": "5" }
       );
       const probeData = Array.isArray(probe.data) ? probe.data
