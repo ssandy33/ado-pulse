@@ -5,6 +5,7 @@ import type { TimeRange } from "@/lib/dateRange";
 import type { TeamTimeData, MemberTimeEntry, WrongLevelEntry, TimeTrackingDiagnostics, GovernanceData, ExpenseType } from "@/lib/ado/types";
 import { KPICard } from "./KPICard";
 import { SkeletonKPIRow, SkeletonTable } from "./SkeletonLoader";
+import { EmailTooltip } from "./EmailTooltip";
 
 interface TimeTrackingTabProps {
   adoHeaders: Record<string, string>;
@@ -138,7 +139,7 @@ function MemberRow({ member, isExpanded, onToggle }: {
             )}
             <div>
               <span className="text-[13px] font-medium text-pulse-text">
-                {member.displayName}
+                <EmailTooltip displayName={member.displayName} email={member.uniqueName} />
               </span>
               {member.isExcluded && member.role && (
                 <span className="ml-2 text-[10px] font-medium text-pulse-muted bg-pulse-bg px-1.5 py-0.5 rounded">
