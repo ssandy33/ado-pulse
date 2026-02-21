@@ -19,8 +19,8 @@ function WorkItemLink({ id, org, project, children }: {
   project: string;
   children?: React.ReactNode;
 }) {
-  if (!id) return <>{children}</>;
-  const url = `https://dev.azure.com/${org}/${project}/_workitems/edit/${id}`;
+  if (!id || !org || !project) return <>{children ?? (id ? `#${id}` : null)}</>;
+  const url = `https://dev.azure.com/${encodeURIComponent(org)}/${encodeURIComponent(project)}/_workitems/edit/${id}`;
   return (
     <a
       href={url}
