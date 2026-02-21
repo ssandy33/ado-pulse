@@ -93,7 +93,7 @@ export async function getSevenPaceUsers(
   config: SevenPaceConfig
 ): Promise<Map<string, string>> {
   const result = await sevenPaceFetch<SevenPaceUsersResponse>(config, "users", {
-    "api-version": "3.0",
+    "api-version": "3.2",
   });
 
   // Map 7pace user ID → ADO uniqueName (email)
@@ -156,10 +156,10 @@ export async function getSevenPaceWorklogs(
   const toStr = toDateStr(to);
 
   const params = {
-    "api-version": "3.0",
-    "$fromTimestamp": fromStr,
-    "$toTimestamp": toStr,
-    "$count": "500",
+    "api-version": "3.2",
+    "_fromTimestamp": fromStr,
+    "_toTimestamp": toStr,
+    "_count": "500",
   };
 
   // Build URL for diagnostics (use literal $ — matches actual request)
