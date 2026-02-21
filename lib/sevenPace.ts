@@ -143,7 +143,8 @@ export interface SevenPaceWorklogsResult {
 }
 
 function toDateStr(d: Date): string {
-  return d.toISOString().split("T")[0];
+  // 7pace expects datetime format: 2021-11-06T10:28:00
+  return d.toISOString().split(".")[0];
 }
 
 export async function getSevenPaceWorklogs(
