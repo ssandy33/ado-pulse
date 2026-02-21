@@ -280,6 +280,23 @@ export interface WrongLevelEntry {
   resolvedFeatureTitle?: string;
 }
 
+export interface TimeTrackingDiagnostics {
+  sevenPaceUsersTotal: number;
+  sevenPaceUsers: { id: string; uniqueName: string }[];
+  totalWorklogsFromSevenPace: number;
+  worklogsMatchedToTeam: number;
+  unmappedUserIdCount: number;
+  mappedButNotOnTeamCount: number;
+  mappedButNotOnTeam: string[];
+  rosterUniqueNames: string[];
+  sampleWorklogs: {
+    userId: string;
+    resolvedUniqueName: string | null;
+    workItemId: number;
+    hours: number;
+  }[];
+}
+
 export interface TeamTimeData {
   period: { days: number; from: string; to: string; label: string };
   team: { name: string; totalMembers: number };
@@ -295,4 +312,5 @@ export interface TeamTimeData {
   members: MemberTimeEntry[];
   wrongLevelEntries: WrongLevelEntry[];
   sevenPaceConnected: boolean;
+  diagnostics?: TimeTrackingDiagnostics;
 }

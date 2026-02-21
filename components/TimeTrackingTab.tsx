@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import type { TimeRange } from "@/lib/dateRange";
-import type { TeamTimeData, MemberTimeEntry, WrongLevelEntry } from "@/lib/ado/types";
+import type { TeamTimeData, MemberTimeEntry, WrongLevelEntry, TimeTrackingDiagnostics } from "@/lib/ado/types";
 import { KPICard } from "./KPICard";
 import { SkeletonKPIRow, SkeletonTable } from "./SkeletonLoader";
 
@@ -423,8 +423,161 @@ export function TimeTrackingTab({
               </table>
             </div>
           </div>
+
+          {/* Pipeline Diagnostics */}
+          {data.diagnostics && <PipelineDiagnostics diag={data.diagnostics} />}
         </>
       )}
     </>
+  );
+}
+
+function PipelineDiagnostics({ diag }: { diag: TimeTrackingDiagnostics }) {
+  const [expanded, setExpanded] = useState(false);
+
+  return (
+    <div className="bg-pulse-card border border-pulse-border rounded-lg overflow-hidden mb-6">
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="w-full px-4 py-3 flex items-center justify-between text-left cursor-pointer hover:bg-pulse-hover/50"
+      >
+        <div className="flex items-center gap-2">
+          <svg className="w-4 h-4 text-pulse-muted" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+            <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+          </svg>
+          <span className="text-[13px] font-medium text-pulse-text">Pipeline Diagnostics</span>
+          <span className="text-[11px] text-pulse-muted">
+            {diag.totalWorklogsFromSevenPace} worklogs fetched, {diag.worklogsMatchedToTeam} matched to team
+          </span>
+        </div>
+        <svg
+          className={`w-4 h-4 text-pulse-muted transition-transform ${expanded ? "rotate-180" : ""}`}
+          fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
+        >
+          <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+        </svg>
+      </button>
+      {expanded && (
+        <div className="px-4 pb-4 space-y-4">
+          {/* Pipeline counts */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <div className="bg-pulse-bg rounded-md p-3">
+              <div className="text-[11px] text-pulse-muted uppercase tracking-wide mb-1">7pace Users</div>
+              <div className="text-lg font-semibold text-pulse-text">{diag.sevenPaceUsersTotal}</div>
+            </div>
+            <div className="bg-pulse-bg rounded-md p-3">
+              <div className="text-[11px] text-pulse-muted uppercase tracking-wide mb-1">Total Worklogs</div>
+              <div className="text-lg font-semibold text-pulse-text">{diag.totalWorklogsFromSevenPace}</div>
+            </div>
+            <div className="bg-pulse-bg rounded-md p-3">
+              <div className="text-[11px] text-pulse-muted uppercase tracking-wide mb-1">Matched to Team</div>
+              <div className={`text-lg font-semibold ${diag.worklogsMatchedToTeam > 0 ? "text-emerald-600" : "text-red-600"}`}>
+                {diag.worklogsMatchedToTeam}
+              </div>
+            </div>
+            <div className="bg-pulse-bg rounded-md p-3">
+              <div className="text-[11px] text-pulse-muted uppercase tracking-wide mb-1">Unmapped User IDs</div>
+              <div className={`text-lg font-semibold ${diag.unmappedUserIdCount > 0 ? "text-amber-600" : "text-pulse-text"}`}>
+                {diag.unmappedUserIdCount}
+              </div>
+            </div>
+          </div>
+
+          {/* Roster uniqueNames */}
+          <div>
+            <h4 className="text-[12px] font-medium text-pulse-text mb-1">Team Roster (uniqueNames)</h4>
+            <div className="bg-pulse-bg rounded-md p-3 space-y-0.5">
+              {diag.rosterUniqueNames.map((name) => (
+                <div key={name} className="text-[11px] font-mono text-pulse-muted">{name}</div>
+              ))}
+            </div>
+          </div>
+
+          {/* 7pace users */}
+          {diag.sevenPaceUsers.length > 0 && (
+            <div>
+              <h4 className="text-[12px] font-medium text-pulse-text mb-1">
+                7pace Users (first {diag.sevenPaceUsers.length})
+              </h4>
+              <div className="overflow-x-auto">
+                <table className="w-full text-[11px]">
+                  <thead>
+                    <tr className="text-left text-pulse-muted border-b border-pulse-border">
+                      <th className="px-2 py-1 font-medium">7pace ID</th>
+                      <th className="px-2 py-1 font-medium">Resolved uniqueName</th>
+                      <th className="px-2 py-1 font-medium">On Roster?</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {diag.sevenPaceUsers.map((u) => {
+                      const onRoster = diag.rosterUniqueNames.includes(u.uniqueName.toLowerCase());
+                      return (
+                        <tr key={u.id} className="border-b border-pulse-border/30">
+                          <td className="px-2 py-1 font-mono text-pulse-dim">{u.id.slice(0, 12)}...</td>
+                          <td className="px-2 py-1 font-mono text-pulse-muted">{u.uniqueName}</td>
+                          <td className="px-2 py-1">
+                            {onRoster ? (
+                              <span className="text-emerald-600 font-medium">Yes</span>
+                            ) : (
+                              <span className="text-red-600 font-medium">No</span>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* Sample worklogs */}
+          {diag.sampleWorklogs.length > 0 && (
+            <div>
+              <h4 className="text-[12px] font-medium text-pulse-text mb-1">
+                Sample Worklogs (first {diag.sampleWorklogs.length})
+              </h4>
+              <div className="overflow-x-auto">
+                <table className="w-full text-[11px]">
+                  <thead>
+                    <tr className="text-left text-pulse-muted border-b border-pulse-border">
+                      <th className="px-2 py-1 font-medium">7pace userId</th>
+                      <th className="px-2 py-1 font-medium">Resolved Name</th>
+                      <th className="px-2 py-1 font-medium">Work Item</th>
+                      <th className="px-2 py-1 font-medium text-right">Hours</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {diag.sampleWorklogs.map((wl, i) => (
+                      <tr key={i} className="border-b border-pulse-border/30">
+                        <td className="px-2 py-1 font-mono text-pulse-dim">{wl.userId.slice(0, 12)}...</td>
+                        <td className="px-2 py-1 font-mono text-pulse-muted">{wl.resolvedUniqueName ?? "unmapped"}</td>
+                        <td className="px-2 py-1 text-pulse-muted">#{wl.workItemId}</td>
+                        <td className="px-2 py-1 text-right text-pulse-text">{wl.hours.toFixed(2)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* Mapped but not on team */}
+          {diag.mappedButNotOnTeam.length > 0 && (
+            <div>
+              <h4 className="text-[12px] font-medium text-pulse-text mb-1">
+                Mapped but Not on Team ({diag.mappedButNotOnTeamCount})
+              </h4>
+              <div className="bg-pulse-bg rounded-md p-3 space-y-0.5">
+                {diag.mappedButNotOnTeam.map((name) => (
+                  <div key={name} className="text-[11px] font-mono text-amber-600">{name}</div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
   );
 }

@@ -70,9 +70,19 @@ export async function GET(request: NextRequest) {
     // 4. Map 7pace userId → ADO uniqueName
     // spUsers: Map<7paceId, uniqueName>
     // Filter worklogs to team roster members only
+    const unmappedUserIds = new Set<string>();
+    const mappedButNotOnTeam = new Set<string>();
     const teamWorklogs = worklogs.filter((wl) => {
       const uniqueName = spUsers.get(wl.userId);
-      return uniqueName && rosterSet.has(uniqueName.toLowerCase());
+      if (!uniqueName) {
+        unmappedUserIds.add(wl.userId);
+        return false;
+      }
+      if (!rosterSet.has(uniqueName.toLowerCase())) {
+        mappedButNotOnTeam.add(uniqueName);
+        return false;
+      }
+      return true;
     });
 
     // 5. Batch-fetch all unique workItemIds from ADO
@@ -240,6 +250,10 @@ export async function GET(request: NextRequest) {
     const opExHours = nonExcluded.reduce((s, m) => s + m.opExHours, 0);
     const unclassifiedHours = nonExcluded.reduce((s, m) => s + m.unclassifiedHours, 0);
 
+    // Build diagnostics for debugging pipeline
+    const spUsersList = Array.from(spUsers.entries()).map(([id, name]) => ({ id, uniqueName: name }));
+    const rosterList = members.map((m) => m.uniqueName.toLowerCase());
+
     const response: TeamTimeData = {
       period: { days, from: from.toISOString(), to: to.toISOString(), label },
       team: { name: teamName, totalMembers: nonExcluded.length },
@@ -255,6 +269,22 @@ export async function GET(request: NextRequest) {
       members: memberEntries,
       wrongLevelEntries,
       sevenPaceConnected: true,
+      diagnostics: {
+        sevenPaceUsersTotal: spUsers.size,
+        sevenPaceUsers: spUsersList.slice(0, 20),
+        totalWorklogsFromSevenPace: worklogs.length,
+        worklogsMatchedToTeam: teamWorklogs.length,
+        unmappedUserIdCount: unmappedUserIds.size,
+        mappedButNotOnTeamCount: mappedButNotOnTeam.size,
+        mappedButNotOnTeam: Array.from(mappedButNotOnTeam).slice(0, 10),
+        rosterUniqueNames: rosterList,
+        sampleWorklogs: worklogs.slice(0, 5).map((wl) => ({
+          userId: wl.userId,
+          resolvedUniqueName: spUsers.get(wl.userId) ?? null,
+          workItemId: wl.workItemId,
+          hours: wl.hours,
+        })),
+      },
     };
 
     return jsonWithCache(response, 120);
