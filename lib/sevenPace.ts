@@ -28,18 +28,22 @@ export async function sevenPaceFetch<T>(
   path: string,
   params?: Record<string, string>
 ): Promise<T> {
-  const url = new URL(path, config.baseUrl.endsWith("/") ? config.baseUrl : config.baseUrl + "/");
+  const base = config.baseUrl.endsWith("/") ? config.baseUrl : config.baseUrl + "/";
+  // Build query string manually to preserve literal $ in param keys
+  // (URLSearchParams encodes $ as %24 which 7pace doesn't recognise)
+  let urlStr = new URL(path, base).toString();
   if (params) {
-    for (const [key, value] of Object.entries(params)) {
-      url.searchParams.set(key, value);
-    }
+    const qs = Object.entries(params)
+      .map(([k, v]) => `${k}=${encodeURIComponent(v)}`)
+      .join("&");
+    urlStr += (urlStr.includes("?") ? "&" : "?") + qs;
   }
 
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 30000);
 
   try {
-    const res = await fetch(url.toString(), {
+    const res = await fetch(urlStr, {
       headers: {
         Authorization: `Bearer ${config.apiToken}`,
         "Content-Type": "application/json",
@@ -157,9 +161,10 @@ export async function getSevenPaceWorklogs(
     "$count": "500",
   };
 
-  // Build URL for diagnostics
+  // Build URL for diagnostics (use literal $ — matches actual request)
   const baseUrl = config.baseUrl.endsWith("/") ? config.baseUrl : config.baseUrl + "/";
-  const requestUrl = `${baseUrl}workLogs?${new URLSearchParams(params).toString()}`;
+  const qs = Object.entries(params).map(([k, v]) => `${k}=${encodeURIComponent(v)}`).join("&");
+  const requestUrl = `${baseUrl}workLogs?${qs}`;
 
   // Fetch raw to inspect response shape
   const result = await sevenPaceFetch<Record<string, unknown>>(
