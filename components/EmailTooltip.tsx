@@ -21,6 +21,7 @@ export function EmailTooltip({ displayName, email }: EmailTooltipProps) {
   return (
     <div
       className="relative inline-block"
+      onClick={(e) => e.stopPropagation()}
       onMouseEnter={() => setVisible(true)}
       onMouseLeave={() => {
         setVisible(false);
