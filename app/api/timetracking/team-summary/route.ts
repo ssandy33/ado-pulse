@@ -150,7 +150,7 @@ export async function GET(request: NextRequest) {
         const wiType = workItem?.fields["System.WorkItemType"];
 
         if (wiType === "Feature") {
-          // Logged directly on a Feature — read expense type directly
+          // Logged on a Feature — correct level
           const rawExpense = workItem?.fields["Custom.FeatureExpense"];
           if (rawExpense === "CapEx" || rawExpense === "OpEx") {
             expenseType = rawExpense;
@@ -158,7 +158,10 @@ export async function GET(request: NextRequest) {
           featureId = wl.workItemId;
           featureTitle = workItem?.fields["System.Title"] || `Feature ${wl.workItemId}`;
         } else {
-          // Task/Story/Bug — walk parent chain to Feature
+          // Task/Story/Bug — wrong level, should be on the Feature
+          loggedAtWrongLevel = true;
+          originalWorkItemId = wl.workItemId;
+          originalWorkItemType = wiType;
           const resolved = await resolveFeature(
             configOrError,
             wl.workItemId,
@@ -167,8 +170,6 @@ export async function GET(request: NextRequest) {
           featureId = resolved.featureId;
           featureTitle = resolved.featureTitle;
           expenseType = resolved.expenseType;
-          originalWorkItemId = wl.workItemId;
-          originalWorkItemType = wiType;
         }
       }
 

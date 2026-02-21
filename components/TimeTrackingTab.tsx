@@ -72,7 +72,7 @@ function WrongLevelBanner({ entries }: { entries: WrongLevelEntry[] }) {
       {expanded && (
         <div className="px-4 pb-3">
           <p className="text-[11px] text-amber-700 mb-2">
-            These worklogs are logged directly on Features instead of child Tasks/Stories. Time is still counted but the practice should be corrected.
+            These worklogs are logged on Tasks/Stories/Bugs instead of their parent Feature. Time is still counted but should be logged at the Feature level.
           </p>
           <div className="overflow-x-auto">
             <table className="w-full text-[12px]">
