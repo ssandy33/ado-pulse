@@ -14,7 +14,7 @@ jobs:
         with:
           timeout_minutes: 15
           max_attempts: 3
-          retry_wait_seconds: 15
+          retry_wait_seconds: 30
           command: |
             mkdir -p ~/.ssh
             echo "${{ secrets.DEPLOY_SSH_KEY }}" > ~/.ssh/deploy_key
@@ -22,5 +22,7 @@ jobs:
             ssh -o StrictHostKeyChecking=no -o ConnectTimeout=30 \
               -i ~/.ssh/deploy_key \
               ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} \
-              'cd /opt/ado-pulse && git fetch origin main && git reset --hard origin/main && mkdir -p data && chown 1001:1001 data && docker compose -f docker-compose.prod.yml build --no-cache && docker compose -f docker-compose.prod.yml up -d --force-recreate && sleep 5 && docker compose -f docker-compose.prod.yml logs app --tail 50 && docker compose -f docker-compose.prod.yml restart caddy && docker compose -f docker-compose.prod.yml ps && docker image prune -f'
+              'cd /opt/ado-pulse && git fetch origin main && git reset --hard origin/main && mkdir -p data && chown 1001:1001 data && docker compose -f docker-compose.prod.yml build && docker compose -f docker-compose.prod.yml up -d --force-recreate && sleep 10 && docker compose -f docker-compose.prod.yml logs app --tail 30 && docker compose -f docker-compose.prod.yml restart caddy && docker compose -f docker-compose.prod.yml ps && docker image prune -f'
+            SSH_EXIT=$?
             rm -f ~/.ssh/deploy_key
+            exit $SSH_EXIT
