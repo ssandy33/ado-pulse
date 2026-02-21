@@ -4,17 +4,21 @@ import { readSettings, writeSettings } from "@/lib/settings";
 export async function GET() {
   try {
     const settings = await readSettings();
-    const savedPat = settings.integrations?.ado?.pat;
+    const ado = settings.integrations?.ado;
 
-    if (savedPat) {
-      return NextResponse.json({ configured: true, source: "settings" });
+    if (ado?.pat) {
+      return NextResponse.json({
+        configured: true,
+        source: "settings",
+        orgUrl: ado.orgUrl || "",
+      });
     }
 
     if (process.env.ADO_PAT) {
-      return NextResponse.json({ configured: true, source: "env" });
+      return NextResponse.json({ configured: true, source: "env", orgUrl: "" });
     }
 
-    return NextResponse.json({ configured: false, source: "none" });
+    return NextResponse.json({ configured: false, source: "none", orgUrl: "" });
   } catch {
     return NextResponse.json(
       { error: "Failed to read settings" },
@@ -26,7 +30,7 @@ export async function GET() {
 export async function PUT(request: NextRequest) {
   try {
     const body = await request.json();
-    const { pat, org } = body;
+    const { pat, org, orgUrl } = body;
 
     if (typeof pat !== "string" || !pat.trim()) {
       return NextResponse.json(
@@ -69,7 +73,7 @@ export async function PUT(request: NextRequest) {
     const settings = await readSettings();
     settings.integrations = {
       ...settings.integrations,
-      ado: { pat },
+      ado: { pat, orgUrl: orgUrl || "" },
     };
     await writeSettings(settings);
 

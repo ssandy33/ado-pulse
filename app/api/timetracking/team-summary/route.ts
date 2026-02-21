@@ -20,7 +20,7 @@ import type {
 } from "@/lib/ado/types";
 
 export async function GET(request: NextRequest) {
-  const configOrError = extractConfig(request);
+  const configOrError = await extractConfig(request);
   if (configOrError instanceof NextResponse) return configOrError;
 
   try {

@@ -3,7 +3,7 @@ import { extractConfig, jsonWithCache } from "@/lib/ado/helpers";
 import type { PolicyComplianceResponse } from "@/lib/ado/types";
 
 export async function GET(request: NextRequest) {
-  const configOrError = extractConfig(request);
+  const configOrError = await extractConfig(request);
   if ("status" in configOrError) return configOrError;
 
   const response: PolicyComplianceResponse = {

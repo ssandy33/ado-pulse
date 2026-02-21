@@ -61,8 +61,10 @@ export function IntegrationsSettings({ adoHeaders }: IntegrationsSettingsProps) 
   const dirty =
     form.apiToken !== saved.apiToken || form.baseUrl !== saved.baseUrl;
 
-  // Extract org from adoHeaders (x-ado-org header)
+  // Extract org and project from adoHeaders
   const adoOrg = adoHeaders["x-ado-org"] || "";
+  const adoProject = adoHeaders["x-ado-project"] || "";
+  const adoOrgUrl = adoOrg && adoProject ? `https://dev.azure.com/${adoOrg}/${adoProject}` : "";
 
   // Load existing settings
   useEffect(() => {
@@ -193,7 +195,7 @@ export function IntegrationsSettings({ adoHeaders }: IntegrationsSettingsProps) 
       const res = await fetch("/api/settings/integrations/ado", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ pat: adoPat, org: adoOrg }),
+        body: JSON.stringify({ pat: adoPat, org: adoOrg, orgUrl: adoOrgUrl }),
       });
       const data = await res.json();
 

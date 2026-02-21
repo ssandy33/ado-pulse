@@ -4,7 +4,7 @@ import { extractConfig, jsonWithCache, handleApiError } from "@/lib/ado/helpers"
 import { readSettings } from "@/lib/settings";
 
 export async function GET(request: NextRequest) {
-  const configOrError = extractConfig(request);
+  const configOrError = await extractConfig(request);
   if (configOrError instanceof NextResponse) return configOrError;
 
   try {

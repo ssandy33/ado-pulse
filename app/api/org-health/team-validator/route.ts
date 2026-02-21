@@ -6,7 +6,7 @@ import { parseRange, resolveRange } from "@/lib/dateRange";
 import type { TeamValidatorResponse, ValidatorRosterMember } from "@/lib/ado/types";
 
 export async function GET(request: NextRequest) {
-  const configOrError = extractConfig(request);
+  const configOrError = await extractConfig(request);
   if ("status" in configOrError) return configOrError;
 
   try {

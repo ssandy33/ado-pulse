@@ -74,6 +74,7 @@ export interface SevenPaceIntegration {
 
 export interface AdoIntegration {
   pat: string;
+  orgUrl: string;
 }
 
 export interface SettingsData {

@@ -65,7 +65,7 @@ async function fetchSingleWorkItem(
 }
 
 export async function GET(request: NextRequest) {
-  const configOrError = extractConfig(request);
+  const configOrError = await extractConfig(request);
   if (configOrError instanceof NextResponse) return configOrError;
 
   const workItemIdStr = request.nextUrl.searchParams.get("workItemId");
