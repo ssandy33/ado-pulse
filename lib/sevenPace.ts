@@ -195,8 +195,10 @@ export async function getWorklogsForUser(
   from: Date,
   to: Date
 ): Promise<SevenPaceWorklogsResult> {
-  const base = config.baseUrl.endsWith("/") ? config.baseUrl : config.baseUrl + "/";
-  const odataBase = `${base}api/odata/v3.2/workLogsOnly`;
+  // Derive the OData base from the configured REST base URL.
+  // e.g. "https://arrivia.timehub.7pace.com/api/rest" → "https://arrivia.timehub.7pace.com"
+  const origin = config.baseUrl.replace(/\/api\/rest\/?$/, "").replace(/\/+$/, "");
+  const odataBase = `${origin}/api/odata/v3.2/workLogsOnly`;
 
   // Build the initial OData URL with user + date filters
   const filterExpr = `Timestamp ge ${toISODate(from)} and Timestamp lt ${toISODate(to)}`;
