@@ -7,7 +7,7 @@ import { parseRange, resolveRange, countBusinessDays } from "@/lib/dateRange";
 import {
   getSevenPaceConfig,
   getSevenPaceUsers,
-  getSevenPaceWorklogs,
+  getWorklogsForUser,
   SevenPaceApiError,
 } from "@/lib/sevenPace";
 import { getWorkItems, resolveFeature } from "@/lib/ado/workItems";
@@ -51,7 +51,7 @@ export async function GET(request: NextRequest) {
       } satisfies TeamTimeData);
     }
 
-    // 2. Parallel fetch: team roster + 7pace user map
+    // 2. Parallel fetch: team roster + 7pace user map (user map still used for diagnostics)
     const [members, spUsers] = await Promise.all([
       getTeamMembers(configOrError, teamName),
       getSevenPaceUsers(spConfig),
@@ -65,26 +65,23 @@ export async function GET(request: NextRequest) {
         .map((e) => [e.uniqueName.toLowerCase(), e.role])
     );
 
-    // Build reverse lookup: uniqueName → 7pace userId
-    const nameToSpId = new Map<string, string>();
-    for (const [id, name] of spUsers.entries()) {
-      nameToSpId.set(name.toLowerCase(), id);
-    }
-
-    // 4. Fetch worklogs per team member using userId filter (concurrency 5)
-    const membersWithNoSpId = new Set<string>();
-    const memberFetches = members
-      .map((m) => {
-        const spUserId = nameToSpId.get(m.uniqueName.toLowerCase());
-        if (!spUserId) {
-          membersWithNoSpId.add(m.uniqueName);
-          return null;
-        }
-        return async () => getSevenPaceWorklogs(spConfig, from, to, spUserId);
-      })
-      .filter((fn): fn is NonNullable<typeof fn> => fn !== null);
+    // 4. Fetch worklogs per team member via OData API (real server-side user filtering)
+    //    Each call filters by User/Email at the API level — no userId lookup needed.
+    //    Concurrency of 5 to avoid overloading the 7pace API.
+    const memberFetches = members.map((m) => {
+      return async () => getWorklogsForUser(spConfig, m.uniqueName, from, to);
+    });
 
     const memberResults = await batchAsync(memberFetches, 5);
+
+    // Collect pagination diagnostics per member
+    const paginationDetails = memberResults.map((r, idx) => ({
+      uniqueName: members[idx]?.uniqueName ?? "unknown",
+      pagesFetched: r.pagination?.pagesFetched ?? 1,
+      hitCap: r.pagination?.hitSafetyCap ?? false,
+    }));
+    const anyMemberHitCap = paginationDetails.some((d) => d.hitCap);
+    const totalPagesFetched = paginationDetails.reduce((s, d) => s + d.pagesFetched, 0);
 
     // Combine all per-member worklogs
     const teamWorklogs = memberResults.flatMap((r) => r.worklogs);
@@ -294,9 +291,10 @@ export async function GET(request: NextRequest) {
       diagnostics: {
         sevenPaceUsersTotal: spUsers.size,
         sevenPaceUsers: spUsersList.slice(0, 20),
-        fetchMode: "per-member",
+        fetchMode: "per-member-odata",
+        fetchApi: "odata",
         membersFetched: memberResults.length,
-        membersWithNoSpId: Array.from(membersWithNoSpId).slice(0, 10),
+        membersWithNoSpId: [],
         totalWorklogsFromSevenPace: totalRawCount,
         worklogsMatchedToTeam: teamWorklogs.length,
         rosterUniqueNames: rosterList,
@@ -306,6 +304,11 @@ export async function GET(request: NextRequest) {
           workItemId: wl.workItemId,
           hours: wl.hours,
         })),
+        pagination: {
+          totalPagesFetched: totalPagesFetched,
+          totalRecordsFetched: totalRawCount,
+          anyMemberHitCap,
+        },
       },
     };
 

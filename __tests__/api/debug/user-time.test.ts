@@ -50,39 +50,40 @@ jest.mock("@/lib/ado/client", () => ({
   }),
 }));
 
-// Mock 7pace modules
+// Mock 7pace — now uses getWorklogsForUser (OData) instead of sevenPaceFetch (REST)
 jest.mock("@/lib/sevenPace", () => ({
   getSevenPaceConfig: jest.fn().mockResolvedValue({
     apiToken: "test-token",
     baseUrl: "https://test.timehub.7pace.com/api/rest",
   }),
-  sevenPaceFetch: jest.fn().mockImplementation((_config, path) => {
-    if (path === "users") {
-      return Promise.resolve({
-        data: [
-          {
-            id: "user-1",
-            email: "test@arrivia.com",
-            uniqueName: "test@arrivia.com",
-            displayName: "Test User",
-          },
-        ],
-      });
-    }
-    // workLogs/all
-    return Promise.resolve({
-      data: [
-        {
-          id: "wl-1",
-          user: { id: "user-1", uniqueName: "test@arrivia.com" },
-          workItemId: 12345,
-          length: 7200,
-          timestamp: "2026-02-15T10:00:00",
-          activityType: { name: "Development" },
-        },
-      ],
-    });
+  getWorklogsForUser: jest.fn().mockResolvedValue({
+    worklogs: [
+      {
+        id: "wl-1",
+        userId: "user-1",
+        uniqueName: "test@arrivia.com",
+        displayName: "Test User",
+        workItemId: 12345,
+        hours: 2,
+        date: "2026-02-15T10:00:00",
+        activityType: "Development",
+      },
+    ],
+    rawResponseKeys: ["@odata.context", "value"],
+    rawCount: 1,
+    requestUrl: "https://test.timehub.7pace.com/api/odata/v3.2/workLogsOnly?...",
+    fetchApi: "odata",
+    pagination: { pagesFetched: 1, totalRecords: 1, hitSafetyCap: false },
   }),
+  SevenPaceApiError: class extends Error {
+    status: number;
+    code: string;
+    constructor(message: string, status: number, code: string) {
+      super(message);
+      this.status = status;
+      this.code = code;
+    }
+  },
 }));
 
 // Mock resolveFeature from workItems
@@ -175,5 +176,18 @@ describe("GET /api/debug/user-time — date window", () => {
     expect(body.workItems[0].featureTitle).toBe("Test Feature");
     expect(body.workItems[0].classification).toBe("CapEx");
     expect(body.workItems[0].state).toBe("Active");
+  });
+
+  it("includes uniqueName in entry response for user verification", async () => {
+    const res = await GET(makeRequest({ email: "test@arrivia.com" }));
+    const body = await res.json();
+    expect(body.workItems[0].entries[0].uniqueName).toBe("test@arrivia.com");
+  });
+
+  it("includes OData fetch info in debug block", async () => {
+    const res = await GET(makeRequest({ email: "test@arrivia.com" }));
+    const body = await res.json();
+    expect(body._debug.fetchApi).toBe("odata");
+    expect(body._debug.pagination).toBeDefined();
   });
 });

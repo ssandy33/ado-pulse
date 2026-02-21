@@ -289,6 +289,7 @@ export interface TimeTrackingDiagnostics {
   sevenPaceUsersTotal: number;
   sevenPaceUsers: { id: string; uniqueName: string }[];
   fetchMode: string;
+  fetchApi: "odata" | "rest";
   membersFetched: number;
   membersWithNoSpId: string[];
   totalWorklogsFromSevenPace: number;
@@ -300,6 +301,11 @@ export interface TimeTrackingDiagnostics {
     workItemId: number;
     hours: number;
   }[];
+  pagination?: {
+    totalPagesFetched: number;
+    totalRecordsFetched: number;
+    anyMemberHitCap: boolean;
+  };
 }
 
 export interface GovernanceData {
