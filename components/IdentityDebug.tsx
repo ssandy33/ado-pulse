@@ -435,6 +435,330 @@ function WorkItemTimeLogLookup({
   );
 }
 
+// ── User Time Log Lookup types ────────────────────────────────
+
+interface UserTimeWorkItemEntry {
+  id: string;
+  date: string;
+  hours: number;
+  activity: string;
+}
+
+interface UserTimeWorkItem {
+  workItemId: number;
+  title: string;
+  type: string;
+  totalHours: number;
+  entryCount: number;
+  activities: string[];
+  entries: UserTimeWorkItemEntry[];
+}
+
+interface UserTimeResponse {
+  user: { id: string; email: string; displayName: string } | null;
+  error?: string;
+  availableUsers?: { id: string; email: string; displayName: string }[];
+  summary?: {
+    totalHours: number;
+    workItemCount: number;
+    entryCount: number;
+    dateRange: { earliest: string; latest: string } | null;
+    period: { from: string; to: string; days: number };
+  };
+  workItems?: UserTimeWorkItem[];
+}
+
+function UserTimeLogLookup({
+  adoHeaders,
+}: {
+  adoHeaders: Record<string, string>;
+}) {
+  const [email, setEmail] = useState("");
+  const [result, setResult] = useState<UserTimeResponse | null>(null);
+  const [lookupLoading, setLookupLoading] = useState(false);
+  const [lookupError, setLookupError] = useState<string | null>(null);
+  const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set());
+
+  const handleLookup = () => {
+    const trimmed = email.trim();
+    if (!trimmed) return;
+
+    setLookupLoading(true);
+    setLookupError(null);
+    setResult(null);
+    setExpandedRows(new Set());
+
+    fetch(`/api/debug/user-time?email=${encodeURIComponent(trimmed)}`, {
+      headers: adoHeaders,
+    })
+      .then((res) => {
+        if (!res.ok) {
+          return res.json().then((body) => {
+            throw new Error(body.error || `API error: ${res.status}`);
+          });
+        }
+        return res.json();
+      })
+      .then((json: UserTimeResponse) => setResult(json))
+      .catch((err) =>
+        setLookupError(err instanceof Error ? err.message : "Lookup failed")
+      )
+      .finally(() => setLookupLoading(false));
+  };
+
+  const toggleRow = (workItemId: number) => {
+    setExpandedRows((prev) => {
+      const next = new Set(prev);
+      if (next.has(workItemId)) {
+        next.delete(workItemId);
+      } else {
+        next.add(workItemId);
+      }
+      return next;
+    });
+  };
+
+  const formatDate = (dateStr: string) => {
+    try {
+      return new Date(dateStr).toLocaleDateString("en-US", {
+        year: "numeric",
+        month: "short",
+        day: "numeric",
+      });
+    } catch {
+      return dateStr;
+    }
+  };
+
+  return (
+    <div className="p-4">
+      {/* Search input */}
+      <div className="flex items-center gap-2 mb-4">
+        <label className="text-[12px] font-medium text-pulse-text whitespace-nowrap">
+          Email
+        </label>
+        <input
+          type="email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && handleLookup()}
+          placeholder="user@example.com"
+          className="w-64 px-3 py-1.5 text-[12px] border border-pulse-border rounded-md bg-pulse-bg text-pulse-text placeholder:text-pulse-dim focus:outline-none focus:ring-1 focus:ring-pulse-accent"
+        />
+        <button
+          onClick={handleLookup}
+          disabled={lookupLoading || !email.trim()}
+          className="px-3 py-1.5 text-[12px] font-medium rounded-md bg-pulse-accent text-white hover:bg-pulse-accent/90 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+        >
+          {lookupLoading ? "Searching..." : "Search"}
+        </button>
+      </div>
+
+      <p className="text-[11px] text-pulse-muted mb-4">
+        Looks up all 7pace time entries for the past 30 days. Matches by email or uniqueName.
+      </p>
+
+      {/* Error */}
+      {lookupError && (
+        <div className="mb-4 text-[12px] text-red-600 bg-red-50 border border-red-200 rounded-md px-3 py-2">
+          {lookupError}
+        </div>
+      )}
+
+      {/* Loading */}
+      {lookupLoading && <SkeletonTable rows={3} />}
+
+      {/* No user found */}
+      {result && !result.user && result.error && (
+        <div className="mb-4 text-[12px] text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-3 py-2">
+          <p className="font-medium mb-1">{result.error}</p>
+          {result.availableUsers && result.availableUsers.length > 0 && (
+            <details className="mt-2">
+              <summary className="cursor-pointer text-[11px] text-amber-600 hover:underline">
+                Show available users ({result.availableUsers.length})
+              </summary>
+              <div className="mt-1 max-h-40 overflow-y-auto">
+                {result.availableUsers.map((u) => (
+                  <div key={u.id} className="text-[11px] text-pulse-muted font-mono py-0.5">
+                    {u.email} {u.displayName ? `(${u.displayName})` : ""}
+                  </div>
+                ))}
+              </div>
+            </details>
+          )}
+        </div>
+      )}
+
+      {/* Results */}
+      {result && result.user && result.summary && result.workItems && (
+        <>
+          {/* User info */}
+          <div className="mb-4 bg-pulse-bg rounded-md p-3">
+            <div className="text-[13px] font-medium text-pulse-text">
+              {result.user.displayName || result.user.email}
+            </div>
+            {result.user.displayName && (
+              <div className="text-[11px] text-pulse-muted font-mono">
+                {result.user.email}
+              </div>
+            )}
+          </div>
+
+          {/* Summary cards */}
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mb-4">
+            <div className="bg-pulse-bg rounded-md p-3">
+              <div className="text-[11px] text-pulse-muted uppercase tracking-wide mb-1">
+                Total Hours
+              </div>
+              <div className="text-lg font-semibold text-pulse-text">
+                {result.summary.totalHours.toFixed(1)}
+              </div>
+            </div>
+            <div className="bg-pulse-bg rounded-md p-3">
+              <div className="text-[11px] text-pulse-muted uppercase tracking-wide mb-1">
+                Work Items
+              </div>
+              <div className="text-lg font-semibold text-pulse-text">
+                {result.summary.workItemCount}
+              </div>
+            </div>
+            <div className="bg-pulse-bg rounded-md p-3">
+              <div className="text-[11px] text-pulse-muted uppercase tracking-wide mb-1">
+                Time Entries
+              </div>
+              <div className="text-lg font-semibold text-pulse-text">
+                {result.summary.entryCount}
+              </div>
+            </div>
+            <div className="bg-pulse-bg rounded-md p-3">
+              <div className="text-[11px] text-pulse-muted uppercase tracking-wide mb-1">
+                Date Range
+              </div>
+              <div className="text-[13px] font-semibold text-pulse-text">
+                {result.summary.dateRange
+                  ? `${formatDate(result.summary.dateRange.earliest)} — ${formatDate(result.summary.dateRange.latest)}`
+                  : "—"}
+              </div>
+            </div>
+          </div>
+
+          {/* Work Items Table */}
+          {result.workItems.length > 0 ? (
+            <div className="mb-4">
+              <div className="overflow-x-auto">
+                <table className="w-full text-[12px]">
+                  <thead>
+                    <tr className="text-left text-pulse-muted border-b border-pulse-border">
+                      <th className="px-3 py-2 font-medium w-8"></th>
+                      <th className="px-3 py-2 font-medium">Work Item</th>
+                      <th className="px-3 py-2 font-medium">Type</th>
+                      <th className="px-3 py-2 font-medium text-right">Hours</th>
+                      <th className="px-3 py-2 font-medium text-right">Entries</th>
+                      <th className="px-3 py-2 font-medium">Activities</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {result.workItems.map((wi) => (
+                      <>
+                        <tr
+                          key={wi.workItemId}
+                          className="border-b border-pulse-border/50 last:border-0 hover:bg-pulse-hover/30 cursor-pointer"
+                          onClick={() => toggleRow(wi.workItemId)}
+                        >
+                          <td className="px-3 py-2">
+                            <svg
+                              className={`w-3 h-3 text-pulse-muted transition-transform duration-150 ${
+                                expandedRows.has(wi.workItemId) ? "rotate-90" : ""
+                              }`}
+                              fill="none"
+                              viewBox="0 0 24 24"
+                              stroke="currentColor"
+                              strokeWidth={2}
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                d="M9 5l7 7-7 7"
+                              />
+                            </svg>
+                          </td>
+                          <td className="px-3 py-2">
+                            <div className="text-pulse-text font-medium">
+                              {wi.workItemId > 0 ? `#${wi.workItemId}` : ""}{" "}
+                              {wi.title}
+                            </div>
+                          </td>
+                          <td className="px-3 py-2 text-pulse-muted">
+                            {wi.type}
+                          </td>
+                          <td className="px-3 py-2 text-right text-pulse-text font-medium">
+                            {wi.totalHours.toFixed(1)}h
+                          </td>
+                          <td className="px-3 py-2 text-right text-pulse-muted">
+                            {wi.entryCount}
+                          </td>
+                          <td className="px-3 py-2 text-pulse-muted">
+                            {wi.activities.join(", ")}
+                          </td>
+                        </tr>
+                        {expandedRows.has(wi.workItemId) && (
+                          <tr key={`${wi.workItemId}-entries`}>
+                            <td colSpan={6} className="px-0 py-0">
+                              <div className="bg-pulse-bg/50 border-y border-pulse-border/30">
+                                <table className="w-full text-[11px]">
+                                  <thead>
+                                    <tr className="text-left text-pulse-dim">
+                                      <th className="pl-12 pr-3 py-1.5 font-medium">
+                                        Date
+                                      </th>
+                                      <th className="px-3 py-1.5 font-medium text-right">
+                                        Hours
+                                      </th>
+                                      <th className="px-3 py-1.5 font-medium">
+                                        Activity
+                                      </th>
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {wi.entries.map((entry, idx) => (
+                                      <tr
+                                        key={`${entry.id}-${idx}`}
+                                        className="border-t border-pulse-border/20"
+                                      >
+                                        <td className="pl-12 pr-3 py-1.5 text-pulse-muted">
+                                          {formatDate(entry.date)}
+                                        </td>
+                                        <td className="px-3 py-1.5 text-right text-pulse-text font-medium">
+                                          {entry.hours.toFixed(2)}h
+                                        </td>
+                                        <td className="px-3 py-1.5 text-pulse-muted">
+                                          {entry.activity}
+                                        </td>
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                      </>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          ) : (
+            <div className="text-center py-6 text-[13px] text-pulse-muted">
+              No time entries found for {result.user.email} in the last 30 days.
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
 // ── Main export ───────────────────────────────────────────────
 
 export function IdentityDebug({ adoHeaders, selectedTeam, range }: IdentityDebugProps) {
@@ -481,7 +805,15 @@ export function IdentityDebug({ adoHeaders, selectedTeam, range }: IdentityDebug
         <WorkItemTimeLogLookup adoHeaders={adoHeaders} selectedTeam={selectedTeam} />
       </CollapsibleSection>
 
-      {/* ── Identity Debug (second) ────────────────────────── */}
+      {/* ── User Time Log Lookup (second) ─────────────────── */}
+      <CollapsibleSection
+        title="User Time Log Lookup"
+        description="Look up all 7pace time entries for a specific user by email (last 30 days)."
+      >
+        <UserTimeLogLookup adoHeaders={adoHeaders} />
+      </CollapsibleSection>
+
+      {/* ── Identity Debug (third) ─────────────────────────── */}
       <CollapsibleSection
         title="Identity Debug"
         description="Raw ADO identity values — diagnose matching issues."
