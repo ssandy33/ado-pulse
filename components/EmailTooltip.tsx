@@ -8,7 +8,6 @@ interface EmailTooltipProps {
 }
 
 export function EmailTooltip({ displayName, email }: EmailTooltipProps) {
-  const [visible, setVisible] = useState(false);
   const [copied, setCopied] = useState(false);
 
   async function handleCopy(e: React.MouseEvent) {
@@ -19,36 +18,29 @@ export function EmailTooltip({ displayName, email }: EmailTooltipProps) {
   }
 
   return (
-    <div
-      className="relative inline-block"
-      onClick={(e) => e.stopPropagation()}
-      onMouseEnter={() => setVisible(true)}
-      onMouseLeave={() => {
-        setVisible(false);
-        setCopied(false);
-      }}
+    <span
+      className="inline-flex items-center gap-1 cursor-pointer border-b border-dotted border-pulse-dim hover:border-pulse-accent group"
+      onClick={handleCopy}
+      title={email}
     >
-      <span className="cursor-default border-b border-dotted border-pulse-dim">
-        {displayName}
-      </span>
-
-      {visible && (
-        <div className="absolute bottom-full left-0 mb-1.5 z-50 flex items-center gap-2 bg-white border border-pulse-border shadow-md rounded-md px-3 py-1.5 whitespace-nowrap">
-          <span className="text-[11px] font-mono text-pulse-muted">{email}</span>
-          <button
-            onClick={handleCopy}
-            className="text-[11px] px-2 py-0.5 rounded border border-pulse-border hover:bg-pulse-hover transition-colors text-pulse-muted flex items-center gap-1 cursor-pointer"
-          >
-            {copied ? (
-              <>
-                <span className="text-emerald-600">&#10003;</span> Copied!
-              </>
-            ) : (
-              "Copy"
-            )}
-          </button>
-        </div>
+      {displayName}
+      {copied ? (
+        <span className="text-emerald-600 text-[10px] font-medium">Copied!</span>
+      ) : (
+        <svg
+          className="w-3 h-3 text-pulse-dim opacity-0 group-hover:opacity-100 transition-opacity"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+          strokeWidth={2}
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
+          />
+        </svg>
       )}
-    </div>
+    </span>
   );
 }
