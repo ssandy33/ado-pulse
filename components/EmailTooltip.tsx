@@ -18,8 +18,9 @@ export function EmailTooltip({ displayName, email }: EmailTooltipProps) {
   }
 
   return (
-    <span
-      className="inline-flex items-center gap-1 cursor-pointer border-b border-dotted border-pulse-dim hover:border-pulse-accent group"
+    <button
+      type="button"
+      className="inline-flex items-center gap-1 cursor-pointer border-b border-dotted border-pulse-dim hover:border-pulse-accent group bg-transparent p-0 font-inherit text-inherit"
       onClick={handleCopy}
       title={email}
     >
@@ -41,6 +42,6 @@ export function EmailTooltip({ displayName, email }: EmailTooltipProps) {
           />
         </svg>
       )}
-    </span>
+    </button>
   );
 }
