@@ -141,26 +141,31 @@ export async function GET(request: NextRequest) {
     // Also build id → uniqueName for worklog resolution
     // spUsers is Map<id, uniqueName> from getSevenPaceUsers
 
-    // 5. Fetch 7pace worklogs filtered by workItemId
-    // Use the /workLogs/all endpoint with workItemId filter
+    // 5. Fetch 7pace worklogs and filter to the target work item
+    // The _workItemId param is not a valid 7pace filter, so we fetch
+    // recent worklogs and post-filter by workItemId.
     const result = await sevenPaceFetch<Record<string, unknown>>(
       spConfig,
       "workLogs/all",
       {
         "api-version": "3.2",
-        "_workItemId": String(workItemId),
         "_count": "500",
       }
     );
 
-    let rawWorklogs: RawWorklog[] = [];
+    let allWorklogs: RawWorklog[] = [];
     if (Array.isArray(result.data)) {
-      rawWorklogs = result.data;
+      allWorklogs = result.data;
     } else if (Array.isArray(result.value)) {
-      rawWorklogs = result.value as RawWorklog[];
+      allWorklogs = result.value as RawWorklog[];
     } else if (Array.isArray(result)) {
-      rawWorklogs = result as unknown as RawWorklog[];
+      allWorklogs = result as unknown as RawWorklog[];
     }
+
+    // Filter to only worklogs for the requested work item
+    const rawWorklogs = allWorklogs.filter(
+      (wl) => wl.workItemId === workItemId
+    );
 
     // 6. Build team roster set for "in roster" check
     const teamName = request.nextUrl.searchParams.get("team") || "";
