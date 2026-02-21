@@ -67,15 +67,14 @@ export async function GET(request: NextRequest) {
     // Build roster lookup (lowercase uniqueName → member)
     const rosterSet = new Set(members.map((m) => m.uniqueName.toLowerCase()));
 
-    // 4. Map 7pace userId → ADO uniqueName
-    // spUsers: Map<7paceId, uniqueName>
-    // Filter worklogs to team roster members only
-    const unmappedUserIds = new Set<string>();
+    // 4. Match worklogs to team roster using uniqueName from worklog's embedded user
+    // Each worklog now carries its own uniqueName directly from 7pace
+    const noUniqueName = new Set<string>();
     const mappedButNotOnTeam = new Set<string>();
     const teamWorklogs = worklogs.filter((wl) => {
-      const uniqueName = spUsers.get(wl.userId);
+      const uniqueName = wl.uniqueName;
       if (!uniqueName) {
-        unmappedUserIds.add(wl.userId);
+        noUniqueName.add(wl.userId);
         return false;
       }
       if (!rosterSet.has(uniqueName.toLowerCase())) {
@@ -131,7 +130,7 @@ export async function GET(request: NextRequest) {
 
     // Process each worklog
     for (const wl of teamWorklogs) {
-      const uniqueName = spUsers.get(wl.userId);
+      const uniqueName = wl.uniqueName;
       if (!uniqueName) continue;
 
       const memberKey = uniqueName.toLowerCase();
@@ -274,13 +273,13 @@ export async function GET(request: NextRequest) {
         sevenPaceUsers: spUsersList.slice(0, 20),
         totalWorklogsFromSevenPace: worklogs.length,
         worklogsMatchedToTeam: teamWorklogs.length,
-        unmappedUserIdCount: unmappedUserIds.size,
+        unmappedUserIdCount: noUniqueName.size,
         mappedButNotOnTeamCount: mappedButNotOnTeam.size,
         mappedButNotOnTeam: Array.from(mappedButNotOnTeam).slice(0, 10),
         rosterUniqueNames: rosterList,
         sampleWorklogs: worklogs.slice(0, 5).map((wl) => ({
           userId: wl.userId,
-          resolvedUniqueName: spUsers.get(wl.userId) ?? null,
+          resolvedUniqueName: wl.uniqueName || null,
           workItemId: wl.workItemId,
           hours: wl.hours,
         })),

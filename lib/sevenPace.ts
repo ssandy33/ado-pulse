@@ -106,15 +106,23 @@ export async function getSevenPaceUsers(
 export interface SevenPaceWorklog {
   id: string;
   userId: string;
+  uniqueName: string;
   workItemId: number;
   hours: number;
   date: string;
 }
 
+interface RawWorklogUser {
+  id: string;
+  uniqueName?: string;
+  name?: string;
+  vstsId?: string;
+}
+
 interface RawWorklog {
   id: string;
-  userId: string;
-  workItemId: number;
+  user?: RawWorklogUser;
+  workItemId?: number | null;
   length: number; // seconds
   timestamp: string;
 }
@@ -136,14 +144,17 @@ export async function getSevenPaceWorklogs(
     "workLogs",
     {
       "api-version": "3.0",
-      "$filter": `Timestamp ge ${fromStr} and Timestamp le ${toStr}`,
+      "$fromTimestamp": fromStr,
+      "$toTimestamp": toStr,
+      "$count": "500",
     }
   );
 
   return (result.data ?? []).map((wl) => ({
     id: wl.id,
-    userId: wl.userId,
-    workItemId: wl.workItemId,
+    userId: wl.user?.id ?? "",
+    uniqueName: wl.user?.uniqueName ?? "",
+    workItemId: wl.workItemId ?? 0,
     hours: wl.length / 3600,
     date: wl.timestamp,
   }));
