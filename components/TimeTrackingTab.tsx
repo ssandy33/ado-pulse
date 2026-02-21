@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import type { TimeRange } from "@/lib/dateRange";
-import type { TeamTimeData, MemberTimeEntry, WrongLevelEntry, TimeTrackingDiagnostics, GovernanceData } from "@/lib/ado/types";
+import type { TeamTimeData, MemberTimeEntry, WrongLevelEntry, TimeTrackingDiagnostics, GovernanceData, ExpenseType } from "@/lib/ado/types";
 import { KPICard } from "./KPICard";
 import { SkeletonKPIRow, SkeletonTable } from "./SkeletonLoader";
 
@@ -215,6 +215,176 @@ function MemberRow({ member, isExpanded, onToggle }: {
   );
 }
 
+// ── Feature Breakdown View ────────────────────────────────────────
+
+interface FeatureRowData {
+  featureId: number | null;
+  featureTitle: string;
+  expenseType: ExpenseType;
+  totalHours: number;
+  members: {
+    displayName: string;
+    uniqueName: string;
+    hours: number;
+    loggedAtWrongLevel: boolean;
+    originalWorkItemId?: number;
+    originalWorkItemType?: string;
+  }[];
+  hasWrongLevelLogs: boolean;
+  isNoFeature: boolean;
+}
+
+function buildFeatureRows(members: MemberTimeEntry[]): FeatureRowData[] {
+  const map = new Map<string, FeatureRowData>();
+
+  for (const member of members) {
+    for (const feature of member.features) {
+      const key = feature.featureId !== null ? `${feature.featureId}` : "none";
+
+      if (!map.has(key)) {
+        map.set(key, {
+          featureId: feature.featureId,
+          featureTitle: feature.featureTitle,
+          expenseType: feature.expenseType,
+          totalHours: 0,
+          members: [],
+          hasWrongLevelLogs: false,
+          isNoFeature: feature.featureId === null,
+        });
+      }
+
+      const row = map.get(key)!;
+      row.totalHours += feature.hours;
+      row.members.push({
+        displayName: member.displayName,
+        uniqueName: member.uniqueName,
+        hours: feature.hours,
+        loggedAtWrongLevel: feature.loggedAtWrongLevel,
+        originalWorkItemId: feature.originalWorkItemId,
+        originalWorkItemType: feature.originalWorkItemType,
+      });
+      if (feature.loggedAtWrongLevel) row.hasWrongLevelLogs = true;
+    }
+  }
+
+  return Array.from(map.values()).sort((a, b) => {
+    if (a.isNoFeature !== b.isNoFeature) return a.isNoFeature ? 1 : -1;
+    return b.totalHours - a.totalHours;
+  });
+}
+
+function FeatureBreakdownRow({ row, isExpanded, onToggle }: {
+  row: FeatureRowData;
+  isExpanded: boolean;
+  onToggle: () => void;
+}) {
+  const memberCount = row.members.length;
+
+  return (
+    <>
+      <tr
+        className="border-b border-pulse-border/50 cursor-pointer hover:bg-pulse-hover/50"
+        onClick={onToggle}
+      >
+        <td className="px-4 py-2.5">
+          <div className="flex items-center gap-1.5">
+            <svg
+              className={`w-3 h-3 text-pulse-muted transition-transform flex-shrink-0 ${
+                isExpanded ? "rotate-90" : ""
+              }`}
+              fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+            </svg>
+            <span className="text-[13px] font-medium text-pulse-text">
+              {row.isNoFeature ? (
+                <span className="text-amber-700">Unclassified — no parent feature</span>
+              ) : (
+                <>{row.featureTitle} <span className="text-pulse-muted">#{row.featureId}</span></>
+              )}
+            </span>
+          </div>
+        </td>
+        <td className="px-4 py-2.5">
+          {row.isNoFeature ? (
+            <span className="text-[10px] font-medium text-pulse-muted bg-pulse-bg px-1.5 py-0.5 rounded">—</span>
+          ) : (
+            <span
+              className={`text-[10px] font-medium px-1.5 py-0.5 rounded ${
+                row.expenseType === "CapEx"
+                  ? "text-blue-700 bg-blue-50"
+                  : row.expenseType === "OpEx"
+                  ? "text-purple-700 bg-purple-50"
+                  : "text-pulse-muted bg-pulse-bg"
+              }`}
+            >
+              {row.expenseType}
+            </span>
+          )}
+        </td>
+        <td className="px-4 py-2.5 text-right text-[13px] text-pulse-text font-medium">
+          {row.totalHours.toFixed(1)}
+        </td>
+        <td className="px-4 py-2.5 text-right text-[13px] text-pulse-text">
+          {memberCount} {memberCount === 1 ? "member" : "members"}
+        </td>
+        <td className="px-4 py-2.5 text-right">
+          {row.isNoFeature ? (
+            <span className="inline-flex items-center gap-1 text-[11px] font-medium text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full">
+              No Feature
+            </span>
+          ) : row.hasWrongLevelLogs ? (
+            <span className="inline-flex items-center gap-1 text-[11px] font-medium text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full">
+              Wrong Level
+            </span>
+          ) : (
+            <span className="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+              Active
+            </span>
+          )}
+        </td>
+      </tr>
+      {isExpanded && (
+        <tr>
+          <td colSpan={5} className="px-0 py-0">
+            <div className="bg-pulse-bg/50 px-8 py-2">
+              <table className="w-full text-[11px]">
+                <thead>
+                  <tr className="text-pulse-muted">
+                    <th className="text-left px-2 py-1 font-medium">Member</th>
+                    <th className="text-right px-2 py-1 font-medium">Hours</th>
+                    <th className="text-left px-2 py-1 font-medium">Logged At</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {[...row.members]
+                    .sort((a, b) => b.hours - a.hours)
+                    .map((m) => (
+                    <tr key={m.uniqueName} className="border-t border-pulse-border/30">
+                      <td className="px-2 py-1 text-pulse-text">{m.displayName}</td>
+                      <td className="px-2 py-1 text-right text-pulse-text">{m.hours.toFixed(1)}</td>
+                      <td className="px-2 py-1">
+                        {m.loggedAtWrongLevel ? (
+                          <span className="text-amber-600">
+                            Logged on {m.originalWorkItemType} #{m.originalWorkItemId}
+                          </span>
+                        ) : (
+                          <span className="text-emerald-600">Feature level</span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </td>
+        </tr>
+      )}
+    </>
+  );
+}
+
 export function TimeTrackingTab({
   adoHeaders,
   selectedTeam,
@@ -224,6 +394,12 @@ export function TimeTrackingTab({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [expandedRow, setExpandedRow] = useState<string | null>(null);
+  const [breakdownView, setBreakdownView] = useState<"member" | "feature">("member");
+
+  const featureRows = useMemo(() => {
+    if (!data) return [];
+    return buildFeatureRows(data.members);
+  }, [data]);
 
   const fetchData = useCallback(() => {
     if (!selectedTeam) return;
@@ -398,7 +574,34 @@ export function TimeTrackingTab({
           {/* Wrong-Level Banner */}
           <WrongLevelBanner entries={data.wrongLevelEntries} />
 
+          {/* View Toggle */}
+          <div className="flex items-center gap-3 mb-4">
+            <div className="flex gap-1 bg-pulse-bg rounded-lg p-1">
+              <button
+                className={`px-3 py-1.5 text-[12px] font-medium rounded-md transition-colors cursor-pointer ${
+                  breakdownView === "member"
+                    ? "bg-pulse-card text-pulse-text shadow-sm"
+                    : "text-pulse-muted hover:text-pulse-text"
+                }`}
+                onClick={() => { setBreakdownView("member"); setExpandedRow(null); }}
+              >
+                Member View
+              </button>
+              <button
+                className={`px-3 py-1.5 text-[12px] font-medium rounded-md transition-colors cursor-pointer ${
+                  breakdownView === "feature"
+                    ? "bg-pulse-card text-pulse-text shadow-sm"
+                    : "text-pulse-muted hover:text-pulse-text"
+                }`}
+                onClick={() => { setBreakdownView("feature"); setExpandedRow(null); }}
+              >
+                Feature View
+              </button>
+            </div>
+          </div>
+
           {/* Member Table */}
+          {breakdownView === "member" && (
           <div className="bg-pulse-card border border-pulse-border rounded-lg overflow-hidden mb-6">
             <div className="px-4 py-3 border-b border-pulse-border">
               <h3 className="text-[13px] font-semibold text-pulse-text">
@@ -437,6 +640,49 @@ export function TimeTrackingTab({
               </table>
             </div>
           </div>
+          )}
+
+          {/* Feature Table */}
+          {breakdownView === "feature" && (
+          <div className="bg-pulse-card border border-pulse-border rounded-lg overflow-hidden mb-6">
+            <div className="px-4 py-3 border-b border-pulse-border">
+              <h3 className="text-[13px] font-semibold text-pulse-text">
+                Feature Breakdown
+              </h3>
+              <p className="text-[11px] text-pulse-muted mt-0.5">
+                Click a row to expand member-level breakdown. Hours from 7pace Timetracker.
+              </p>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-[12px]">
+                <thead>
+                  <tr className="text-left text-pulse-muted border-b border-pulse-border">
+                    <th className="px-4 py-2.5 font-medium">Feature</th>
+                    <th className="px-4 py-2.5 font-medium">Classification</th>
+                    <th className="px-4 py-2.5 font-medium text-right">Total Hours</th>
+                    <th className="px-4 py-2.5 font-medium text-right">Members</th>
+                    <th className="px-4 py-2.5 font-medium text-right">Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {featureRows.map((row) => {
+                    const key = row.featureId !== null ? `f-${row.featureId}` : "f-none";
+                    return (
+                      <FeatureBreakdownRow
+                        key={key}
+                        row={row}
+                        isExpanded={expandedRow === key}
+                        onToggle={() =>
+                          setExpandedRow((prev) => prev === key ? null : key)
+                        }
+                      />
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+          )}
 
           {/* Pipeline Diagnostics */}
           {data.diagnostics && <PipelineDiagnostics diag={data.diagnostics} />}
