@@ -484,6 +484,24 @@ function PipelineDiagnostics({ diag }: { diag: TimeTrackingDiagnostics }) {
             </div>
           </div>
 
+          {/* API Request Info */}
+          {diag.worklogsRequestUrl && (
+            <div>
+              <h4 className="text-[12px] font-medium text-pulse-text mb-1">7pace Worklogs Request</h4>
+              <div className="bg-pulse-bg rounded-md p-3 space-y-1.5">
+                <div className="text-[11px] font-mono text-pulse-muted break-all">{diag.worklogsRequestUrl}</div>
+                <div className="flex gap-4 text-[11px]">
+                  <span className="text-pulse-muted">
+                    Response keys: <span className="font-mono text-pulse-text">{(diag.worklogsRawResponseKeys ?? []).join(", ") || "none"}</span>
+                  </span>
+                  <span className="text-pulse-muted">
+                    Raw count: <span className={`font-semibold ${(diag.worklogsRawCount ?? 0) > 0 ? "text-emerald-600" : "text-red-600"}`}>{diag.worklogsRawCount ?? 0}</span>
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Roster uniqueNames */}
           <div>
             <h4 className="text-[12px] font-medium text-pulse-text mb-1">Team Roster (uniqueNames)</h4>

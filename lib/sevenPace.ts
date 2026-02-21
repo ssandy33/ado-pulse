@@ -131,26 +131,56 @@ interface SevenPaceWorklogsResponse {
   data: RawWorklog[];
 }
 
+export interface SevenPaceWorklogsResult {
+  worklogs: SevenPaceWorklog[];
+  rawResponseKeys: string[];
+  rawCount: number;
+  requestUrl: string;
+}
+
+function toDateStr(d: Date): string {
+  return d.toISOString().split("T")[0];
+}
+
 export async function getSevenPaceWorklogs(
   config: SevenPaceConfig,
   from: Date,
   to: Date
-): Promise<SevenPaceWorklog[]> {
-  const fromStr = from.toISOString();
-  const toStr = to.toISOString();
+): Promise<SevenPaceWorklogsResult> {
+  const fromStr = toDateStr(from);
+  const toStr = toDateStr(to);
 
-  const result = await sevenPaceFetch<SevenPaceWorklogsResponse>(
+  const params = {
+    "api-version": "3.0",
+    "$fromTimestamp": fromStr,
+    "$toTimestamp": toStr,
+    "$count": "500",
+  };
+
+  // Build URL for diagnostics
+  const baseUrl = config.baseUrl.endsWith("/") ? config.baseUrl : config.baseUrl + "/";
+  const requestUrl = `${baseUrl}workLogs?${new URLSearchParams(params).toString()}`;
+
+  // Fetch raw to inspect response shape
+  const result = await sevenPaceFetch<Record<string, unknown>>(
     config,
     "workLogs",
-    {
-      "api-version": "3.0",
-      "$fromTimestamp": fromStr,
-      "$toTimestamp": toStr,
-      "$count": "500",
-    }
+    params
   );
 
-  return (result.data ?? []).map((wl) => ({
+  const rawResponseKeys = Object.keys(result);
+
+  // Try common response shapes: { data: [...] }, { value: [...] }, or top-level array
+  let rawWorklogs: RawWorklog[] = [];
+  if (Array.isArray(result.data)) {
+    rawWorklogs = result.data;
+  } else if (Array.isArray(result.value)) {
+    rawWorklogs = result.value as RawWorklog[];
+  } else if (Array.isArray(result)) {
+    rawWorklogs = result as unknown as RawWorklog[];
+  }
+
+  const worklogs = rawWorklogs.map((wl) => ({
     id: wl.id,
     userId: wl.user?.id ?? "",
     uniqueName: wl.user?.uniqueName ?? "",
@@ -158,4 +188,11 @@ export async function getSevenPaceWorklogs(
     hours: wl.length / 3600,
     date: wl.timestamp,
   }));
+
+  return {
+    worklogs,
+    rawResponseKeys,
+    rawCount: rawWorklogs.length,
+    requestUrl,
+  };
 }

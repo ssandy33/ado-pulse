@@ -50,11 +50,12 @@ export async function GET(request: NextRequest) {
     }
 
     // 2. Parallel fetch: team roster + 7pace users + 7pace worklogs
-    const [members, spUsers, worklogs] = await Promise.all([
+    const [members, spUsers, worklogsResult] = await Promise.all([
       getTeamMembers(configOrError, teamName),
       getSevenPaceUsers(spConfig),
       getSevenPaceWorklogs(spConfig, from, to),
     ]);
+    const worklogs = worklogsResult.worklogs;
 
     // 3. Load exclusions
     const exclusions = await getExclusions();
@@ -283,6 +284,9 @@ export async function GET(request: NextRequest) {
           workItemId: wl.workItemId,
           hours: wl.hours,
         })),
+        worklogsRequestUrl: worklogsResult.requestUrl,
+        worklogsRawResponseKeys: worklogsResult.rawResponseKeys,
+        worklogsRawCount: worklogsResult.rawCount,
       },
     };
 

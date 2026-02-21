@@ -295,6 +295,9 @@ export interface TimeTrackingDiagnostics {
     workItemId: number;
     hours: number;
   }[];
+  worklogsRequestUrl?: string;
+  worklogsRawResponseKeys?: string[];
+  worklogsRawCount?: number;
 }
 
 export interface TeamTimeData {
