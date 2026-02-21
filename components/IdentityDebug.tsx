@@ -56,6 +56,340 @@ function MatchBadge({ matchType }: { matchType: "exact" | "lowercase" | "none" }
   return <span className="text-red-600 font-medium text-[11px]">&#10007; none</span>;
 }
 
+// ── Work Item Time Log Lookup types ────────────────────────────
+
+interface WorkItemTimelogParent {
+  id: number;
+  title: string;
+  type: string;
+  classification?: string;
+}
+
+interface WorkItemTimelogEntry {
+  id: string;
+  date: string;
+  hours: number;
+  userId: string;
+  uniqueName: string;
+  displayName: string;
+  inTeamRoster: boolean;
+  rawLength: number;
+  rawFields: Record<string, unknown>;
+}
+
+interface WorkItemTimelogResponse {
+  workItem: {
+    id: number;
+    title: string;
+    type: string;
+    state: string;
+    classification: string;
+    parentChain: WorkItemTimelogParent[];
+  };
+  worklogs: WorkItemTimelogEntry[];
+  summary: {
+    totalHours: number;
+    loggerCount: number;
+    dateRange: { earliest: string; latest: string } | null;
+  };
+}
+
+function WorkItemTimeLogLookup({
+  adoHeaders,
+  selectedTeam,
+}: {
+  adoHeaders: Record<string, string>;
+  selectedTeam: string;
+}) {
+  const [workItemId, setWorkItemId] = useState("");
+  const [result, setResult] = useState<WorkItemTimelogResponse | null>(null);
+  const [lookupLoading, setLookupLoading] = useState(false);
+  const [lookupError, setLookupError] = useState<string | null>(null);
+  const [showRawJson, setShowRawJson] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  const handleLookup = () => {
+    const id = workItemId.trim();
+    if (!id || isNaN(Number(id))) return;
+
+    setLookupLoading(true);
+    setLookupError(null);
+    setResult(null);
+    setShowRawJson(false);
+
+    const teamParam = selectedTeam
+      ? `&team=${encodeURIComponent(selectedTeam)}`
+      : "";
+
+    fetch(
+      `/api/debug/workitem-timelogs?workItemId=${id}${teamParam}`,
+      { headers: adoHeaders }
+    )
+      .then((res) => {
+        if (!res.ok) {
+          return res.json().then((body) => {
+            throw new Error(body.error || `API error: ${res.status}`);
+          });
+        }
+        return res.json();
+      })
+      .then((json: WorkItemTimelogResponse) => setResult(json))
+      .catch((err) =>
+        setLookupError(err instanceof Error ? err.message : "Lookup failed")
+      )
+      .finally(() => setLookupLoading(false));
+  };
+
+  const handleCopy = () => {
+    if (!result) return;
+    navigator.clipboard.writeText(JSON.stringify(result, null, 2));
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  const formatDate = (dateStr: string) => {
+    try {
+      return new Date(dateStr).toLocaleDateString("en-US", {
+        year: "numeric",
+        month: "short",
+        day: "numeric",
+      });
+    } catch {
+      return dateStr;
+    }
+  };
+
+  return (
+    <div className="bg-pulse-card border border-pulse-border rounded-lg overflow-hidden mb-6">
+      <div className="px-4 py-3 border-b border-pulse-border">
+        <h3 className="text-[13px] font-semibold text-pulse-text">
+          Work Item Time Log Lookup
+        </h3>
+        <p className="text-[11px] text-pulse-muted mt-0.5">
+          Look up 7pace time entries for a specific ADO work item.
+        </p>
+      </div>
+
+      <div className="p-4">
+        {/* Search input */}
+        <div className="flex items-center gap-2 mb-4">
+          <label className="text-[12px] font-medium text-pulse-text whitespace-nowrap">
+            Work Item ID
+          </label>
+          <input
+            type="number"
+            value={workItemId}
+            onChange={(e) => setWorkItemId(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && handleLookup()}
+            placeholder="e.g. 183639"
+            className="w-40 px-3 py-1.5 text-[12px] border border-pulse-border rounded-md bg-pulse-bg text-pulse-text placeholder:text-pulse-dim focus:outline-none focus:ring-1 focus:ring-pulse-accent"
+          />
+          <button
+            onClick={handleLookup}
+            disabled={lookupLoading || !workItemId.trim()}
+            className="px-3 py-1.5 text-[12px] font-medium rounded-md bg-pulse-accent text-white hover:bg-pulse-accent/90 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+          >
+            {lookupLoading ? "Looking up..." : "Look Up"}
+          </button>
+        </div>
+
+        {/* Error */}
+        {lookupError && (
+          <div className="mb-4 text-[12px] text-red-600 bg-red-50 border border-red-200 rounded-md px-3 py-2">
+            {lookupError}
+          </div>
+        )}
+
+        {/* Loading */}
+        {lookupLoading && <SkeletonTable rows={3} />}
+
+        {/* Results */}
+        {result && (
+          <>
+            {/* Work Item Info */}
+            <div className="mb-4 bg-pulse-bg rounded-md p-4">
+              <div className="flex items-start gap-2 mb-2">
+                <span className="text-[14px] font-semibold text-pulse-text">
+                  #{result.workItem.id}
+                </span>
+                <span className="text-[14px] font-medium text-pulse-text">
+                  {result.workItem.title}
+                </span>
+              </div>
+              <div className="flex items-center gap-3 text-[12px] text-pulse-muted">
+                <span>Type: <span className="font-medium text-pulse-text">{result.workItem.type}</span></span>
+                <span>&middot;</span>
+                <span>State: <span className="font-medium text-pulse-text">{result.workItem.state}</span></span>
+                {result.workItem.classification !== "Unknown" && (
+                  <>
+                    <span>&middot;</span>
+                    <span>
+                      Classification:{" "}
+                      <span
+                        className={`font-medium ${
+                          result.workItem.classification === "CapEx"
+                            ? "text-blue-700"
+                            : result.workItem.classification === "OpEx"
+                            ? "text-purple-700"
+                            : "text-pulse-text"
+                        }`}
+                      >
+                        {result.workItem.classification}
+                      </span>
+                    </span>
+                  </>
+                )}
+              </div>
+
+              {/* Parent Chain */}
+              {result.workItem.parentChain.length > 0 && (
+                <div className="mt-3 pt-3 border-t border-pulse-border/50">
+                  <div className="text-[11px] text-pulse-muted uppercase tracking-wide mb-1.5">
+                    Parent Chain
+                  </div>
+                  <div className="flex items-center gap-1.5 text-[12px] flex-wrap">
+                    <span className="text-pulse-muted">
+                      {result.workItem.type} #{result.workItem.id}
+                    </span>
+                    {result.workItem.parentChain.map((parent) => (
+                      <span key={parent.id} className="flex items-center gap-1.5">
+                        <span className="text-pulse-dim">&rarr;</span>
+                        <span className="text-pulse-text font-medium">
+                          {parent.type} #{parent.id}
+                        </span>
+                        <span className="text-pulse-muted">
+                          &ldquo;{parent.title}&rdquo;
+                        </span>
+                        {parent.classification && (
+                          <span
+                            className={`text-[10px] font-medium px-1.5 py-0.5 rounded ${
+                              parent.classification === "CapEx"
+                                ? "text-blue-700 bg-blue-50"
+                                : parent.classification === "OpEx"
+                                ? "text-purple-700 bg-purple-50"
+                                : ""
+                            }`}
+                          >
+                            {parent.classification}
+                          </span>
+                        )}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Summary */}
+            {result.worklogs.length > 0 && (
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
+                <div className="bg-pulse-bg rounded-md p-3">
+                  <div className="text-[11px] text-pulse-muted uppercase tracking-wide mb-1">Total Hours</div>
+                  <div className="text-lg font-semibold text-pulse-text">{result.summary.totalHours.toFixed(1)}</div>
+                </div>
+                <div className="bg-pulse-bg rounded-md p-3">
+                  <div className="text-[11px] text-pulse-muted uppercase tracking-wide mb-1">Unique Loggers</div>
+                  <div className="text-lg font-semibold text-pulse-text">{result.summary.loggerCount}</div>
+                </div>
+                <div className="bg-pulse-bg rounded-md p-3">
+                  <div className="text-[11px] text-pulse-muted uppercase tracking-wide mb-1">Date Range</div>
+                  <div className="text-[13px] font-semibold text-pulse-text">
+                    {result.summary.dateRange
+                      ? `${formatDate(result.summary.dateRange.earliest)} — ${formatDate(result.summary.dateRange.latest)}`
+                      : "—"}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Worklog Table */}
+            {result.worklogs.length > 0 ? (
+              <div className="mb-4">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-[12px]">
+                    <thead>
+                      <tr className="text-left text-pulse-muted border-b border-pulse-border">
+                        <th className="px-3 py-2 font-medium">Date</th>
+                        <th className="px-3 py-2 font-medium">Logged By</th>
+                        <th className="px-3 py-2 font-medium text-right">Hours</th>
+                        <th className="px-3 py-2 font-medium">In Roster</th>
+                        <th className="px-3 py-2 font-medium text-right">Raw Length</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {result.worklogs.map((wl, i) => (
+                        <tr
+                          key={`${wl.id}-${i}`}
+                          className="border-b border-pulse-border/50 last:border-0"
+                        >
+                          <td className="px-3 py-2 text-pulse-text">
+                            {formatDate(wl.date)}
+                          </td>
+                          <td className="px-3 py-2">
+                            <div className="text-pulse-text">{wl.displayName}</div>
+                            {wl.uniqueName !== wl.displayName && wl.uniqueName !== "Unknown" && (
+                              <div className="text-[11px] font-mono text-pulse-muted">{wl.uniqueName}</div>
+                            )}
+                            {wl.uniqueName === "Unknown" && (
+                              <div className="text-[11px] font-mono text-pulse-dim">userId: {wl.userId}</div>
+                            )}
+                          </td>
+                          <td className="px-3 py-2 text-right text-pulse-text font-medium">
+                            {wl.hours.toFixed(1)}h
+                          </td>
+                          <td className="px-3 py-2">
+                            {wl.inTeamRoster ? (
+                              <span className="text-emerald-600 font-medium text-[11px]">&#10003;</span>
+                            ) : (
+                              <span className="text-red-600 font-medium text-[11px]">&#10007;</span>
+                            )}
+                          </td>
+                          <td className="px-3 py-2 text-right font-mono text-pulse-muted">
+                            {wl.rawLength}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            ) : (
+              <div className="text-center py-6 text-[13px] text-pulse-muted">
+                No 7pace time entries found for work item #{result.workItem.id}
+              </div>
+            )}
+
+            {/* Raw JSON Toggle */}
+            <div className="border-t border-pulse-border pt-3">
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setShowRawJson(!showRawJson)}
+                  className="text-[12px] font-medium text-pulse-muted hover:text-pulse-text cursor-pointer"
+                >
+                  {showRawJson ? "Hide" : "Show"} Raw JSON
+                </button>
+                {showRawJson && (
+                  <button
+                    onClick={handleCopy}
+                    className="text-[11px] font-medium text-pulse-accent hover:underline cursor-pointer"
+                  >
+                    {copied ? "Copied!" : "Copy"}
+                  </button>
+                )}
+              </div>
+              {showRawJson && (
+                <pre className="mt-2 bg-pulse-bg rounded-md p-3 text-[11px] font-mono text-pulse-muted overflow-x-auto max-h-96 overflow-y-auto">
+                  {JSON.stringify(result, null, 2)}
+                </pre>
+              )}
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export function IdentityDebug({ adoHeaders, selectedTeam, range }: IdentityDebugProps) {
   const [data, setData] = useState<IdentityCheckResponse | null>(null);
   const [loading, setLoading] = useState(false);
@@ -285,6 +619,9 @@ export function IdentityDebug({ adoHeaders, selectedTeam, range }: IdentityDebug
           )}
         </div>
       </div>
+
+      {/* Work Item Time Log Lookup */}
+      <WorkItemTimeLogLookup adoHeaders={adoHeaders} selectedTeam={selectedTeam} />
     </>
   );
 }
