@@ -29,6 +29,7 @@ function parseOrgUrl(input: string): { org: string; project: string } | null {
 export function ConnectionForm({ onConnect }: ConnectionFormProps) {
   const [orgUrl, setOrgUrl] = useState("https://dev.azure.com/arrivia/softeng");
   const [pat, setPat] = useState("");
+  const [savePat, setSavePat] = useState(true);
   const [error, setError] = useState("");
   const [connecting, setConnecting] = useState(false);
 
@@ -63,6 +64,19 @@ export function ConnectionForm({ onConnect }: ConnectionFormProps) {
           );
         }
         throw new Error(body.error || `Connection failed (${res.status})`);
+      }
+
+      // Save PAT to settings if checkbox is checked
+      if (savePat) {
+        await fetch("/api/settings/integrations/ado", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            pat: pat.trim(),
+            org: parsed.org,
+            orgUrl: orgUrl.trim(),
+          }),
+        }).catch(() => {}); // non-blocking — connect even if save fails
       }
 
       onConnect({ org: parsed.org, project: parsed.project, pat: pat.trim() });
@@ -122,6 +136,17 @@ export function ConnectionForm({ onConnect }: ConnectionFormProps) {
               onKeyDown={(e) => e.key === "Enter" && handleConnect()}
             />
           </div>
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={savePat}
+              onChange={(e) => setSavePat(e.target.checked)}
+              className="w-3.5 h-3.5 rounded border-pulse-input-border text-pulse-accent focus:ring-pulse-accent/20 cursor-pointer"
+            />
+            <span className="text-[12px] text-pulse-muted">
+              Remember my PAT for next time
+            </span>
+          </label>
         </div>
 
         {error && (
@@ -148,8 +173,8 @@ export function ConnectionForm({ onConnect }: ConnectionFormProps) {
             <span className="font-medium text-pulse-secondary">Code (Read)</span>{" "}
             and{" "}
             <span className="font-medium text-pulse-secondary">Policy (Read)</span>{" "}
-            scopes. Credentials stay in your browser &mdash; nothing is stored
-            server-side.
+            scopes. When &ldquo;Remember&rdquo; is checked, the PAT is saved
+            locally in data/settings.json.
           </p>
         </div>
       </div>
