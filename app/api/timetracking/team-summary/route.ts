@@ -150,10 +150,7 @@ export async function GET(request: NextRequest) {
         const wiType = workItem?.fields["System.WorkItemType"];
 
         if (wiType === "Feature") {
-          // Logged directly on feature — wrong level
-          loggedAtWrongLevel = true;
-          originalWorkItemId = wl.workItemId;
-          originalWorkItemType = wiType;
+          // Logged directly on a Feature — read expense type directly
           const rawExpense = workItem?.fields["Custom.FeatureExpense"];
           if (rawExpense === "CapEx" || rawExpense === "OpEx") {
             expenseType = rawExpense;
