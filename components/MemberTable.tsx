@@ -9,6 +9,7 @@ import {
   type StatusVariant,
   type DataTableColumn,
 } from "./ui";
+import { EmailTooltip } from "./EmailTooltip";
 
 interface MemberTableProps {
   members: MemberSummary[];
@@ -99,7 +100,10 @@ export function MemberTable({ members, teamName }: MemberTableProps) {
               className={`hover:bg-pulse-hover transition-colors ${member.isExcluded ? "opacity-50" : ""}`}
             >
               <td className="px-5 py-3 text-[13px] font-medium text-pulse-text">
-                {member.displayName}
+                <EmailTooltip
+                  displayName={member.displayName}
+                  email={member.uniqueName}
+                />
                 {member.role && (
                   <span className="ml-2 inline-flex px-1.5 py-0.5 rounded text-[10px] font-medium bg-gray-100 text-gray-500 ring-1 ring-gray-200">
                     {member.role}
