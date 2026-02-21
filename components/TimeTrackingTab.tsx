@@ -744,7 +744,37 @@ function PipelineDiagnostics({ diag }: { diag: TimeTrackingDiagnostics }) {
               <div className="text-[11px] text-pulse-muted uppercase tracking-wide mb-1">Members Fetched</div>
               <div className="text-lg font-semibold text-pulse-text">{diag.membersFetched}</div>
             </div>
+            {diag.fetchApi && (
+              <div className="bg-pulse-bg rounded-md p-3">
+                <div className="text-[11px] text-pulse-muted uppercase tracking-wide mb-1">Fetch API</div>
+                <div className={`text-lg font-semibold ${diag.fetchApi === "odata" ? "text-blue-600" : "text-pulse-text"}`}>
+                  {diag.fetchApi}
+                </div>
+              </div>
+            )}
+            {diag.pagination && (
+              <>
+                <div className="bg-pulse-bg rounded-md p-3">
+                  <div className="text-[11px] text-pulse-muted uppercase tracking-wide mb-1">Pages Fetched</div>
+                  <div className="text-lg font-semibold text-pulse-text">{diag.pagination.totalPagesFetched}</div>
+                </div>
+                <div className="bg-pulse-bg rounded-md p-3">
+                  <div className="text-[11px] text-pulse-muted uppercase tracking-wide mb-1">Records Fetched</div>
+                  <div className="text-lg font-semibold text-pulse-text">{diag.pagination.totalRecordsFetched}</div>
+                </div>
+              </>
+            )}
           </div>
+
+          {/* Pagination cap warning */}
+          {diag.pagination?.anyMemberHitCap && (
+            <div className="flex items-center gap-2 text-[12px] text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-3 py-2">
+              <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
+              </svg>
+              <span>At least one team member hit the pagination cap. Their hours may be incomplete.</span>
+            </div>
+          )}
 
           {/* Members with no 7pace ID */}
           {diag.membersWithNoSpId.length > 0 && (

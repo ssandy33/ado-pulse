@@ -442,6 +442,7 @@ interface UserTimeWorkItemEntry {
   date: string;
   hours: number;
   activity: string;
+  uniqueName?: string;
 }
 
 interface UserTimeWorkItem {
@@ -471,14 +472,22 @@ interface UserTimeResponse {
   };
   workItems?: UserTimeWorkItem[];
   _debug?: {
+    fetchMode?: string;
+    fetchApi?: string;
     fromTimestamp: string;
     toTimestamp: string;
     lookbackDays: number;
-    userId: string;
-    rawWorklogCount: number;
-    userWorklogCount: number;
-    responseKeys: string[];
+    userId?: string;
+    rawWorklogCount?: number;
+    userWorklogCount?: number;
+    worklogCount?: number;
+    responseKeys?: string[];
     requestUrl: string;
+    pagination?: {
+      pagesFetched: number;
+      totalRecords: number;
+      hitSafetyCap: boolean;
+    };
   };
 }
 
@@ -618,6 +627,16 @@ export function UserTimeLogLookup({
             )}
           </div>
 
+          {/* Pagination cap warning */}
+          {result._debug?.pagination?.hitSafetyCap && (
+            <div className="mb-4 flex items-center gap-2 text-[12px] text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-3 py-2">
+              <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
+              </svg>
+              <span>Record cap reached &mdash; some entries may be missing. Try a shorter date range.</span>
+            </div>
+          )}
+
           {/* Summary cards */}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mb-4">
             <div className="bg-pulse-bg rounded-md p-3">
@@ -754,6 +773,9 @@ export function UserTimeLogLookup({
                                       <th className="pl-12 pr-3 py-1.5 font-medium">
                                         Date
                                       </th>
+                                      <th className="px-3 py-1.5 font-medium">
+                                        User
+                                      </th>
                                       <th className="px-3 py-1.5 font-medium text-right">
                                         Hours
                                       </th>
@@ -770,6 +792,9 @@ export function UserTimeLogLookup({
                                       >
                                         <td className="pl-12 pr-3 py-1.5 text-pulse-muted">
                                           {formatDate(entry.date)}
+                                        </td>
+                                        <td className="px-3 py-1.5 font-mono text-pulse-muted text-[10px]">
+                                          {entry.uniqueName || "—"}
                                         </td>
                                         <td className="px-3 py-1.5 text-right text-pulse-text font-medium">
                                           {entry.hours.toFixed(2)}h
@@ -800,8 +825,19 @@ export function UserTimeLogLookup({
           {/* API Debug panel */}
           {result._debug && (
             <div className="mt-3 p-3 bg-pulse-bg border border-pulse-border rounded-md text-[11px] font-mono text-pulse-muted space-y-1">
-              <div className="font-semibold text-pulse-dim uppercase tracking-wide text-[10px] mb-2">
-                API Debug
+              <div className="flex items-center gap-2 mb-2">
+                <span className="font-semibold text-pulse-dim uppercase tracking-wide text-[10px]">
+                  API Debug
+                </span>
+                {result._debug.fetchApi && (
+                  <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded ${
+                    result._debug.fetchApi === "odata"
+                      ? "text-blue-700 bg-blue-50"
+                      : "text-pulse-dim bg-pulse-bg"
+                  }`}>
+                    {result._debug.fetchApi}
+                  </span>
+                )}
               </div>
               <div>
                 <span className="text-pulse-dim">fromTimestamp </span>
@@ -815,24 +851,26 @@ export function UserTimeLogLookup({
                 <span className="text-pulse-dim">lookbackDays  </span>
                 {result._debug.lookbackDays}
               </div>
+              {result._debug.userId && (
+                <div>
+                  <span className="text-pulse-dim">userId        </span>
+                  {result._debug.userId}
+                </div>
+              )}
               <div>
-                <span className="text-pulse-dim">userId        </span>
-                {result._debug.userId}
-              </div>
-              <div>
-                <span className="text-pulse-dim">raw worklogs  </span>
-                {result._debug.rawWorklogCount}
-                <span className="text-pulse-dim"> (org-wide)</span>
-              </div>
-              <div>
-                <span className="text-pulse-dim">user worklogs </span>
-                {result._debug.userWorklogCount}
+                <span className="text-pulse-dim">worklogs      </span>
+                {result._debug.worklogCount ?? result._debug.userWorklogCount ?? "—"}
                 <span className="text-pulse-dim"> (filtered to user)</span>
               </div>
-              <div>
-                <span className="text-pulse-dim">responseKeys  </span>
-                {result._debug.responseKeys.join(", ")}
-              </div>
+              {result._debug.pagination && (
+                <div>
+                  <span className="text-pulse-dim">pagination    </span>
+                  {result._debug.pagination.pagesFetched} page(s), {result._debug.pagination.totalRecords} records
+                  {result._debug.pagination.hitSafetyCap && (
+                    <span className="text-amber-600 font-medium"> (CAP HIT)</span>
+                  )}
+                </div>
+              )}
               <div className="pt-1 break-all">
                 <span className="text-pulse-dim">requestUrl </span>
                 {result._debug.requestUrl}
