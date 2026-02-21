@@ -151,17 +151,22 @@ function toDateStr(d: Date): string {
 export async function getSevenPaceWorklogs(
   config: SevenPaceConfig,
   from: Date,
-  to: Date
+  to: Date,
+  userId?: string
 ): Promise<SevenPaceWorklogsResult> {
   const fromStr = toDateStr(from);
   const toStr = toDateStr(to);
 
-  const params = {
+  const params: Record<string, string> = {
     "api-version": "3.2",
     "_fromTimestamp": fromStr,
     "_toTimestamp": toStr,
     "_count": "500",
   };
+
+  if (userId) {
+    params["_userId"] = userId;
+  }
 
   // Build URL for diagnostics (use literal $ — matches actual request)
   const baseUrl = config.baseUrl.endsWith("/") ? config.baseUrl : config.baseUrl + "/";

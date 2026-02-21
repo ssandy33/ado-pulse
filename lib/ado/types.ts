@@ -288,11 +288,11 @@ export interface WrongLevelEntry {
 export interface TimeTrackingDiagnostics {
   sevenPaceUsersTotal: number;
   sevenPaceUsers: { id: string; uniqueName: string }[];
+  fetchMode: string;
+  membersFetched: number;
+  membersWithNoSpId: string[];
   totalWorklogsFromSevenPace: number;
   worklogsMatchedToTeam: number;
-  unmappedUserIdCount: number;
-  mappedButNotOnTeamCount: number;
-  mappedButNotOnTeam: string[];
   rosterUniqueNames: string[];
   sampleWorklogs: {
     userId: string;
@@ -300,10 +300,6 @@ export interface TimeTrackingDiagnostics {
     workItemId: number;
     hours: number;
   }[];
-  worklogsRequestUrl?: string;
-  worklogsRawResponseKeys?: string[];
-  worklogsRawCount?: number;
-  worklogsUnfilteredCount?: number;
 }
 
 export interface GovernanceData {

@@ -147,15 +147,16 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    // 3. Fetch 30-day worklogs from 7pace (hardcoded — ignores any query params)
+    // 3. Fetch 30-day worklogs from 7pace filtered by userId (hardcoded window)
     const { from: fromDate, to: toDate } = getLookbackDateRange(LOOKBACK_DAYS);
     const toDateStr = (d: Date) => d.toISOString().split(".")[0];
 
-    const sevenPaceParams = {
+    const sevenPaceParams: Record<string, string> = {
       "api-version": "3.2",
       _fromTimestamp: toDateStr(fromDate),
       _toTimestamp: toDateStr(toDate),
       _count: "500",
+      _userId: matchedUser.id,
     };
 
     // Build URL for diagnostic logging
@@ -163,7 +164,7 @@ export async function GET(request: NextRequest) {
     const spQs = Object.entries(sevenPaceParams).map(([k, v]) => `${k}=${encodeURIComponent(v)}`).join("&");
     const requestUrl = `${spBase}workLogs/all?${spQs}`;
 
-    console.log("[user-time] fetching worklogs", {
+    console.log("[user-time] fetching worklogs (per-user)", {
       userId: matchedUser.id,
       email,
       fromTimestamp: fromDate.toISOString(),
@@ -179,30 +180,20 @@ export async function GET(request: NextRequest) {
 
     const rawResponseKeys = Object.keys(result);
 
-    // Parse response (try common shapes)
-    let allWorklogs: RawWorklog[] = [];
+    // Parse response (try common shapes) — all entries are for this user
+    let userWorklogs: RawWorklog[] = [];
     if (Array.isArray(result.data)) {
-      allWorklogs = result.data;
+      userWorklogs = result.data;
     } else if (Array.isArray(result.value)) {
-      allWorklogs = result.value as RawWorklog[];
+      userWorklogs = result.value as RawWorklog[];
     } else if (Array.isArray(result)) {
-      allWorklogs = result as unknown as RawWorklog[];
+      userWorklogs = result as unknown as RawWorklog[];
     }
 
-    console.log("[user-time] worklogs received", {
-      rawCount: allWorklogs.length,
-      responseKeys: rawResponseKeys,
-    });
-
-    // 4. Filter to this user's worklogs
-    const userWorklogs = allWorklogs.filter(
-      (wl) => wl.user?.id === matchedUser.id
-    );
-
-    console.log("[user-time] filtered to user", {
+    console.log("[user-time] worklogs received (userId-filtered)", {
       userId: matchedUser.id,
-      userWorklogCount: userWorklogs.length,
-      totalOrgWorklogs: allWorklogs.length,
+      worklogCount: userWorklogs.length,
+      responseKeys: rawResponseKeys,
     });
 
     // 5. Collect unique work item IDs and batch fetch details (with System.State)
@@ -331,12 +322,12 @@ export async function GET(request: NextRequest) {
       },
       workItems,
       _debug: {
+        fetchMode: "per-user",
         fromTimestamp: fromDate.toISOString(),
         toTimestamp: toDate.toISOString(),
         lookbackDays: LOOKBACK_DAYS,
         userId: matchedUser.id,
-        rawWorklogCount: allWorklogs.length,
-        userWorklogCount: userWorklogs.length,
+        worklogCount: userWorklogs.length,
         responseKeys: rawResponseKeys,
         requestUrl,
       },

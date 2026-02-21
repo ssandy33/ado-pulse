@@ -737,34 +737,25 @@ function PipelineDiagnostics({ diag }: { diag: TimeTrackingDiagnostics }) {
               </div>
             </div>
             <div className="bg-pulse-bg rounded-md p-3">
-              <div className="text-[11px] text-pulse-muted uppercase tracking-wide mb-1">Unmapped User IDs</div>
-              <div className={`text-lg font-semibold ${diag.unmappedUserIdCount > 0 ? "text-amber-600" : "text-pulse-text"}`}>
-                {diag.unmappedUserIdCount}
-              </div>
+              <div className="text-[11px] text-pulse-muted uppercase tracking-wide mb-1">Fetch Mode</div>
+              <div className="text-lg font-semibold text-pulse-text">{diag.fetchMode}</div>
+            </div>
+            <div className="bg-pulse-bg rounded-md p-3">
+              <div className="text-[11px] text-pulse-muted uppercase tracking-wide mb-1">Members Fetched</div>
+              <div className="text-lg font-semibold text-pulse-text">{diag.membersFetched}</div>
             </div>
           </div>
 
-          {/* API Request Info */}
-          {diag.worklogsRequestUrl && (
+          {/* Members with no 7pace ID */}
+          {diag.membersWithNoSpId.length > 0 && (
             <div>
-              <h4 className="text-[12px] font-medium text-pulse-text mb-1">7pace Worklogs Request</h4>
-              <div className="bg-pulse-bg rounded-md p-3 space-y-1.5">
-                <div className="text-[11px] font-mono text-pulse-muted break-all">{diag.worklogsRequestUrl}</div>
-                <div className="flex gap-4 text-[11px]">
-                  <span className="text-pulse-muted">
-                    Response keys: <span className="font-mono text-pulse-text">{(diag.worklogsRawResponseKeys ?? []).join(", ") || "none"}</span>
-                  </span>
-                  <span className="text-pulse-muted">
-                    Raw count: <span className={`font-semibold ${(diag.worklogsRawCount ?? 0) > 0 ? "text-emerald-600" : "text-red-600"}`}>{diag.worklogsRawCount ?? 0}</span>
-                  </span>
-                  {diag.worklogsUnfilteredCount !== undefined && (
-                    <span className="text-pulse-muted">
-                      Unfiltered probe: <span className={`font-semibold ${diag.worklogsUnfilteredCount > 0 ? "text-emerald-600" : diag.worklogsUnfilteredCount === -1 ? "text-red-600" : "text-amber-600"}`}>
-                        {diag.worklogsUnfilteredCount === -1 ? "error" : diag.worklogsUnfilteredCount}
-                      </span>
-                    </span>
-                  )}
-                </div>
+              <h4 className="text-[12px] font-medium text-pulse-text mb-1">
+                Members Without 7pace User ID ({diag.membersWithNoSpId.length})
+              </h4>
+              <div className="bg-pulse-bg rounded-md p-3 space-y-0.5">
+                {diag.membersWithNoSpId.map((name) => (
+                  <div key={name} className="text-[11px] font-mono text-amber-600">{name}</div>
+                ))}
               </div>
             </div>
           )}
@@ -848,19 +839,6 @@ function PipelineDiagnostics({ diag }: { diag: TimeTrackingDiagnostics }) {
             </div>
           )}
 
-          {/* Mapped but not on team */}
-          {diag.mappedButNotOnTeam.length > 0 && (
-            <div>
-              <h4 className="text-[12px] font-medium text-pulse-text mb-1">
-                Mapped but Not on Team ({diag.mappedButNotOnTeamCount})
-              </h4>
-              <div className="bg-pulse-bg rounded-md p-3 space-y-0.5">
-                {diag.mappedButNotOnTeam.map((name) => (
-                  <div key={name} className="text-[11px] font-mono text-amber-600">{name}</div>
-                ))}
-              </div>
-            </div>
-          )}
         </div>
       )}
     </div>

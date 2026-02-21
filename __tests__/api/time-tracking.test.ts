@@ -20,6 +20,15 @@ jest.mock("@/lib/ado/helpers", () => ({
   }),
 }));
 
+// Mock ADO client (batchAsync used for per-member fetches)
+jest.mock("@/lib/ado/client", () => ({
+  batchAsync: jest.fn(async (fns: (() => Promise<unknown>)[], _concurrency: number) => {
+    const results = [];
+    for (const fn of fns) results.push(await fn());
+    return results;
+  }),
+}));
+
 // Mock 7pace
 const mockGetSevenPaceWorklogs = jest.fn().mockResolvedValue({
   worklogs: [],
@@ -33,7 +42,9 @@ jest.mock("@/lib/sevenPace", () => ({
     apiToken: "test-token",
     baseUrl: "https://test.timehub.7pace.com/api/rest",
   }),
-  getSevenPaceUsers: jest.fn().mockResolvedValue(new Map()),
+  getSevenPaceUsers: jest.fn().mockResolvedValue(
+    new Map([["sp-user-1", "dev@test.com"]])
+  ),
   getSevenPaceWorklogs: (...args: unknown[]) => mockGetSevenPaceWorklogs(...args),
   SevenPaceApiError: class extends Error {
     status: number;
@@ -46,9 +57,11 @@ jest.mock("@/lib/sevenPace", () => ({
   },
 }));
 
-// Mock ADO teams
+// Mock ADO teams — return one member that maps to the 7pace user
 jest.mock("@/lib/ado/teams", () => ({
-  getTeamMembers: jest.fn().mockResolvedValue([]),
+  getTeamMembers: jest.fn().mockResolvedValue([
+    { id: "m1", displayName: "Dev One", uniqueName: "dev@test.com" },
+  ]),
 }));
 
 // Mock ADO work items
@@ -91,8 +104,10 @@ describe("GET /api/timetracking/team-summary — date window changes with range 
   it("passes a ~7-day window to getSevenPaceWorklogs when range=7", async () => {
     await GET(makeRequest({ range: "7", team: "Partner" }));
 
+    // Per-member fetch: called once for the one team member
     expect(mockGetSevenPaceWorklogs).toHaveBeenCalledTimes(1);
-    const [, fromArg, toArg] = mockGetSevenPaceWorklogs.mock.calls[0];
+    const [, fromArg, toArg, userId] = mockGetSevenPaceWorklogs.mock.calls[0];
+    expect(userId).toBe("sp-user-1");
     const diff = daysDiff(fromArg, toArg);
     expect(diff).toBeGreaterThanOrEqual(6);
     expect(diff).toBeLessThanOrEqual(8);
@@ -102,7 +117,8 @@ describe("GET /api/timetracking/team-summary — date window changes with range 
     await GET(makeRequest({ range: "14", team: "Partner" }));
 
     expect(mockGetSevenPaceWorklogs).toHaveBeenCalledTimes(1);
-    const [, fromArg, toArg] = mockGetSevenPaceWorklogs.mock.calls[0];
+    const [, fromArg, toArg, userId] = mockGetSevenPaceWorklogs.mock.calls[0];
+    expect(userId).toBe("sp-user-1");
     const diff = daysDiff(fromArg, toArg);
     expect(diff).toBeGreaterThanOrEqual(13);
     expect(diff).toBeLessThanOrEqual(15);
@@ -132,5 +148,13 @@ describe("GET /api/timetracking/team-summary — date window changes with range 
     const res = await GET(makeRequest({ range: "7", team: "Partner" }));
     const body = await res.json();
     expect(body.period.days).toBe(7);
+  });
+
+  it("passes userId to getSevenPaceWorklogs for per-member filtering", async () => {
+    await GET(makeRequest({ range: "7", team: "Partner" }));
+
+    expect(mockGetSevenPaceWorklogs).toHaveBeenCalledTimes(1);
+    const [, , , userId] = mockGetSevenPaceWorklogs.mock.calls[0];
+    expect(userId).toBe("sp-user-1");
   });
 });

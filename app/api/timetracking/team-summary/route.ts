@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getTeamMembers } from "@/lib/ado/teams";
 import { extractConfig, jsonWithCache, handleApiError } from "@/lib/ado/helpers";
+import { batchAsync } from "@/lib/ado/client";
 import { getExclusions } from "@/lib/settings";
 import { parseRange, resolveRange, countBusinessDays } from "@/lib/dateRange";
 import {
@@ -50,13 +51,11 @@ export async function GET(request: NextRequest) {
       } satisfies TeamTimeData);
     }
 
-    // 2. Parallel fetch: team roster + 7pace users + 7pace worklogs
-    const [members, spUsers, worklogsResult] = await Promise.all([
+    // 2. Parallel fetch: team roster + 7pace user map
+    const [members, spUsers] = await Promise.all([
       getTeamMembers(configOrError, teamName),
       getSevenPaceUsers(spConfig),
-      getSevenPaceWorklogs(spConfig, from, to),
     ]);
-    const worklogs = worklogsResult.worklogs;
 
     // 3. Load exclusions
     const exclusions = await getExclusions();
@@ -66,25 +65,30 @@ export async function GET(request: NextRequest) {
         .map((e) => [e.uniqueName.toLowerCase(), e.role])
     );
 
-    // Build roster lookup (lowercase uniqueName → member)
-    const rosterSet = new Set(members.map((m) => m.uniqueName.toLowerCase()));
+    // Build reverse lookup: uniqueName → 7pace userId
+    const nameToSpId = new Map<string, string>();
+    for (const [id, name] of spUsers.entries()) {
+      nameToSpId.set(name.toLowerCase(), id);
+    }
 
-    // 4. Match worklogs to team roster using uniqueName from worklog's embedded user
-    // Each worklog now carries its own uniqueName directly from 7pace
-    const noUniqueName = new Set<string>();
-    const mappedButNotOnTeam = new Set<string>();
-    const teamWorklogs = worklogs.filter((wl) => {
-      const uniqueName = wl.uniqueName;
-      if (!uniqueName) {
-        noUniqueName.add(wl.userId);
-        return false;
-      }
-      if (!rosterSet.has(uniqueName.toLowerCase())) {
-        mappedButNotOnTeam.add(uniqueName);
-        return false;
-      }
-      return true;
-    });
+    // 4. Fetch worklogs per team member using userId filter (concurrency 5)
+    const membersWithNoSpId = new Set<string>();
+    const memberFetches = members
+      .map((m) => {
+        const spUserId = nameToSpId.get(m.uniqueName.toLowerCase());
+        if (!spUserId) {
+          membersWithNoSpId.add(m.uniqueName);
+          return null;
+        }
+        return async () => getSevenPaceWorklogs(spConfig, from, to, spUserId);
+      })
+      .filter((fn): fn is NonNullable<typeof fn> => fn !== null);
+
+    const memberResults = await batchAsync(memberFetches, 5);
+
+    // Combine all per-member worklogs
+    const teamWorklogs = memberResults.flatMap((r) => r.worklogs);
+    const totalRawCount = memberResults.reduce((s, r) => s + r.rawCount, 0);
 
     // 5. Batch-fetch all unique workItemIds from ADO
     const allWorkItemIds = [...new Set(teamWorklogs.map((wl) => wl.workItemId).filter(Boolean))];
@@ -290,22 +294,18 @@ export async function GET(request: NextRequest) {
       diagnostics: {
         sevenPaceUsersTotal: spUsers.size,
         sevenPaceUsers: spUsersList.slice(0, 20),
-        totalWorklogsFromSevenPace: worklogs.length,
+        fetchMode: "per-member",
+        membersFetched: memberResults.length,
+        membersWithNoSpId: Array.from(membersWithNoSpId).slice(0, 10),
+        totalWorklogsFromSevenPace: totalRawCount,
         worklogsMatchedToTeam: teamWorklogs.length,
-        unmappedUserIdCount: noUniqueName.size,
-        mappedButNotOnTeamCount: mappedButNotOnTeam.size,
-        mappedButNotOnTeam: Array.from(mappedButNotOnTeam).slice(0, 10),
         rosterUniqueNames: rosterList,
-        sampleWorklogs: worklogs.slice(0, 5).map((wl) => ({
+        sampleWorklogs: teamWorklogs.slice(0, 5).map((wl) => ({
           userId: wl.userId,
           resolvedUniqueName: wl.uniqueName || null,
           workItemId: wl.workItemId,
           hours: wl.hours,
         })),
-        worklogsRequestUrl: worklogsResult.requestUrl,
-        worklogsRawResponseKeys: worklogsResult.rawResponseKeys,
-        worklogsRawCount: worklogsResult.rawCount,
-        worklogsUnfilteredCount: worklogsResult.unfilteredCount,
       },
     };
 
