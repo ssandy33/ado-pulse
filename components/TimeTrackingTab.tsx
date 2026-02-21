@@ -497,6 +497,13 @@ function PipelineDiagnostics({ diag }: { diag: TimeTrackingDiagnostics }) {
                   <span className="text-pulse-muted">
                     Raw count: <span className={`font-semibold ${(diag.worklogsRawCount ?? 0) > 0 ? "text-emerald-600" : "text-red-600"}`}>{diag.worklogsRawCount ?? 0}</span>
                   </span>
+                  {diag.worklogsUnfilteredCount !== undefined && (
+                    <span className="text-pulse-muted">
+                      Unfiltered probe: <span className={`font-semibold ${diag.worklogsUnfilteredCount > 0 ? "text-emerald-600" : diag.worklogsUnfilteredCount === -1 ? "text-red-600" : "text-amber-600"}`}>
+                        {diag.worklogsUnfilteredCount === -1 ? "error" : diag.worklogsUnfilteredCount}
+                      </span>
+                    </span>
+                  )}
                 </div>
               </div>
             </div>

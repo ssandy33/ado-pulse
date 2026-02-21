@@ -140,6 +140,7 @@ export interface SevenPaceWorklogsResult {
   rawResponseKeys: string[];
   rawCount: number;
   requestUrl: string;
+  unfilteredCount?: number;
 }
 
 function toDateStr(d: Date): string {
@@ -195,10 +196,29 @@ export async function getSevenPaceWorklogs(
     date: wl.timestamp,
   }));
 
+  // If no worklogs found, try without date filters to check if endpoint works at all
+  let unfilteredCount: number | undefined;
+  if (rawWorklogs.length === 0) {
+    try {
+      const probe = await sevenPaceFetch<Record<string, unknown>>(
+        config,
+        "workLogs",
+        { "api-version": "3.2", "_count": "5" }
+      );
+      const probeData = Array.isArray(probe.data) ? probe.data
+        : Array.isArray(probe.value) ? probe.value
+        : Array.isArray(probe) ? probe : [];
+      unfilteredCount = probeData.length;
+    } catch {
+      unfilteredCount = -1; // error
+    }
+  }
+
   return {
     worklogs,
     rawResponseKeys,
     rawCount: rawWorklogs.length,
     requestUrl,
+    unfilteredCount,
   };
 }

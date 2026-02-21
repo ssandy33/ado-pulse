@@ -287,6 +287,7 @@ export async function GET(request: NextRequest) {
         worklogsRequestUrl: worklogsResult.requestUrl,
         worklogsRawResponseKeys: worklogsResult.rawResponseKeys,
         worklogsRawCount: worklogsResult.rawCount,
+        worklogsUnfilteredCount: worklogsResult.unfilteredCount,
       },
     };
 

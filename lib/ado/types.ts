@@ -298,6 +298,7 @@ export interface TimeTrackingDiagnostics {
   worklogsRequestUrl?: string;
   worklogsRawResponseKeys?: string[];
   worklogsRawCount?: number;
+  worklogsUnfilteredCount?: number;
 }
 
 export interface TeamTimeData {
