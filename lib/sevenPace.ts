@@ -76,7 +76,13 @@ export async function sevenPaceFetch<T>(
   }
 }
 
-// ── Data fetchers ──────────────────────────────────────────────
+// ── Types ─────────────────────────────────────────────────────
+
+export interface PaginationInfo {
+  pagesFetched: number;
+  totalRecords: number;
+  hitSafetyCap: boolean;
+}
 
 interface SevenPaceUser {
   id: string;
@@ -88,6 +94,63 @@ interface SevenPaceUser {
 interface SevenPaceUsersResponse {
   data: SevenPaceUser[];
 }
+
+export interface SevenPaceWorklog {
+  id: string;
+  userId: string;
+  uniqueName: string;
+  displayName: string;
+  workItemId: number;
+  hours: number;
+  date: string;
+  activityType?: string;
+}
+
+interface RawWorklogUser {
+  id: string;
+  uniqueName?: string;
+  name?: string;
+  vstsId?: string;
+}
+
+interface RawWorklog {
+  id: string;
+  user?: RawWorklogUser;
+  workItemId?: number | null;
+  length: number; // seconds
+  timestamp: string;
+  activityType?: { name?: string } | null;
+}
+
+export interface SevenPaceWorklogsResult {
+  worklogs: SevenPaceWorklog[];
+  rawResponseKeys: string[];
+  rawCount: number;
+  requestUrl: string;
+  unfilteredCount?: number;
+  pagination?: PaginationInfo;
+  fetchApi: "odata" | "rest";
+}
+
+// ── OData types (7Pace Reporting API) ─────────────────────────
+
+interface ODataWorklog {
+  Id: string;
+  UserId: string;
+  WorkItemId: number | null;
+  PeriodLength: number; // seconds
+  Timestamp: string;
+  User?: { Id: string; Name: string; Email: string };
+  ActivityType?: { Id: string; Name: string; Color: string } | null;
+}
+
+interface ODataResponse {
+  "@odata.context"?: string;
+  "@odata.nextLink"?: string;
+  value: ODataWorklog[];
+}
+
+// ── Data fetchers ──────────────────────────────────────────────
 
 export async function getSevenPaceUsers(
   config: SevenPaceConfig
@@ -107,52 +170,190 @@ export async function getSevenPaceUsers(
   return map;
 }
 
-export interface SevenPaceWorklog {
-  id: string;
-  userId: string;
-  uniqueName: string;
-  workItemId: number;
-  hours: number;
-  date: string;
-}
-
-interface RawWorklogUser {
-  id: string;
-  uniqueName?: string;
-  name?: string;
-  vstsId?: string;
-}
-
-interface RawWorklog {
-  id: string;
-  user?: RawWorklogUser;
-  workItemId?: number | null;
-  length: number; // seconds
-  timestamp: string;
-}
-
-interface SevenPaceWorklogsResponse {
-  data: RawWorklog[];
-}
-
-export interface SevenPaceWorklogsResult {
-  worklogs: SevenPaceWorklog[];
-  rawResponseKeys: string[];
-  rawCount: number;
-  requestUrl: string;
-  unfilteredCount?: number;
-}
-
 function toDateStr(d: Date): string {
   // 7pace expects datetime format: 2021-11-06T10:28:00
   return d.toISOString().split(".")[0];
 }
 
+function toISODate(d: Date): string {
+  return d.toISOString();
+}
+
+// ── OData per-user fetch (preferred) ──────────────────────────
+
+const ODATA_MAX_PAGES = 10; // safety cap: prevent runaway pagination
+
+/**
+ * Fetch worklogs for a specific user via the OData Reporting API.
+ * This endpoint supports real server-side user filtering via
+ * `worklogsFilter=User/Email eq 'email'`, unlike the REST
+ * `/workLogs/all` endpoint where `_userId` is silently ignored.
+ */
+export async function getWorklogsForUser(
+  config: SevenPaceConfig,
+  email: string,
+  from: Date,
+  to: Date
+): Promise<SevenPaceWorklogsResult> {
+  const base = config.baseUrl.endsWith("/") ? config.baseUrl : config.baseUrl + "/";
+  const odataBase = `${base}api/odata/v3.2/workLogsOnly`;
+
+  // Build the initial OData URL with user + date filters
+  const filterExpr = `Timestamp ge ${toISODate(from)} and Timestamp lt ${toISODate(to)}`;
+  const params = new URLSearchParams();
+  params.set("$apply", `filter(${filterExpr})`);
+  params.set("worklogsFilter", `User/Email eq '${email}'`);
+
+  const requestUrl = `${odataBase}?${params.toString()}`;
+
+  const allWorklogs: SevenPaceWorklog[] = [];
+  let currentUrl = requestUrl;
+  let pagesFetched = 0;
+
+  while (currentUrl && pagesFetched < ODATA_MAX_PAGES) {
+    const result = await fetchODataPage(config, currentUrl);
+    const mapped = result.value.map(mapODataWorklog);
+    allWorklogs.push(...mapped);
+    pagesFetched++;
+
+    // Follow @odata.nextLink for pagination
+    currentUrl = result["@odata.nextLink"] ?? "";
+  }
+
+  return {
+    worklogs: allWorklogs,
+    rawResponseKeys: ["@odata.context", "value"],
+    rawCount: allWorklogs.length,
+    requestUrl,
+    fetchApi: "odata",
+    pagination: {
+      pagesFetched,
+      totalRecords: allWorklogs.length,
+      hitSafetyCap: pagesFetched >= ODATA_MAX_PAGES,
+    },
+  };
+}
+
+async function fetchODataPage(
+  config: SevenPaceConfig,
+  url: string
+): Promise<ODataResponse> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 30000);
+
+  try {
+    const res = await fetch(url, {
+      headers: {
+        Authorization: `Bearer ${config.apiToken}`,
+        "Content-Type": "application/json",
+      },
+      signal: controller.signal,
+      cache: "no-store",
+    });
+
+    if (res.status === 401) {
+      throw new SevenPaceApiError("Invalid 7pace token", 401, "AUTH_ERROR");
+    }
+
+    if (!res.ok) {
+      throw new SevenPaceApiError(
+        `7pace OData API error: ${res.status} ${res.statusText}`,
+        res.status,
+        "ODATA_API_ERROR"
+      );
+    }
+
+    return res.json() as Promise<ODataResponse>;
+  } catch (error) {
+    if (error instanceof SevenPaceApiError) throw error;
+    if (error instanceof Error && error.name === "AbortError") {
+      throw new SevenPaceApiError("7pace OData request timed out", 504, "TIMEOUT");
+    }
+    throw new SevenPaceApiError("7pace OData unavailable", 503, "UNAVAILABLE");
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+function mapODataWorklog(wl: ODataWorklog): SevenPaceWorklog {
+  return {
+    id: wl.Id,
+    userId: wl.UserId ?? wl.User?.Id ?? "",
+    uniqueName: wl.User?.Email ?? "",
+    displayName: wl.User?.Name ?? "",
+    workItemId: wl.WorkItemId ?? 0,
+    hours: wl.PeriodLength / 3600,
+    date: wl.Timestamp,
+    activityType: wl.ActivityType?.Name,
+  };
+}
+
+// ── REST paginated fetch (for org-wide queries) ───────────────
+
+const REST_PAGE_SIZE = 500;
+const REST_MAX_PAGES = 10; // safety cap: 5,000 worklogs
+
+/**
+ * Fetch all worklogs from the REST /workLogs/all endpoint with
+ * _skip pagination. Use this only for org-wide queries (e.g.,
+ * workitem-timelogs debug). For per-user queries, use
+ * getWorklogsForUser() which uses the OData API.
+ */
+export async function fetchAllRestWorklogPages(
+  config: SevenPaceConfig,
+  params: Record<string, string>
+): Promise<{ worklogs: RawWorklog[]; pagination: PaginationInfo }> {
+  const allWorklogs: RawWorklog[] = [];
+  let page = 0;
+
+  while (page < REST_MAX_PAGES) {
+    const pageParams = {
+      ...params,
+      _count: String(REST_PAGE_SIZE),
+      _skip: String(page * REST_PAGE_SIZE),
+    };
+
+    const result = await sevenPaceFetch<Record<string, unknown>>(
+      config,
+      "workLogs/all",
+      pageParams
+    );
+
+    let pageWorklogs: RawWorklog[] = [];
+    if (Array.isArray(result.data)) {
+      pageWorklogs = result.data;
+    } else if (Array.isArray(result.value)) {
+      pageWorklogs = result.value as RawWorklog[];
+    } else if (Array.isArray(result)) {
+      pageWorklogs = result as unknown as RawWorklog[];
+    }
+
+    allWorklogs.push(...pageWorklogs);
+    page++;
+
+    if (pageWorklogs.length < REST_PAGE_SIZE) break;
+  }
+
+  return {
+    worklogs: allWorklogs,
+    pagination: {
+      pagesFetched: page,
+      totalRecords: allWorklogs.length,
+      hitSafetyCap: page >= REST_MAX_PAGES,
+    },
+  };
+}
+
+/**
+ * Fetch org-wide worklogs via REST /workLogs/all with pagination.
+ * NOTE: The _userId parameter on this endpoint is silently ignored
+ * by the 7Pace API — it always returns ALL org worklogs.
+ * For per-user queries, use getWorklogsForUser() instead.
+ */
 export async function getSevenPaceWorklogs(
   config: SevenPaceConfig,
   from: Date,
-  to: Date,
-  userId?: string
+  to: Date
 ): Promise<SevenPaceWorklogsResult> {
   const fromStr = toDateStr(from);
   const toStr = toDateStr(to);
@@ -161,44 +362,24 @@ export async function getSevenPaceWorklogs(
     "api-version": "3.2",
     "_fromTimestamp": fromStr,
     "_toTimestamp": toStr,
-    "_count": "500",
   };
 
-  if (userId) {
-    params["_userId"] = userId;
-  }
-
-  // Build URL for diagnostics (use literal $ — matches actual request)
+  // Build URL for diagnostics
   const baseUrl = config.baseUrl.endsWith("/") ? config.baseUrl : config.baseUrl + "/";
   const qs = Object.entries(params).map(([k, v]) => `${k}=${encodeURIComponent(v)}`).join("&");
   const requestUrl = `${baseUrl}workLogs/all?${qs}`;
 
-  // Use /workLogs/all to get org-wide worklogs (requires Admin/Budget/Product role)
-  const result = await sevenPaceFetch<Record<string, unknown>>(
-    config,
-    "workLogs/all",
-    params
-  );
-
-  const rawResponseKeys = Object.keys(result);
-
-  // Try common response shapes: { data: [...] }, { value: [...] }, or top-level array
-  let rawWorklogs: RawWorklog[] = [];
-  if (Array.isArray(result.data)) {
-    rawWorklogs = result.data;
-  } else if (Array.isArray(result.value)) {
-    rawWorklogs = result.value as RawWorklog[];
-  } else if (Array.isArray(result)) {
-    rawWorklogs = result as unknown as RawWorklog[];
-  }
+  const { worklogs: rawWorklogs, pagination } = await fetchAllRestWorklogPages(config, params);
 
   const worklogs = rawWorklogs.map((wl) => ({
     id: wl.id,
     userId: wl.user?.id ?? "",
     uniqueName: wl.user?.uniqueName ?? "",
+    displayName: wl.user?.name ?? "",
     workItemId: wl.workItemId ?? 0,
     hours: wl.length / 3600,
     date: wl.timestamp,
+    activityType: wl.activityType?.name,
   }));
 
   // If no worklogs found, try without date filters to check if endpoint works at all
@@ -221,9 +402,11 @@ export async function getSevenPaceWorklogs(
 
   return {
     worklogs,
-    rawResponseKeys,
+    rawResponseKeys: ["data"],
     rawCount: rawWorklogs.length,
     requestUrl,
     unfilteredCount,
+    pagination,
+    fetchApi: "rest",
   };
 }

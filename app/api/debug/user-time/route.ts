@@ -5,7 +5,8 @@ import type { AdoConfig } from "@/lib/ado/types";
 import { resolveFeature } from "@/lib/ado/workItems";
 import {
   getSevenPaceConfig,
-  sevenPaceFetch,
+  getWorklogsForUser,
+  SevenPaceApiError,
 } from "@/lib/sevenPace";
 import { getLookbackDateRange } from "@/lib/dateUtils";
 
@@ -69,33 +70,6 @@ async function fetchWorkItemsWithState(
   return result;
 }
 
-interface RawWorklogUser {
-  id: string;
-  uniqueName?: string;
-  name?: string;
-}
-
-interface RawWorklog {
-  id: string;
-  user?: RawWorklogUser;
-  workItemId?: number | null;
-  length: number;
-  timestamp: string;
-  activityType?: { name?: string } | null;
-  [key: string]: unknown;
-}
-
-interface SevenPaceUser {
-  id: string;
-  email?: string;
-  uniqueName?: string;
-  displayName?: string;
-}
-
-interface SevenPaceUsersResponse {
-  data: SevenPaceUser[];
-}
-
 export async function GET(request: NextRequest) {
   const configOrError = await extractConfig(request);
   if (configOrError instanceof NextResponse) return configOrError;
@@ -118,85 +92,77 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // 2. Fetch all 7pace users and find matching user
-    const usersResult = await sevenPaceFetch<SevenPaceUsersResponse>(
-      spConfig,
-      "users",
-      { "api-version": "3.2" }
-    );
-
-    const allUsers = usersResult.data ?? [];
-    const matchedUser = allUsers.find((u) => {
-      const uEmail = (u.email || "").toLowerCase();
-      const uUnique = (u.uniqueName || "").toLowerCase();
-      return uEmail === email || uUnique === email;
-    });
-
-    if (!matchedUser) {
-      return NextResponse.json({
-        user: null,
-        error: `No 7pace user found matching "${email}"`,
-        availableUsers: allUsers
-          .map((u) => ({
-            id: u.id,
-            email: u.email || u.uniqueName || "",
-            displayName: u.displayName || "",
-          }))
-          .filter((u) => u.email)
-          .slice(0, 20),
-      });
-    }
-
-    // 3. Fetch 30-day worklogs from 7pace filtered by userId (hardcoded window)
+    // 2. Fetch worklogs for this user via OData API (real server-side filtering)
     const { from: fromDate, to: toDate } = getLookbackDateRange(LOOKBACK_DAYS);
-    const toDateStr = (d: Date) => d.toISOString().split(".")[0];
 
-    const sevenPaceParams: Record<string, string> = {
-      "api-version": "3.2",
-      _fromTimestamp: toDateStr(fromDate),
-      _toTimestamp: toDateStr(toDate),
-      _count: "500",
-      _userId: matchedUser.id,
-    };
-
-    // Build URL for diagnostic logging
-    const spBase = spConfig.baseUrl.endsWith("/") ? spConfig.baseUrl : spConfig.baseUrl + "/";
-    const spQs = Object.entries(sevenPaceParams).map(([k, v]) => `${k}=${encodeURIComponent(v)}`).join("&");
-    const requestUrl = `${spBase}workLogs/all?${spQs}`;
-
-    console.log("[user-time] fetching worklogs (per-user)", {
-      userId: matchedUser.id,
+    console.log("[user-time] fetching worklogs via OData", {
       email,
       fromTimestamp: fromDate.toISOString(),
       toTimestamp: toDate.toISOString(),
-      url: requestUrl,
     });
 
-    const result = await sevenPaceFetch<Record<string, unknown>>(
-      spConfig,
-      "workLogs/all",
-      sevenPaceParams
-    );
-
-    const rawResponseKeys = Object.keys(result);
-
-    // Parse response (try common shapes) — all entries are for this user
-    let userWorklogs: RawWorklog[] = [];
-    if (Array.isArray(result.data)) {
-      userWorklogs = result.data;
-    } else if (Array.isArray(result.value)) {
-      userWorklogs = result.value as RawWorklog[];
-    } else if (Array.isArray(result)) {
-      userWorklogs = result as unknown as RawWorklog[];
+    let worklogResult;
+    try {
+      worklogResult = await getWorklogsForUser(spConfig, email, fromDate, toDate);
+    } catch (error) {
+      if (error instanceof SevenPaceApiError) {
+        return NextResponse.json(
+          { error: error.message, code: error.code },
+          { status: error.status === 401 ? 401 : 502 }
+        );
+      }
+      throw error;
     }
 
-    console.log("[user-time] worklogs received (userId-filtered)", {
-      userId: matchedUser.id,
+    const userWorklogs = worklogResult.worklogs;
+
+    console.log("[user-time] worklogs received (OData-filtered)", {
+      email,
       worklogCount: userWorklogs.length,
-      responseKeys: rawResponseKeys,
+      fetchApi: worklogResult.fetchApi,
+      pagination: worklogResult.pagination,
     });
 
-    // 5. Collect unique work item IDs and batch fetch details (with System.State)
+    // If no worklogs, return early with user info from the first worklog or email
+    if (userWorklogs.length === 0) {
+      const toDateStr = (d: Date) => d.toISOString().split(".")[0];
+      return jsonWithCache({
+        user: {
+          id: "",
+          email,
+          displayName: "",
+        },
+        summary: {
+          totalHours: 0,
+          workItemCount: 0,
+          entryCount: 0,
+          dateRange: null,
+          period: {
+            from: toDateStr(fromDate),
+            to: toDateStr(toDate),
+            days: LOOKBACK_DAYS,
+          },
+        },
+        workItems: [],
+        _debug: {
+          fetchMode: "per-user-odata",
+          fetchApi: worklogResult.fetchApi,
+          fromTimestamp: fromDate.toISOString(),
+          toTimestamp: toDate.toISOString(),
+          lookbackDays: LOOKBACK_DAYS,
+          worklogCount: 0,
+          requestUrl: worklogResult.requestUrl,
+          pagination: worklogResult.pagination,
+        },
+      }, 60);
+    }
+
+    // Get user info from the first worklog
+    const firstWl = userWorklogs[0];
+    const userId = firstWl.userId;
+    const displayName = firstWl.displayName;
+
+    // 3. Collect unique work item IDs and batch fetch details (with System.State)
     const workItemIds = [
       ...new Set(
         userWorklogs
@@ -207,8 +173,7 @@ export async function GET(request: NextRequest) {
 
     const workItemMap = await fetchWorkItemsWithState(configOrError, workItemIds);
 
-    // 5b. Resolve parent Feature + CapEx/OpEx for each work item
-    // resolveFeature expects a compatible cache; the extra System.State field is ignored
+    // 3b. Resolve parent Feature + CapEx/OpEx for each work item
     const featureCache = new Map(
       [...workItemMap.entries()].map(([id, wi]) => [id, wi as { id: number; fields: { "System.Title"?: string; "System.WorkItemType"?: string; "System.Parent"?: number; "Custom.FeatureExpense"?: string } }])
     );
@@ -218,7 +183,7 @@ export async function GET(request: NextRequest) {
       featureMap.set(wiId, resolved);
     }
 
-    // 6. Aggregate worklogs by work item
+    // 4. Aggregate worklogs by work item
     const byWorkItem = new Map<
       number,
       {
@@ -237,14 +202,15 @@ export async function GET(request: NextRequest) {
           date: string;
           hours: number;
           activity: string;
+          uniqueName: string;
         }[];
       }
     >();
 
     for (const wl of userWorklogs) {
       const wiId = wl.workItemId ?? 0;
-      const hours = Math.round((wl.length / 3600) * 100) / 100;
-      const activity = wl.activityType?.name || "Unknown";
+      const hours = Math.round(wl.hours * 100) / 100;
+      const activity = wl.activityType || "Unknown";
 
       if (!byWorkItem.has(wiId)) {
         const wi = workItemMap.get(wiId);
@@ -270,9 +236,10 @@ export async function GET(request: NextRequest) {
       agg.activities.add(activity);
       agg.entries.push({
         id: wl.id,
-        date: wl.timestamp,
+        date: wl.date,
         hours,
         activity,
+        uniqueName: wl.uniqueName || "Unknown",
       });
     }
 
@@ -295,16 +262,18 @@ export async function GET(request: NextRequest) {
       }))
       .sort((a, b) => b.totalHours - a.totalHours);
 
-    // 7. Build summary
+    // 5. Build summary
     const totalHours = workItems.reduce((s, w) => s + w.totalHours, 0);
-    const allDates = userWorklogs.map((w) => w.timestamp).filter(Boolean);
+    const allDates = userWorklogs.map((w) => w.date).filter(Boolean);
     allDates.sort();
+
+    const toDateStr = (d: Date) => d.toISOString().split(".")[0];
 
     const response = {
       user: {
-        id: matchedUser.id,
-        email: matchedUser.email || matchedUser.uniqueName || email,
-        displayName: matchedUser.displayName || "",
+        id: userId,
+        email,
+        displayName: displayName || "",
       },
       summary: {
         totalHours: Math.round(totalHours * 100) / 100,
@@ -322,14 +291,15 @@ export async function GET(request: NextRequest) {
       },
       workItems,
       _debug: {
-        fetchMode: "per-user",
+        fetchMode: "per-user-odata",
+        fetchApi: worklogResult.fetchApi,
         fromTimestamp: fromDate.toISOString(),
         toTimestamp: toDate.toISOString(),
         lookbackDays: LOOKBACK_DAYS,
-        userId: matchedUser.id,
+        userId,
         worklogCount: userWorklogs.length,
-        responseKeys: rawResponseKeys,
-        requestUrl,
+        requestUrl: worklogResult.requestUrl,
+        pagination: worklogResult.pagination,
       },
     };
 

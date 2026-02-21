@@ -3,8 +3,7 @@ import { extractConfig, jsonWithCache, handleApiError } from "@/lib/ado/helpers"
 import { adoFetch, projectUrl } from "@/lib/ado/client";
 import {
   getSevenPaceConfig,
-  getSevenPaceUsers,
-  sevenPaceFetch,
+  fetchAllRestWorklogPages,
 } from "@/lib/sevenPace";
 
 interface WorkItemFields {
@@ -25,25 +24,6 @@ interface ParentChainEntry {
   title: string;
   type: string;
   classification?: string;
-}
-
-interface RawWorklogUser {
-  id: string;
-  uniqueName?: string;
-  name?: string;
-}
-
-interface RawWorklog {
-  id: string;
-  user?: RawWorklogUser;
-  workItemId?: number | null;
-  length: number;
-  timestamp: string;
-  [key: string]: unknown;
-}
-
-interface SevenPaceWorklogsResponse {
-  data: RawWorklog[];
 }
 
 const WI_FIELDS =
@@ -134,33 +114,13 @@ export async function GET(request: NextRequest) {
       depth++;
     }
 
-    // 4. Fetch 7pace users for name resolution
-    const spUsers = await getSevenPaceUsers(spConfig);
-    // Build reverse map: uniqueName → displayName
-    const userDisplayNames = new Map<string, string>();
-    // Also build id → uniqueName for worklog resolution
-    // spUsers is Map<id, uniqueName> from getSevenPaceUsers
-
-    // 5. Fetch 7pace worklogs and filter to the target work item
-    // The _workItemId param is not a valid 7pace filter, so we fetch
-    // recent worklogs and post-filter by workItemId.
-    const result = await sevenPaceFetch<Record<string, unknown>>(
+    // 4. Fetch 7pace worklogs with pagination and filter to the target work item
+    // The _workItemIds param is not a valid 7pace filter, so we fetch
+    // all worklogs and post-filter by workItemId.
+    const { worklogs: allWorklogs, pagination } = await fetchAllRestWorklogPages(
       spConfig,
-      "workLogs/all",
-      {
-        "api-version": "3.2",
-        "_count": "500",
-      }
+      { "api-version": "3.2" }
     );
-
-    let allWorklogs: RawWorklog[] = [];
-    if (Array.isArray(result.data)) {
-      allWorklogs = result.data;
-    } else if (Array.isArray(result.value)) {
-      allWorklogs = result.value as RawWorklog[];
-    } else if (Array.isArray(result)) {
-      allWorklogs = result as unknown as RawWorklog[];
-    }
 
     // Filter to only worklogs for the requested work item
     const rawWorklogs = allWorklogs.filter(
@@ -184,8 +144,7 @@ export async function GET(request: NextRequest) {
     const worklogs = rawWorklogs.map((wl) => {
       const uniqueName = wl.user?.uniqueName || "";
       const userId = wl.user?.id || "";
-      const displayName =
-        wl.user?.name || userDisplayNames.get(uniqueName) || "";
+      const displayName = wl.user?.name || "";
 
       return {
         id: wl.id,
@@ -232,6 +191,12 @@ export async function GET(request: NextRequest) {
                 latest: dates[0],
               }
             : null,
+      },
+      _debug: {
+        fetchApi: "rest",
+        pagination,
+        totalOrgWorklogs: allWorklogs.length,
+        matchedToWorkItem: rawWorklogs.length,
       },
     };
 
