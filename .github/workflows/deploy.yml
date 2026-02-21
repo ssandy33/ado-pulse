@@ -22,7 +22,7 @@ jobs:
             ssh -o StrictHostKeyChecking=no -o ConnectTimeout=30 \
               -i ~/.ssh/deploy_key \
               ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} \
-              'cd /opt/ado-pulse && git fetch origin main && git reset --hard origin/main && mkdir -p data && chown 1001:1001 data && docker compose -f docker-compose.prod.yml build && docker compose -f docker-compose.prod.yml up -d --force-recreate && sleep 15 && docker compose -f docker-compose.prod.yml logs app --tail 30 && echo "--- Direct API test (bypassing Caddy) ---" && docker compose -f docker-compose.prod.yml exec -T app wget -q -O - http://127.0.0.1:3000/api/teams 2>&1 | head -c 500 && echo "" && echo "--- End API test ---" && docker compose -f docker-compose.prod.yml restart caddy && docker compose -f docker-compose.prod.yml ps && docker image prune -f'
+              'cd /opt/ado-pulse && git fetch origin main && git reset --hard origin/main && mkdir -p data && chown 1001:1001 data && docker compose -f docker-compose.prod.yml build && docker compose -f docker-compose.prod.yml up -d --force-recreate && sleep 15 && docker compose -f docker-compose.prod.yml logs app --tail 30 && echo "--- Direct API test ---" && docker compose -f docker-compose.prod.yml exec -T app wget -q -O - http://127.0.0.1:3000/api/teams 2>&1 | head -c 300 || true && echo "" && echo "--- Caddy logs ---" && docker compose -f docker-compose.prod.yml restart caddy && sleep 5 && docker compose -f docker-compose.prod.yml logs caddy --tail 20 && docker compose -f docker-compose.prod.yml ps && docker image prune -f'
             SSH_EXIT=$?
             rm -f ~/.ssh/deploy_key
             exit $SSH_EXIT
