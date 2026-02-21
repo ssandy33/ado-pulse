@@ -3,11 +3,9 @@ import type { AdoConfig, AdoListResponse, PullRequest } from "./types";
 
 export async function getPullRequests(
   config: AdoConfig,
-  days: number
+  from: Date
 ): Promise<PullRequest[]> {
-  const minDate = new Date();
-  minDate.setDate(minDate.getDate() - days);
-  const minTime = minDate.toISOString();
+  const minTime = from.toISOString();
 
   const url = projectUrl(
     config,
@@ -31,11 +29,9 @@ export async function getOpenPullRequests(
 export async function getReviewsGivenByMember(
   config: AdoConfig,
   memberId: string,
-  days: number
+  from: Date
 ): Promise<number> {
-  const minDate = new Date();
-  minDate.setDate(minDate.getDate() - days);
-  const minTime = minDate.toISOString();
+  const minTime = from.toISOString();
 
   const url = projectUrl(
     config,

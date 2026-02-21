@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from "react";
+import type { TimeRange } from "@/lib/dateRange";
 import type { TeamSummaryApiResponse, StalePRResponse } from "@/lib/ado/types";
 import { TeamSelector } from "./TeamSelector";
 import { TimeRangeSelector } from "./TimeRangeSelector";
@@ -13,6 +14,7 @@ import { OrgHealthView } from "./OrgHealthView";
 import { DataConfidencePanel } from "./DataConfidencePanel";
 import { IdentityDebug } from "./IdentityDebug";
 import { SettingsPage } from "./SettingsPage";
+import { TimeTrackingTab } from "./TimeTrackingTab";
 import { SkeletonKPIRow, SkeletonTable } from "./SkeletonLoader";
 
 interface DashboardProps {
@@ -23,7 +25,7 @@ interface DashboardProps {
 export function Dashboard({ creds, onDisconnect }: DashboardProps) {
   const [activeTab, setActiveTab] = useState<TabKey>("team");
   const [selectedTeam, setSelectedTeam] = useState("");
-  const [days, setDays] = useState(14);
+  const [range, setRange] = useState<TimeRange>("14");
   const [data, setData] = useState<TeamSummaryApiResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -51,7 +53,7 @@ export function Dashboard({ creds, onDisconnect }: DashboardProps) {
 
     // Fire team-summary and stale PR fetch in parallel
     const summaryPromise = fetch(
-      `/api/prs/team-summary?days=${days}&team=${encodeURIComponent(selectedTeam)}`,
+      `/api/prs/team-summary?range=${range}&team=${encodeURIComponent(selectedTeam)}`,
       { headers: adoHeaders }
     );
 
@@ -88,7 +90,7 @@ export function Dashboard({ creds, onDisconnect }: DashboardProps) {
     } finally {
       setStalePRLoading(false);
     }
-  }, [selectedTeam, days, adoHeaders]);
+  }, [selectedTeam, range, adoHeaders]);
 
   useEffect(() => {
     fetchData();
@@ -98,8 +100,8 @@ export function Dashboard({ creds, onDisconnect }: DashboardProps) {
     setSelectedTeam(team);
   };
 
-  const handleDaysChange = (d: number) => {
-    setDays(d);
+  const handleRangeChange = (r: TimeRange) => {
+    setRange(r);
   };
 
   const mostActiveRepo =
@@ -124,7 +126,7 @@ export function Dashboard({ creds, onDisconnect }: DashboardProps) {
                   selectedTeam={selectedTeam}
                   onTeamChange={handleTeamChange}
                   adoHeaders={adoHeaders}
-                  disabled={activeTab !== "team"}
+                  disabled={activeTab !== "team" && activeTab !== "timetracking"}
                 />
               </div>
             </div>
@@ -142,7 +144,7 @@ export function Dashboard({ creds, onDisconnect }: DashboardProps) {
                   })}
                 </span>
               )}
-              {(selectedTeam || activeTab === "organization") && (
+              {(selectedTeam || activeTab === "organization" || activeTab === "timetracking") && (
                 <>
                   <button
                     onClick={fetchData}
@@ -165,7 +167,7 @@ export function Dashboard({ creds, onDisconnect }: DashboardProps) {
                     </svg>
                     Refresh
                   </button>
-                  <TimeRangeSelector days={days} onDaysChange={handleDaysChange} />
+                  <TimeRangeSelector range={range} onRangeChange={handleRangeChange} />
                 </>
               )}
               <button
@@ -236,7 +238,7 @@ export function Dashboard({ creds, onDisconnect }: DashboardProps) {
                 <KPICard
                   title="PRs Merged"
                   value={data.team.totalPRs}
-                  subtitle={`last ${data.period.days} days`}
+                  subtitle={data.period.label}
                 />
                 <KPICard
                   title="Active Contributors"
@@ -313,19 +315,28 @@ export function Dashboard({ creds, onDisconnect }: DashboardProps) {
           </>
         )}
 
+        {/* ── Time Tracking Tab ── */}
+        {activeTab === "timetracking" && (
+          <TimeTrackingTab
+            adoHeaders={adoHeaders}
+            selectedTeam={selectedTeam}
+            range={range}
+          />
+        )}
+
         {/* ── Organization Tab ── */}
         {activeTab === "organization" && (
-          <OrgHealthView adoHeaders={adoHeaders} days={days} validatorTeam={validatorTeam} />
+          <OrgHealthView adoHeaders={adoHeaders} range={range} validatorTeam={validatorTeam} />
         )}
 
         {/* ── Debug Tab ── */}
         {activeTab === "debug" && (
-          <IdentityDebug adoHeaders={adoHeaders} selectedTeam={selectedTeam} days={days} />
+          <IdentityDebug adoHeaders={adoHeaders} selectedTeam={selectedTeam} range={range} />
         )}
 
         {/* ── Settings Tab ── */}
         {activeTab === "settings" && (
-          <SettingsPage adoHeaders={adoHeaders} selectedTeam={selectedTeam} days={days} />
+          <SettingsPage adoHeaders={adoHeaders} selectedTeam={selectedTeam} range={range} />
         )}
       </div>
     </div>

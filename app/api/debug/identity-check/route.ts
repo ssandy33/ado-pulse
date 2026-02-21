@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { parseRange, resolveRange } from "@/lib/dateRange";
 
 /**
  * Raw identity debug endpoint — makes direct ADO API calls without
@@ -78,8 +79,9 @@ export async function GET(request: NextRequest) {
     );
   }
 
+  const range = parseRange(request.nextUrl.searchParams.get("range"));
+  const { from, days, label } = resolveRange(range);
   const teamName = request.nextUrl.searchParams.get("team") || "";
-  const days = parseInt(request.nextUrl.searchParams.get("days") || "14", 10);
 
   if (!teamName) {
     return NextResponse.json({ error: "No team specified" }, { status: 400 });
@@ -104,9 +106,7 @@ export async function GET(request: NextRequest) {
     const membersUrl = `https://dev.azure.com/${org}/_apis/projects/${encodeURIComponent(project)}/teams/${encodeURIComponent(team.id)}/members?api-version=7.1`;
 
     // 3. Fetch raw PRs
-    const minDate = new Date();
-    minDate.setDate(minDate.getDate() - days);
-    const minTime = minDate.toISOString();
+    const minTime = from.toISOString();
     const prsUrl = `https://dev.azure.com/${org}/${project}/_apis/git/pullrequests?searchCriteria.status=completed&searchCriteria.minTime=${encodeURIComponent(minTime)}&$top=500&api-version=7.1`;
 
     const [membersData, prsData] = await Promise.all([
@@ -221,11 +221,9 @@ export async function GET(request: NextRequest) {
       .map((a) => a.raw.uniqueName);
 
     const now = new Date();
-    const from = new Date();
-    from.setDate(from.getDate() - days);
 
     const response = {
-      period: { days, from: from.toISOString(), to: now.toISOString() },
+      period: { days, from: from.toISOString(), to: now.toISOString(), label },
       apiLimitHit,
       team: { id: team.id, name: team.name },
       rosterMembers,

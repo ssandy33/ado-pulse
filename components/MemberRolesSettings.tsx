@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
+import type { TimeRange } from "@/lib/dateRange";
 import type {
   MemberRoleExclusion,
   TeamSummaryApiResponse,
@@ -11,7 +12,7 @@ import type {
 interface MemberRolesSettingsProps {
   adoHeaders: Record<string, string>;
   selectedTeam: string;
-  days: number;
+  range: TimeRange;
 }
 
 interface LocalExclusion {
@@ -24,7 +25,7 @@ interface LocalExclusion {
 export function MemberRolesSettings({
   adoHeaders,
   selectedTeam,
-  days,
+  range,
 }: MemberRolesSettingsProps) {
   const [teams, setTeams] = useState<Team[]>([]);
   const [team, setTeam] = useState(selectedTeam);
@@ -84,7 +85,7 @@ export function MemberRolesSettings({
       setLoadingMembers(true);
       try {
         const res = await fetch(
-          `/api/prs/team-summary?team=${encodeURIComponent(teamName)}&days=${days}`,
+          `/api/prs/team-summary?team=${encodeURIComponent(teamName)}&range=${range}`,
           { headers: adoHeaders }
         );
         if (res.ok) {
@@ -102,7 +103,7 @@ export function MemberRolesSettings({
         setLoadingMembers(false);
       }
     },
-    [adoHeaders, days]
+    [adoHeaders, range]
   );
 
   useEffect(() => {

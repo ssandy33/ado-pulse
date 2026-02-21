@@ -67,9 +67,15 @@ export interface MemberRoleExclusion {
   addedAt: string;
 }
 
+export interface SevenPaceIntegration {
+  apiToken: string;
+  baseUrl: string;
+}
+
 export interface SettingsData {
   memberRoles?: { exclusions: MemberRoleExclusion[] };
   teamVisibility?: { pinnedTeams: string[] };
+  integrations?: { sevenPace?: SevenPaceIntegration };
 }
 
 export interface RepoSummary {
@@ -125,7 +131,7 @@ export interface DiagnosticRosterMember {
 }
 
 export interface DataDiagnostics {
-  period: { days: number; from: string; to: string };
+  period: { days: number; from: string; to: string; label: string };
   apiLimitHit: boolean;
   totalProjectPRs: number;
   rosterMembers: DiagnosticRosterMember[];
@@ -143,6 +149,7 @@ export interface TeamSummaryApiResponse {
     days: number;
     from: string;
     to: string;
+    label: string;
   };
   team: {
     name: string;
@@ -228,9 +235,64 @@ export interface ValidatorRosterMember {
 }
 
 export interface TeamValidatorResponse {
-  period: { days: number; from: string; to: string };
+  period: { days: number; from: string; to: string; label: string };
   team: { name: string; totalMembers: number };
   apiLimitHit: boolean;
   totalProjectPRs: number;
   rosterMembers: ValidatorRosterMember[];
+}
+
+// ── Time Tracking types ───────────────────────────────────────
+
+export type ExpenseType = "CapEx" | "OpEx" | "Unclassified";
+
+export interface FeatureTimeBreakdown {
+  featureId: number | null;
+  featureTitle: string;
+  expenseType: ExpenseType;
+  hours: number;
+  loggedAtWrongLevel: boolean;
+  originalWorkItemId?: number;
+  originalWorkItemType?: string;
+}
+
+export interface MemberTimeEntry {
+  displayName: string;
+  uniqueName: string;
+  totalHours: number;
+  capExHours: number;
+  opExHours: number;
+  unclassifiedHours: number;
+  wrongLevelHours: number;
+  wrongLevelCount: number;
+  isExcluded: boolean;
+  role: string | null;
+  features: FeatureTimeBreakdown[];
+}
+
+export interface WrongLevelEntry {
+  workItemId: number;
+  title: string;
+  workItemType: string;
+  memberName: string;
+  hours: number;
+  resolvedFeatureId?: number;
+  resolvedFeatureTitle?: string;
+}
+
+export interface TeamTimeData {
+  period: { days: number; from: string; to: string; label: string };
+  team: { name: string; totalMembers: number };
+  summary: {
+    totalHours: number;
+    capExHours: number;
+    opExHours: number;
+    unclassifiedHours: number;
+    membersLogging: number;
+    membersNotLogging: number;
+    wrongLevelCount: number;
+  };
+  members: MemberTimeEntry[];
+  wrongLevelEntries: WrongLevelEntry[];
+  sevenPaceConnected: boolean;
 }

@@ -1,12 +1,13 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import type { TimeRange } from "@/lib/dateRange";
 import { SkeletonTable } from "./SkeletonLoader";
 
 interface IdentityDebugProps {
   adoHeaders: Record<string, string>;
   selectedTeam: string;
-  days: number;
+  range: TimeRange;
 }
 
 interface RosterMemberRaw {
@@ -32,7 +33,7 @@ interface PRAuthorEntry {
 }
 
 interface IdentityCheckResponse {
-  period: { days: number; from: string; to: string };
+  period: { days: number; from: string; to: string; label: string };
   apiLimitHit: boolean;
   team: { id: string; name: string };
   rosterMembers: RosterMemberEntry[];
@@ -55,7 +56,7 @@ function MatchBadge({ matchType }: { matchType: "exact" | "lowercase" | "none" }
   return <span className="text-red-600 font-medium text-[11px]">&#10007; none</span>;
 }
 
-export function IdentityDebug({ adoHeaders, selectedTeam, days }: IdentityDebugProps) {
+export function IdentityDebug({ adoHeaders, selectedTeam, range }: IdentityDebugProps) {
   const [data, setData] = useState<IdentityCheckResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -68,7 +69,7 @@ export function IdentityDebug({ adoHeaders, selectedTeam, days }: IdentityDebugP
     setData(null);
 
     fetch(
-      `/api/debug/identity-check?team=${encodeURIComponent(selectedTeam)}&days=${days}`,
+      `/api/debug/identity-check?team=${encodeURIComponent(selectedTeam)}&range=${range}`,
       { headers: adoHeaders }
     )
       .then((res) => {
@@ -80,7 +81,7 @@ export function IdentityDebug({ adoHeaders, selectedTeam, days }: IdentityDebugP
         setError(err instanceof Error ? err.message : "Failed to load")
       )
       .finally(() => setLoading(false));
-  }, [selectedTeam, days, adoHeaders]);
+  }, [selectedTeam, range, adoHeaders]);
 
   useEffect(() => {
     fetchData();
@@ -105,7 +106,7 @@ export function IdentityDebug({ adoHeaders, selectedTeam, days }: IdentityDebugP
             </div>
             {data && (
               <span className="text-[11px] text-pulse-dim">
-                {data.period.days} days &middot; {data.prAuthors.length} unique PR authors
+                {data.period.label} &middot; {data.prAuthors.length} unique PR authors
               </span>
             )}
           </div>

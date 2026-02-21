@@ -4,6 +4,7 @@ import { getPullRequests, getReviewsGivenByMember } from "@/lib/ado/pullRequests
 import { batchAsync } from "@/lib/ado/client";
 import { extractConfig, jsonWithCache, handleApiError } from "@/lib/ado/helpers";
 import { getExclusions } from "@/lib/settings";
+import { parseRange, resolveRange } from "@/lib/dateRange";
 import type {
   MemberSummary,
   RepoSummary,
@@ -18,7 +19,8 @@ export async function GET(request: NextRequest) {
 
   try {
     const searchParams = request.nextUrl.searchParams;
-    const days = parseInt(searchParams.get("days") || "14", 10);
+    const range = parseRange(searchParams.get("range"));
+    const { from, days, label } = resolveRange(range);
     const teamName = searchParams.get("team") || "";
 
     if (!teamName) {
@@ -28,7 +30,7 @@ export async function GET(request: NextRequest) {
     // Fetch members and PRs in parallel
     const [members, allPRs] = await Promise.all([
       getTeamMembers(configOrError, teamName),
-      getPullRequests(configOrError, days),
+      getPullRequests(configOrError, from),
     ]);
 
     // Build a set of team member uniqueNames (lowercase for case-insensitive match)
@@ -43,7 +45,7 @@ export async function GET(request: NextRequest) {
 
     // Fetch review counts per member in batches of 5
     const reviewCounts = await batchAsync(
-      members.map((m) => () => getReviewsGivenByMember(configOrError, m.id, days)),
+      members.map((m) => () => getReviewsGivenByMember(configOrError, m.id, from)),
       5
     );
 
@@ -142,13 +144,10 @@ export async function GET(request: NextRequest) {
     );
 
     // ── Diagnostics: roster identity resolution ────────────────────
-    // Check whether each roster member's email appears anywhere in
-    // ALL project PR data (not scoped to any repo).
     const allPRAuthors = new Set(
       allPRs.map((pr) => pr.createdBy.uniqueName.toLowerCase())
     );
 
-    // Filter excluded members from diagnostics
     const nonExcludedUniqueNames = new Set(
       nonExcludedMembers.map((m) => m.uniqueName.toLowerCase())
     );
@@ -194,11 +193,9 @@ export async function GET(request: NextRequest) {
     }
 
     const now = new Date();
-    const from = new Date();
-    from.setDate(from.getDate() - days);
 
     const diagnostics: DataDiagnostics = {
-      period: { days, from: from.toISOString(), to: now.toISOString() },
+      period: { days, from: from.toISOString(), to: now.toISOString(), label },
       apiLimitHit: allPRs.length === 500,
       totalProjectPRs: allPRs.length,
       rosterMembers: diagRosterMembers,
@@ -216,6 +213,7 @@ export async function GET(request: NextRequest) {
         days,
         from: from.toISOString(),
         to: now.toISOString(),
+        label,
       },
       team: {
         name: teamName,

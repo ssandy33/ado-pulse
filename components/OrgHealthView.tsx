@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import type { TimeRange } from "@/lib/dateRange";
 import type {
   UnmatchedAuthorsResponse,
   PolicyComplianceResponse,
@@ -18,7 +19,7 @@ import { StatusDot } from "./ui";
 
 interface OrgHealthViewProps {
   adoHeaders: Record<string, string>;
-  days: number;
+  range: TimeRange;
   validatorTeam?: string;
 }
 
@@ -31,7 +32,7 @@ interface SectionState<T> {
 function useOrgFetch<T>(
   url: string,
   adoHeaders: Record<string, string>,
-  days: number
+  range: TimeRange
 ) {
   const [state, setState] = useState<SectionState<T>>({
     data: null,
@@ -41,7 +42,7 @@ function useOrgFetch<T>(
 
   const fetchData = useCallback(() => {
     setState({ data: null, loading: true, error: null });
-    fetch(`${url}?days=${days}`, { headers: adoHeaders })
+    fetch(`${url}?range=${range}`, { headers: adoHeaders })
       .then((res) => {
         if (!res.ok) throw new Error(`API error: ${res.status}`);
         return res.json();
@@ -54,7 +55,7 @@ function useOrgFetch<T>(
           error: err instanceof Error ? err.message : "Failed to load",
         })
       );
-  }, [url, adoHeaders, days]);
+  }, [url, adoHeaders, range]);
 
   useEffect(() => {
     fetchData();
@@ -83,26 +84,26 @@ function SectionError({
   );
 }
 
-export function OrgHealthView({ adoHeaders, days, validatorTeam }: OrgHealthViewProps) {
+export function OrgHealthView({ adoHeaders, range, validatorTeam }: OrgHealthViewProps) {
   const unmatched = useOrgFetch<UnmatchedAuthorsResponse>(
     "/api/org-health/unmatched-authors",
     adoHeaders,
-    days
+    range
   );
   const compliance = useOrgFetch<PolicyComplianceResponse>(
     "/api/org-health/policy-compliance",
     adoHeaders,
-    days
+    range
   );
   const noTeam = useOrgFetch<UsersNoTeamResponse>(
     "/api/org-health/users-no-team",
     adoHeaders,
-    days
+    range
   );
   const ghosts = useOrgFetch<GhostMembersResponse>(
     "/api/org-health/ghost-members",
     adoHeaders,
-    days
+    range
   );
 
   const anyKPILoading =
@@ -136,7 +137,7 @@ export function OrgHealthView({ adoHeaders, days, validatorTeam }: OrgHealthView
             value={
               compliance.data
                 ? `${compliance.data.compliant} / ${compliance.data.total}`
-                : "—"
+                : "\u2014"
             }
             subtitle="repos compliant"
           />
@@ -216,7 +217,7 @@ export function OrgHealthView({ adoHeaders, days, validatorTeam }: OrgHealthView
       {/* Team Validator */}
       <TeamValidator
         adoHeaders={adoHeaders}
-        days={days}
+        range={range}
         preSelectedTeam={validatorTeam}
       />
     </>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
+import type { TimeRange } from "@/lib/dateRange";
 import type {
   TeamValidatorResponse,
   TeamsApiResponse,
@@ -10,7 +11,7 @@ import { SkeletonTable } from "./SkeletonLoader";
 
 interface TeamValidatorProps {
   adoHeaders: Record<string, string>;
-  days: number;
+  range: TimeRange;
   preSelectedTeam?: string;
 }
 
@@ -91,7 +92,7 @@ function TeamDropdown({
   );
 }
 
-export function TeamValidator({ adoHeaders, days, preSelectedTeam }: TeamValidatorProps) {
+export function TeamValidator({ adoHeaders, range, preSelectedTeam }: TeamValidatorProps) {
   const [selectedTeam, setSelectedTeam] = useState(preSelectedTeam || "");
   const [data, setData] = useState<TeamValidatorResponse | null>(null);
   const [loading, setLoading] = useState(false);
@@ -111,7 +112,7 @@ export function TeamValidator({ adoHeaders, days, preSelectedTeam }: TeamValidat
     setExpandedRow(null);
 
     fetch(
-      `/api/org-health/team-validator?team=${encodeURIComponent(selectedTeam)}&days=${days}`,
+      `/api/org-health/team-validator?team=${encodeURIComponent(selectedTeam)}&range=${range}`,
       { headers: adoHeaders }
     )
       .then((res) => {
@@ -123,7 +124,7 @@ export function TeamValidator({ adoHeaders, days, preSelectedTeam }: TeamValidat
         setError(err instanceof Error ? err.message : "Failed to load")
       )
       .finally(() => setLoading(false));
-  }, [selectedTeam, days, adoHeaders]);
+  }, [selectedTeam, range, adoHeaders]);
 
   useEffect(() => {
     fetchValidator();
@@ -151,7 +152,7 @@ export function TeamValidator({ adoHeaders, days, preSelectedTeam }: TeamValidat
             </div>
             {data && (
               <span className="text-[11px] text-pulse-dim">
-                {data.team.name} &middot; {data.period.days} days
+                {data.team.name} &middot; {data.period.label}
               </span>
             )}
           </div>

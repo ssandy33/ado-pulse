@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { getTeamMembers } from "@/lib/ado/teams";
 import { getPullRequests } from "@/lib/ado/pullRequests";
 import { extractConfig, jsonWithCache, handleApiError } from "@/lib/ado/helpers";
+import { parseRange, resolveRange } from "@/lib/dateRange";
 import type { TeamValidatorResponse, ValidatorRosterMember } from "@/lib/ado/types";
 
 export async function GET(request: NextRequest) {
@@ -11,7 +12,8 @@ export async function GET(request: NextRequest) {
   try {
     const searchParams = request.nextUrl.searchParams;
     const teamName = searchParams.get("team") || "";
-    const days = parseInt(searchParams.get("days") || "14", 10);
+    const range = parseRange(searchParams.get("range"));
+    const { from, days, label } = resolveRange(range);
 
     if (!teamName) {
       return jsonWithCache({ error: "No team specified" }, 0);
@@ -19,7 +21,7 @@ export async function GET(request: NextRequest) {
 
     const [members, allPRs] = await Promise.all([
       getTeamMembers(configOrError, teamName),
-      getPullRequests(configOrError, days),
+      getPullRequests(configOrError, from),
     ]);
 
     const { org, project } = configOrError;
@@ -60,11 +62,9 @@ export async function GET(request: NextRequest) {
     });
 
     const now = new Date();
-    const from = new Date();
-    from.setDate(from.getDate() - days);
 
     const response: TeamValidatorResponse = {
-      period: { days, from: from.toISOString(), to: now.toISOString() },
+      period: { days, from: from.toISOString(), to: now.toISOString(), label },
       team: { name: teamName, totalMembers: members.length },
       apiLimitHit: allPRs.length === 500,
       totalProjectPRs: allPRs.length,

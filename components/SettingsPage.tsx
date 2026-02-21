@@ -1,18 +1,20 @@
 "use client";
 
+import type { TimeRange } from "@/lib/dateRange";
 import { MemberRolesSettings } from "./MemberRolesSettings";
 import { TeamVisibilitySettings } from "./TeamVisibilitySettings";
+import { IntegrationsSettings } from "./IntegrationsSettings";
 
 interface SettingsPageProps {
   adoHeaders: Record<string, string>;
   selectedTeam: string;
-  days: number;
+  range: TimeRange;
 }
 
 export function SettingsPage({
   adoHeaders,
   selectedTeam,
-  days,
+  range,
 }: SettingsPageProps) {
   return (
     <div>
@@ -26,12 +28,16 @@ export function SettingsPage({
       <MemberRolesSettings
         adoHeaders={adoHeaders}
         selectedTeam={selectedTeam}
-        days={days}
+        range={range}
       />
 
       <div className="my-8" />
 
       <TeamVisibilitySettings adoHeaders={adoHeaders} />
+
+      <div className="my-8" />
+
+      <IntegrationsSettings />
     </div>
   );
 }

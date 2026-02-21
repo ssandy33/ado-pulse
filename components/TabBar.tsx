@@ -1,6 +1,6 @@
 "use client";
 
-export type TabKey = "team" | "organization" | "debug" | "settings";
+export type TabKey = "team" | "organization" | "timetracking" | "debug" | "settings";
 
 interface TabBarProps {
   activeTab: TabKey;
@@ -10,6 +10,7 @@ interface TabBarProps {
 const TABS: { key: TabKey; label: string }[] = [
   { key: "team", label: "Team" },
   { key: "organization", label: "Organization" },
+  { key: "timetracking", label: "Time Tracking" },
   { key: "debug", label: "Debug" },
   { key: "settings", label: "Settings" },
 ];
