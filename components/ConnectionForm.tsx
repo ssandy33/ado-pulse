@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 
 interface ConnectionFormProps {
   onConnect: (creds: { org: string; project: string; pat: string }) => void;
@@ -32,9 +32,33 @@ export function ConnectionForm({ onConnect }: ConnectionFormProps) {
   const [savePat, setSavePat] = useState(true);
   const [error, setError] = useState("");
   const [connecting, setConnecting] = useState(false);
+  const [usingSavedPat, setUsingSavedPat] = useState(false);
+  const patInputRef = useRef<HTMLInputElement>(null);
+
+  // Check for saved PAT on mount
+  useEffect(() => {
+    fetch("/api/settings/integrations/ado")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.configured && data.source === "settings") {
+          setUsingSavedPat(true);
+          if (data.orgUrl) {
+            setOrgUrl(data.orgUrl);
+          }
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  const handleUseDifferentPat = () => {
+    setUsingSavedPat(false);
+    setPat("");
+    setTimeout(() => patInputRef.current?.focus(), 0);
+  };
 
   const handleConnect = async () => {
-    if (!orgUrl.trim() || !pat.trim()) return;
+    if (!orgUrl.trim()) return;
+    if (!usingSavedPat && !pat.trim()) return;
     setError("");
 
     const parsed = parseOrgUrl(orgUrl);
@@ -48,13 +72,16 @@ export function ConnectionForm({ onConnect }: ConnectionFormProps) {
     setConnecting(true);
 
     try {
-      const res = await fetch("/api/teams", {
-        headers: {
-          "x-ado-org": parsed.org,
-          "x-ado-project": parsed.project,
-          "x-ado-pat": pat.trim(),
-        },
-      });
+      // When using saved PAT, omit x-ado-pat — server falls back to settings
+      const headers: Record<string, string> = {
+        "x-ado-org": parsed.org,
+        "x-ado-project": parsed.project,
+      };
+      if (!usingSavedPat) {
+        headers["x-ado-pat"] = pat.trim();
+      }
+
+      const res = await fetch("/api/teams", { headers });
 
       if (!res.ok) {
         const body = await res.json().catch(() => ({ error: "Unknown error" }));
@@ -66,8 +93,8 @@ export function ConnectionForm({ onConnect }: ConnectionFormProps) {
         throw new Error(body.error || `Connection failed (${res.status})`);
       }
 
-      // Save PAT to settings if checkbox is checked
-      if (savePat) {
+      // Save new PAT to settings if checkbox is checked and using a new PAT
+      if (savePat && !usingSavedPat && pat.trim()) {
         await fetch("/api/settings/integrations/ado", {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
@@ -79,7 +106,11 @@ export function ConnectionForm({ onConnect }: ConnectionFormProps) {
         }).catch(() => {}); // non-blocking — connect even if save fails
       }
 
-      onConnect({ org: parsed.org, project: parsed.project, pat: pat.trim() });
+      onConnect({
+        org: parsed.org,
+        project: parsed.project,
+        pat: usingSavedPat ? "" : pat.trim(),
+      });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Connection failed");
     } finally {
@@ -120,33 +151,61 @@ export function ConnectionForm({ onConnect }: ConnectionFormProps) {
             />
           </div>
           <div>
-            <label
-              htmlFor="pat"
-              className="block text-[11px] font-medium text-pulse-muted uppercase tracking-wide mb-1.5"
-            >
-              Personal Access Token
-            </label>
-            <input
-              id="pat"
-              type="password"
-              className="w-full px-3.5 py-2.5 bg-pulse-input border border-pulse-input-border rounded-lg text-pulse-text text-sm outline-none transition-all focus:border-pulse-accent focus:ring-2 focus:ring-pulse-accent/10 placeholder:text-pulse-dim"
-              placeholder="Paste your PAT here"
-              value={pat}
-              onChange={(e) => setPat(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && handleConnect()}
-            />
+            <div className="flex items-center justify-between mb-1.5">
+              <label
+                htmlFor="pat"
+                className="block text-[11px] font-medium text-pulse-muted uppercase tracking-wide"
+              >
+                Personal Access Token
+              </label>
+              {usingSavedPat && (
+                <span className="flex items-center gap-1 text-[11px] text-emerald-600 font-medium">
+                  <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                  </svg>
+                  Saved
+                </span>
+              )}
+            </div>
+            {usingSavedPat ? (
+              <div className="w-full px-3.5 py-2.5 bg-pulse-input border border-pulse-input-border rounded-lg text-sm text-pulse-dim tracking-widest select-none">
+                &#8226;&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;
+              </div>
+            ) : (
+              <input
+                ref={patInputRef}
+                id="pat"
+                type="password"
+                className="w-full px-3.5 py-2.5 bg-pulse-input border border-pulse-input-border rounded-lg text-pulse-text text-sm outline-none transition-all focus:border-pulse-accent focus:ring-2 focus:ring-pulse-accent/10 placeholder:text-pulse-dim"
+                placeholder="Paste your PAT here"
+                value={pat}
+                onChange={(e) => setPat(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleConnect()}
+              />
+            )}
+            {usingSavedPat && (
+              <button
+                type="button"
+                onClick={handleUseDifferentPat}
+                className="mt-1.5 text-[11px] text-pulse-accent hover:underline cursor-pointer"
+              >
+                Use a different PAT
+              </button>
+            )}
           </div>
-          <label className="flex items-center gap-2 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={savePat}
-              onChange={(e) => setSavePat(e.target.checked)}
-              className="w-3.5 h-3.5 rounded border-pulse-input-border text-pulse-accent focus:ring-pulse-accent/20 cursor-pointer"
-            />
-            <span className="text-[12px] text-pulse-muted">
-              Remember my PAT for next time
-            </span>
-          </label>
+          {!usingSavedPat && (
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={savePat}
+                onChange={(e) => setSavePat(e.target.checked)}
+                className="w-3.5 h-3.5 rounded border-pulse-input-border text-pulse-accent focus:ring-pulse-accent/20 cursor-pointer"
+              />
+              <span className="text-[12px] text-pulse-muted">
+                Remember my PAT for next time
+              </span>
+            </label>
+          )}
         </div>
 
         {error && (
