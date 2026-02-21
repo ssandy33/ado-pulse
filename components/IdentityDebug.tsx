@@ -470,6 +470,16 @@ interface UserTimeResponse {
     period: { from: string; to: string; days: number };
   };
   workItems?: UserTimeWorkItem[];
+  _debug?: {
+    fromTimestamp: string;
+    toTimestamp: string;
+    lookbackDays: number;
+    userId: string;
+    rawWorklogCount: number;
+    userWorklogCount: number;
+    responseKeys: string[];
+    requestUrl: string;
+  };
 }
 
 export function UserTimeLogLookup({
@@ -784,6 +794,49 @@ export function UserTimeLogLookup({
           ) : (
             <div className="text-center py-6 text-[13px] text-pulse-muted">
               No time entries found for {result.user.email} in the last 30 days.
+            </div>
+          )}
+
+          {/* API Debug panel */}
+          {result._debug && (
+            <div className="mt-3 p-3 bg-pulse-bg border border-pulse-border rounded-md text-[11px] font-mono text-pulse-muted space-y-1">
+              <div className="font-semibold text-pulse-dim uppercase tracking-wide text-[10px] mb-2">
+                API Debug
+              </div>
+              <div>
+                <span className="text-pulse-dim">fromTimestamp </span>
+                {result._debug.fromTimestamp}
+              </div>
+              <div>
+                <span className="text-pulse-dim">toTimestamp   </span>
+                {result._debug.toTimestamp}
+              </div>
+              <div>
+                <span className="text-pulse-dim">lookbackDays  </span>
+                {result._debug.lookbackDays}
+              </div>
+              <div>
+                <span className="text-pulse-dim">userId        </span>
+                {result._debug.userId}
+              </div>
+              <div>
+                <span className="text-pulse-dim">raw worklogs  </span>
+                {result._debug.rawWorklogCount}
+                <span className="text-pulse-dim"> (org-wide)</span>
+              </div>
+              <div>
+                <span className="text-pulse-dim">user worklogs </span>
+                {result._debug.userWorklogCount}
+                <span className="text-pulse-dim"> (filtered to user)</span>
+              </div>
+              <div>
+                <span className="text-pulse-dim">responseKeys  </span>
+                {result._debug.responseKeys.join(", ")}
+              </div>
+              <div className="pt-1 break-all">
+                <span className="text-pulse-dim">requestUrl </span>
+                {result._debug.requestUrl}
+              </div>
             </div>
           )}
         </>

@@ -151,16 +151,33 @@ export async function GET(request: NextRequest) {
     const { from: fromDate, to: toDate } = getLookbackDateRange(LOOKBACK_DAYS);
     const toDateStr = (d: Date) => d.toISOString().split(".")[0];
 
+    const sevenPaceParams = {
+      "api-version": "3.2",
+      _fromTimestamp: toDateStr(fromDate),
+      _toTimestamp: toDateStr(toDate),
+      _count: "500",
+    };
+
+    // Build URL for diagnostic logging
+    const spBase = spConfig.baseUrl.endsWith("/") ? spConfig.baseUrl : spConfig.baseUrl + "/";
+    const spQs = Object.entries(sevenPaceParams).map(([k, v]) => `${k}=${encodeURIComponent(v)}`).join("&");
+    const requestUrl = `${spBase}workLogs/all?${spQs}`;
+
+    console.log("[user-time] fetching worklogs", {
+      userId: matchedUser.id,
+      email,
+      fromTimestamp: fromDate.toISOString(),
+      toTimestamp: toDate.toISOString(),
+      url: requestUrl,
+    });
+
     const result = await sevenPaceFetch<Record<string, unknown>>(
       spConfig,
       "workLogs/all",
-      {
-        "api-version": "3.2",
-        _fromTimestamp: toDateStr(fromDate),
-        _toTimestamp: toDateStr(toDate),
-        _count: "2000",
-      }
+      sevenPaceParams
     );
+
+    const rawResponseKeys = Object.keys(result);
 
     // Parse response (try common shapes)
     let allWorklogs: RawWorklog[] = [];
@@ -172,10 +189,21 @@ export async function GET(request: NextRequest) {
       allWorklogs = result as unknown as RawWorklog[];
     }
 
+    console.log("[user-time] worklogs received", {
+      rawCount: allWorklogs.length,
+      responseKeys: rawResponseKeys,
+    });
+
     // 4. Filter to this user's worklogs
     const userWorklogs = allWorklogs.filter(
       (wl) => wl.user?.id === matchedUser.id
     );
+
+    console.log("[user-time] filtered to user", {
+      userId: matchedUser.id,
+      userWorklogCount: userWorklogs.length,
+      totalOrgWorklogs: allWorklogs.length,
+    });
 
     // 5. Collect unique work item IDs and batch fetch details (with System.State)
     const workItemIds = [
@@ -302,6 +330,16 @@ export async function GET(request: NextRequest) {
         },
       },
       workItems,
+      _debug: {
+        fromTimestamp: fromDate.toISOString(),
+        toTimestamp: toDate.toISOString(),
+        lookbackDays: LOOKBACK_DAYS,
+        userId: matchedUser.id,
+        rawWorklogCount: allWorklogs.length,
+        userWorklogCount: userWorklogs.length,
+        responseKeys: rawResponseKeys,
+        requestUrl,
+      },
     };
 
     return jsonWithCache(response, 60);
