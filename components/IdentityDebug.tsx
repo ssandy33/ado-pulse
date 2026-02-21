@@ -468,7 +468,7 @@ interface UserTimeResponse {
   workItems?: UserTimeWorkItem[];
 }
 
-function UserTimeLogLookup({
+export function UserTimeLogLookup({
   adoHeaders,
 }: {
   adoHeaders: Record<string, string>;

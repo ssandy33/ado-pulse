@@ -5,6 +5,9 @@ import {
   sevenPaceFetch,
 } from "@/lib/sevenPace";
 import { getWorkItems } from "@/lib/ado/workItems";
+import { getLookbackDateRange } from "@/lib/dateUtils";
+
+const LOOKBACK_DAYS = 30;
 
 interface RawWorklogUser {
   id: string;
@@ -84,11 +87,8 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    // 3. Fetch 30-day worklogs from 7pace
-    const now = new Date();
-    const thirtyDaysAgo = new Date(now);
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-
+    // 3. Fetch 30-day worklogs from 7pace (hardcoded — ignores any query params)
+    const { from: fromDate, to: toDate } = getLookbackDateRange(LOOKBACK_DAYS);
     const toDateStr = (d: Date) => d.toISOString().split(".")[0];
 
     const result = await sevenPaceFetch<Record<string, unknown>>(
@@ -96,8 +96,8 @@ export async function GET(request: NextRequest) {
       "workLogs/all",
       {
         "api-version": "3.2",
-        _fromTimestamp: toDateStr(thirtyDaysAgo),
-        _toTimestamp: toDateStr(now),
+        _fromTimestamp: toDateStr(fromDate),
+        _toTimestamp: toDateStr(toDate),
         _count: "2000",
       }
     );
@@ -212,9 +212,9 @@ export async function GET(request: NextRequest) {
             ? { earliest: allDates[0], latest: allDates[allDates.length - 1] }
             : null,
         period: {
-          from: toDateStr(thirtyDaysAgo),
-          to: toDateStr(now),
-          days: 30,
+          from: toDateStr(fromDate),
+          to: toDateStr(toDate),
+          days: LOOKBACK_DAYS,
         },
       },
       workItems,
