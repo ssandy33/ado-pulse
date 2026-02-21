@@ -37,7 +37,7 @@ export function SettingsPage({
 
       <div className="my-8" />
 
-      <IntegrationsSettings />
+      <IntegrationsSettings adoHeaders={adoHeaders} />
     </div>
   );
 }

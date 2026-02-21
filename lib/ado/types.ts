@@ -72,10 +72,14 @@ export interface SevenPaceIntegration {
   baseUrl: string;
 }
 
+export interface AdoIntegration {
+  pat: string;
+}
+
 export interface SettingsData {
   memberRoles?: { exclusions: MemberRoleExclusion[] };
   teamVisibility?: { pinnedTeams: string[] };
-  integrations?: { sevenPace?: SevenPaceIntegration };
+  integrations?: { sevenPace?: SevenPaceIntegration; ado?: AdoIntegration };
 }
 
 export interface RepoSummary {
