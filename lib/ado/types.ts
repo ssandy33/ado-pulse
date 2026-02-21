@@ -301,6 +301,15 @@ export interface TimeTrackingDiagnostics {
   worklogsUnfilteredCount?: number;
 }
 
+export interface GovernanceData {
+  expectedHours: number;
+  businessDays: number;
+  hoursPerDay: number;
+  activeMembers: number;
+  compliancePct: number;
+  isCompliant: boolean;
+}
+
 export interface TeamTimeData {
   period: { days: number; from: string; to: string; label: string };
   team: { name: string; totalMembers: number };
@@ -316,5 +325,6 @@ export interface TeamTimeData {
   members: MemberTimeEntry[];
   wrongLevelEntries: WrongLevelEntry[];
   sevenPaceConnected: boolean;
+  governance?: GovernanceData;
   diagnostics?: TimeTrackingDiagnostics;
 }

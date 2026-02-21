@@ -24,6 +24,17 @@ export function resolveRange(range: TimeRange): ResolvedRange {
   return { from, to, label: `last ${numDays} days`, days: numDays };
 }
 
+export function countBusinessDays(from: Date, to: Date): number {
+  let count = 0;
+  const d = new Date(from);
+  while (d < to) {
+    const day = d.getDay();
+    if (day !== 0 && day !== 6) count++;
+    d.setDate(d.getDate() + 1);
+  }
+  return count;
+}
+
 export function parseRange(param: string | null): TimeRange {
   if (param === "7" || param === "14" || param === "mtd") return param;
   return "14";

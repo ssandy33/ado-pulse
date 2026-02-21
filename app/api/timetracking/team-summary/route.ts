@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getTeamMembers } from "@/lib/ado/teams";
 import { extractConfig, jsonWithCache, handleApiError } from "@/lib/ado/helpers";
 import { getExclusions } from "@/lib/settings";
-import { parseRange, resolveRange } from "@/lib/dateRange";
+import { parseRange, resolveRange, countBusinessDays } from "@/lib/dateRange";
 import {
   getSevenPaceConfig,
   getSevenPaceUsers,
@@ -15,6 +15,7 @@ import type {
   FeatureTimeBreakdown,
   WrongLevelEntry,
   TeamTimeData,
+  GovernanceData,
   ExpenseType,
 } from "@/lib/ado/types";
 
@@ -248,6 +249,24 @@ export async function GET(request: NextRequest) {
     const opExHours = nonExcluded.reduce((s, m) => s + m.opExHours, 0);
     const unclassifiedHours = nonExcluded.reduce((s, m) => s + m.unclassifiedHours, 0);
 
+    // Compute governance / compliance data
+    const businessDays = countBusinessDays(from, to);
+    const hoursPerDay = 8;
+    const activeMembers = nonExcluded.length;
+    const expectedHours = businessDays * hoursPerDay * activeMembers;
+    const compliancePct = expectedHours > 0
+      ? Math.round((totalHours / expectedHours) * 10000) / 100
+      : 0;
+
+    const governance: GovernanceData = {
+      expectedHours,
+      businessDays,
+      hoursPerDay,
+      activeMembers,
+      compliancePct,
+      isCompliant: compliancePct >= 95,
+    };
+
     // Build diagnostics for debugging pipeline
     const spUsersList = Array.from(spUsers.entries()).map(([id, name]) => ({ id, uniqueName: name }));
     const rosterList = members.map((m) => m.uniqueName.toLowerCase());
@@ -267,6 +286,7 @@ export async function GET(request: NextRequest) {
       members: memberEntries,
       wrongLevelEntries,
       sevenPaceConnected: true,
+      governance,
       diagnostics: {
         sevenPaceUsersTotal: spUsers.size,
         sevenPaceUsers: spUsersList.slice(0, 20),

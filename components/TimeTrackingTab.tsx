@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import type { TimeRange } from "@/lib/dateRange";
-import type { TeamTimeData, MemberTimeEntry, WrongLevelEntry, TimeTrackingDiagnostics } from "@/lib/ado/types";
+import type { TeamTimeData, MemberTimeEntry, WrongLevelEntry, TimeTrackingDiagnostics, GovernanceData } from "@/lib/ado/types";
 import { KPICard } from "./KPICard";
 import { SkeletonKPIRow, SkeletonTable } from "./SkeletonLoader";
 
@@ -346,7 +346,21 @@ export function TimeTrackingTab({
             <KPICard
               title="Total Hours"
               value={data.summary.totalHours.toFixed(1)}
-              subtitle={data.period.label}
+              subtitle={
+                data.governance ? (
+                  <span>
+                    <span className={data.governance.isCompliant ? "text-emerald-600" : "text-amber-600"}>
+                      {data.governance.compliancePct.toFixed(1)}%
+                    </span>
+                    {" "}of {data.governance.expectedHours.toFixed(0)}h expected
+                    <span className="text-pulse-muted ml-1">
+                      ({data.governance.businessDays}d &times; {data.governance.activeMembers} members)
+                    </span>
+                  </span>
+                ) : (
+                  data.period.label
+                )
+              }
             />
             <KPICard
               title="CapEx Hours"
