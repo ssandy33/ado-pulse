@@ -22,6 +22,14 @@ interface LogEvent {
   [key: string]: unknown;
 }
 
+/**
+ * Create a log event object with the current ISO timestamp.
+ *
+ * @param level - The log severity level (`info`, `warn`, or `error`)
+ * @param message - The human-readable log message
+ * @param data - Optional additional fields to merge into the event
+ * @returns The constructed `LogEvent` with `_time` set to the current ISO 8601 timestamp, `level`, `message`, `service`, and any properties from `data`
+ */
 function buildEvent(
   level: Level,
   message: string,
@@ -36,6 +44,16 @@ function buildEvent(
   };
 }
 
+/**
+ * Emits a structured log event to stdout/stderr and, if configured, forwards it to Axiom.
+ *
+ * Writes the provided `event` as JSON to the console using `console.error` for level "error",
+ * `console.warn` for level "warn", and `console.log` otherwise. If an Axiom client is configured,
+ * attempts to ingest the event into the configured dataset; ingestion failures are swallowed and
+ * do not propagate.
+ *
+ * @param event - The structured log entry to emit and optionally forward to Axiom
+ */
 function emit(event: LogEvent): void {
   // Always write structured JSON to console
   const consoleFn =

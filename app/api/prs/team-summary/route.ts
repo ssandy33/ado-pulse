@@ -13,6 +13,17 @@ import type {
   DiagnosticRosterMember,
 } from "@/lib/ado/types";
 
+/**
+ * Build and return a team-oriented pull request summary for a specified team and date range.
+ *
+ * The response includes period metadata, aggregated team statistics, per-member summaries
+ * (PRs, repos touched, review activity, exclusion/role), repository breakdown, and diagnostics
+ * about roster-to-PR identity matching.
+ *
+ * @param request - Incoming request whose query parameters must include `team` and may include `range`
+ * @returns A JSON response containing the team summary payload (period, team, members, byRepo, diagnostics),
+ *          or an error JSON response when configuration or required inputs are missing/invalid.
+ */
 async function handler(request: NextRequest) {
   const configOrError = await extractConfig(request);
   if (configOrError instanceof NextResponse) return configOrError;
