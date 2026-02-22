@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import type { MemberSummary, AlignmentApiResponse, MemberAlignmentDetail } from "@/lib/ado/types";
+import type { MemberSummary, AlignmentApiResponse, MemberAlignmentDetail, ValidatorMemberPR } from "@/lib/ado/types";
 import {
   StatusDot,
   StatusBadge,
@@ -122,6 +122,55 @@ function AlignmentExpandedRow({ alignment }: { alignment: MemberAlignmentDetail 
   );
 }
 
+function PRListExpandedRow({ prs }: { prs: ValidatorMemberPR[] }) {
+  return (
+    <tr>
+      <td colSpan={COLUMNS.length} className="px-0 py-0">
+        <div className="bg-pulse-bg/50 px-8 py-2">
+          <table className="w-full text-[11px]">
+            <thead>
+              <tr className="border-b border-pulse-border/30">
+                <th className="px-2 py-1.5 text-left text-pulse-dim font-medium">Title</th>
+                <th className="px-2 py-1.5 text-left text-pulse-dim font-medium">Repo</th>
+                <th className="px-2 py-1.5 text-left text-pulse-dim font-medium">Date</th>
+                <th className="px-2 py-1.5 text-right text-pulse-dim font-medium w-8"></th>
+              </tr>
+            </thead>
+            <tbody>
+              {prs.map((pr) => (
+                <tr key={pr.pullRequestId} className="border-b border-pulse-border/30 last:border-b-0">
+                  <td className="px-2 py-1.5 text-pulse-text max-w-[300px] truncate">
+                    {pr.title}
+                  </td>
+                  <td className="px-2 py-1.5 text-pulse-muted font-mono">
+                    {pr.repoName}
+                  </td>
+                  <td className="px-2 py-1.5 text-pulse-muted font-mono tabular-nums">
+                    {formatDate(pr.creationDate)}
+                  </td>
+                  <td className="px-2 py-1.5 text-right">
+                    <a
+                      href={pr.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-pulse-muted hover:text-pulse-text"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <svg className="w-3 h-3 inline" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                      </svg>
+                    </a>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </td>
+    </tr>
+  );
+}
+
 export function MemberTable({ members, teamName, alignmentData }: MemberTableProps) {
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
@@ -196,21 +245,23 @@ function MemberRow({
   isExpanded: boolean;
   onToggle: () => void;
 }) {
+  const hasExpandable = !!alignment || member.prs.length > 0;
+
   return (
     <>
       <tr
         className={`hover:bg-pulse-hover transition-colors ${
           member.isExcluded ? "opacity-50" : ""
-        } ${alignment ? "cursor-pointer" : ""}`}
-        onClick={() => alignment && onToggle()}
+        } ${hasExpandable ? "cursor-pointer" : ""}`}
+        onClick={() => hasExpandable && onToggle()}
       >
         <td className="px-5 py-3 text-[13px] font-medium text-pulse-text">
           <div className="flex items-center gap-1.5">
-            {alignment && (
+            {hasExpandable && (
               <button
                 type="button"
                 className="p-0 bg-transparent border-0 flex-shrink-0"
-                aria-label={isExpanded ? "Collapse alignment details" : "Expand alignment details"}
+                aria-label={isExpanded ? "Collapse details" : "Expand details"}
                 aria-expanded={isExpanded}
                 onClick={(e) => {
                   e.stopPropagation();
@@ -267,6 +318,9 @@ function MemberRow({
       </tr>
       {isExpanded && alignment && (
         <AlignmentExpandedRow alignment={alignment} />
+      )}
+      {isExpanded && member.prs.length > 0 && (
+        <PRListExpandedRow prs={member.prs} />
       )}
     </>
   );

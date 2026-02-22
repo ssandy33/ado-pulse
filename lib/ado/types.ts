@@ -55,6 +55,7 @@ export interface MemberSummary {
   reviewFlagged: boolean;
   isExcluded: boolean;
   role: string | null;
+  prs: ValidatorMemberPR[];
 }
 
 // ── Settings types ──────────────────────────────────────────────

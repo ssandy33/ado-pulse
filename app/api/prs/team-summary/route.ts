@@ -81,6 +81,13 @@ export async function GET(request: NextRequest) {
         reviewFlagged,
         isExcluded: false,
         role: null,
+        prs: memberPRs.map((pr) => ({
+          pullRequestId: pr.pullRequestId,
+          title: pr.title,
+          repoName: pr.repository.name,
+          creationDate: pr.creationDate,
+          url: `https://dev.azure.com/${configOrError.org}/${configOrError.project}/_git/${encodeURIComponent(pr.repository.name)}/pullrequest/${pr.pullRequestId}`,
+        })),
       };
     });
 
