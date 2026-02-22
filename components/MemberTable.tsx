@@ -9,8 +9,8 @@ import {
   DataTable,
   type StatusVariant,
   type DataTableColumn,
-} from "./ui";
-import { EmailTooltip } from "./EmailTooltip";
+} from "@/components/ui";
+import { EmailTooltip } from "@/components/EmailTooltip";
 
 interface MemberTableProps {
   members: MemberSummary[];
