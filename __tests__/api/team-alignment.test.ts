@@ -1,23 +1,27 @@
 import { GET } from "@/app/api/prs/team-alignment/route";
 import { NextRequest } from "next/server";
 
-jest.mock("@/lib/ado/helpers", () => ({
-  extractConfig: jest.fn().mockResolvedValue({
-    org: "test-org",
-    project: "test-project",
-    pat: "test-pat",
-  }),
-  jsonWithCache: jest.fn((data: unknown) => {
-    const { NextResponse } = require("next/server");
-    return NextResponse.json(data);
-  }),
-  handleApiError: jest.fn((error: unknown) => {
-    const { NextResponse } = require("next/server");
-    const message =
-      error instanceof Error ? error.message : "An unexpected error occurred";
-    return NextResponse.json({ error: message }, { status: 500 });
-  }),
-}));
+jest.mock("@/lib/ado/helpers", () => {
+  const actual = jest.requireActual("@/lib/ado/helpers");
+  return {
+    extractConfig: jest.fn().mockResolvedValue({
+      org: "test-org",
+      project: "test-project",
+      pat: "test-pat",
+    }),
+    jsonWithCache: jest.fn((data: unknown) => {
+      const { NextResponse } = require("next/server");
+      return NextResponse.json(data);
+    }),
+    handleApiError: jest.fn((error: unknown) => {
+      const { NextResponse } = require("next/server");
+      const message =
+        error instanceof Error ? error.message : "An unexpected error occurred";
+      return NextResponse.json({ error: message }, { status: 500 });
+    }),
+    coerceAdoApiError: actual.coerceAdoApiError,
+  };
+});
 
 jest.mock("@/lib/ado/teams", () => ({
   getTeamMembers: jest.fn().mockResolvedValue([
@@ -203,6 +207,24 @@ describe("GET /api/prs/team-alignment", () => {
     // Only 1 PR should be counted (external is filtered out)
     expect(body.alignment.total).toBe(1);
     expect(body.alignment.aligned).toBe(1);
+  });
+
+  it("returns 403 when error has AdoApiError shape but fails instanceof (bundling edge case)", async () => {
+    // Simulate a module bundling issue where instanceof fails
+    // but the error has the correct name and status properties
+    const error = new Error("ADO API error: 410 Gone");
+    error.name = "AdoApiError";
+    (error as Error & { status: number; url: string }).status = 410;
+    (error as Error & { status: number; url: string }).url = "https://analytics.dev.azure.com/...";
+
+    mockGetPRsWithWorkItems.mockRejectedValueOnce(error);
+
+    const res = await GET(makeRequest({ team: "TeamA", range: "14" }));
+    expect(res.status).toBe(403);
+
+    const body = await res.json();
+    expect(body.scopeError).toBe(true);
+    expect(body.error).toMatch(/Analytics extension/);
   });
 
   it("does not match area path prefix without backslash boundary", async () => {

@@ -6,8 +6,8 @@ import {
   extractConfig,
   jsonWithCache,
   handleApiError,
+  coerceAdoApiError,
 } from "@/lib/ado/helpers";
-import { AdoApiError } from "@/lib/ado/client";
 import { parseRange, resolveRange } from "@/lib/dateRange";
 import type {
   TeamAlignment,
@@ -149,9 +149,11 @@ export async function GET(request: NextRequest) {
 
     return jsonWithCache(response);
   } catch (error) {
-    if (error instanceof AdoApiError && (error.status === 401 || error.status === 410)) {
+    const adoErr = coerceAdoApiError(error);
+
+    if (adoErr && (adoErr.status === 401 || adoErr.status === 410)) {
       const message =
-        error.status === 410
+        adoErr.status === 410
           ? "Analytics extension is not enabled for this organization. Install the Analytics Marketplace extension to use PR Alignment."
           : "Analytics API requires the Analytics:Read PAT scope. Update your PAT to include this scope.";
       return NextResponse.json(
