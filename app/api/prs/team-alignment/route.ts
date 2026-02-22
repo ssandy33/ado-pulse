@@ -93,23 +93,28 @@ function buildMemberAlignment(
  */
 export async function GET(request: NextRequest) {
   const start = Date.now();
-  const configOrError = await extractConfig(request);
-  if (configOrError instanceof NextResponse) return configOrError;
-
   const teamName = request.nextUrl.searchParams.get("team") || "";
+  const rangeParam = request.nextUrl.searchParams.get("range");
+  logger.info("Request start", { route: "prs/team-alignment", team: teamName, range: rangeParam });
+
+  const configOrError = await extractConfig(request);
+  if (configOrError instanceof NextResponse) {
+    logger.info("Request complete", { route: "prs/team-alignment", durationMs: Date.now() - start, outcome: "config_error" });
+    return configOrError;
+  }
+
   if (!teamName) {
+    logger.info("Request complete", { route: "prs/team-alignment", durationMs: Date.now() - start, status: 400 });
     return NextResponse.json(
       { error: "No team specified" },
       { status: 400 }
     );
   }
 
-  const range = parseRange(request.nextUrl.searchParams.get("range"));
+  const range = parseRange(rangeParam);
   const { from, to, label, days } = resolveRange(range);
   const fromISO = from.toISOString().split("T")[0];
   const toISO = to.toISOString().split("T")[0];
-
-  logger.info("Request start", { route: "prs/team-alignment", team: teamName, range: request.nextUrl.searchParams.get("range") });
 
   try {
     // Fetch team data and PRs in parallel

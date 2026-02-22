@@ -1,4 +1,4 @@
-import { NextRequest } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { extractConfig, jsonWithCache, handleApiError } from "@/lib/ado/helpers";
 import { logger } from "@/lib/logger";
 import { getPolicyConfigurations, buildRepoPolicyStatuses } from "@/lib/ado/policies";
@@ -7,21 +7,26 @@ import type { PolicyAuditResponse } from "@/lib/ado/types";
 export async function GET(request: NextRequest) {
   const start = Date.now();
   const configOrError = await extractConfig(request);
-  if ("status" in configOrError) return configOrError;
+  if ("status" in configOrError) {
+    logger.info("Request complete", { route: "policies/team-audit", durationMs: Date.now() - start, outcome: "config_error" });
+    return configOrError;
+  }
 
   logger.info("Request start", { route: "policies/team-audit" });
 
   try {
     const reposParam = request.nextUrl.searchParams.get("repos");
     if (!reposParam) {
-      return jsonWithCache({ error: "Missing repos parameter" });
+      logger.info("Request complete", { route: "policies/team-audit", durationMs: Date.now() - start, status: 400 });
+      return NextResponse.json({ error: "Missing repos parameter" }, { status: 400 });
     }
 
     let repos: { repoId: string; repoName: string }[];
     try {
       repos = JSON.parse(reposParam);
     } catch {
-      return jsonWithCache({ error: "Invalid repos JSON" });
+      logger.info("Request complete", { route: "policies/team-audit", durationMs: Date.now() - start, status: 400 });
+      return NextResponse.json({ error: "Invalid repos JSON" }, { status: 400 });
     }
 
     // Truncate to top 20 repos for URL length safety

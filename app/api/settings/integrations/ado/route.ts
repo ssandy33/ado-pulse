@@ -42,6 +42,7 @@ export async function PUT(request: NextRequest) {
     const { pat, org, orgUrl } = body;
 
     if (typeof pat !== "string" || !pat.trim()) {
+      logger.info("Request complete", { route: "settings/integrations/ado", method: "PUT", durationMs: Date.now() - start, status: 400 });
       return NextResponse.json(
         { success: false, error: "PAT is required" },
         { status: 400 }
@@ -49,6 +50,7 @@ export async function PUT(request: NextRequest) {
     }
 
     if (typeof org !== "string" || !org.trim()) {
+      logger.info("Request complete", { route: "settings/integrations/ado", method: "PUT", durationMs: Date.now() - start, status: 400 });
       return NextResponse.json(
         { success: false, error: "Organization is required" },
         { status: 400 }
@@ -66,6 +68,7 @@ export async function PUT(request: NextRequest) {
     );
 
     if (!testRes.ok) {
+      logger.info("Request complete", { route: "settings/integrations/ado", method: "PUT", durationMs: Date.now() - start, status: 400 });
       return NextResponse.json(
         {
           success: false,

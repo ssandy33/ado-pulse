@@ -14,7 +14,10 @@ function getStaleness(ageInDays: number): Staleness {
 export async function GET(request: NextRequest) {
   const start = Date.now();
   const configOrError = await extractConfig(request);
-  if (configOrError instanceof NextResponse) return configOrError;
+  if (configOrError instanceof NextResponse) {
+    logger.info("Request complete", { route: "prs/stale", durationMs: Date.now() - start, outcome: "config_error" });
+    return configOrError;
+  }
 
   try {
     const teamName = request.nextUrl.searchParams.get("team") || "";
@@ -22,6 +25,7 @@ export async function GET(request: NextRequest) {
     logger.info("Request start", { route: "prs/stale", team: teamName });
 
     if (!teamName) {
+      logger.info("Request complete", { route: "prs/stale", durationMs: Date.now() - start, status: 400 });
       return jsonWithCache({ error: "No team specified" });
     }
 

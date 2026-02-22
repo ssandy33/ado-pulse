@@ -29,6 +29,7 @@ export async function GET(request: NextRequest) {
         const filtered = teams
           .filter((t) => pinnedSet.has(t.name))
           .sort((a, b) => a.name.localeCompare(b.name));
+        logger.info("Request complete", { route: "teams", durationMs: Date.now() - start, pinnedOnly: true });
         return jsonWithCache({
           teams: filtered,
           default: "",

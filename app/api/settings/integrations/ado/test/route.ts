@@ -9,6 +9,7 @@ export async function POST(request: NextRequest) {
     const { pat, org } = body;
 
     if (typeof pat !== "string" || !pat.trim()) {
+      logger.info("Request complete", { route: "settings/integrations/ado/test", method: "POST", durationMs: Date.now() - start, status: 400 });
       return NextResponse.json(
         { success: false, error: "PAT is required" },
         { status: 400 }
@@ -16,6 +17,7 @@ export async function POST(request: NextRequest) {
     }
 
     if (typeof org !== "string" || !org.trim()) {
+      logger.info("Request complete", { route: "settings/integrations/ado/test", method: "POST", durationMs: Date.now() - start, status: 400 });
       return NextResponse.json(
         { success: false, error: "Organization is required" },
         { status: 400 }
@@ -36,7 +38,8 @@ export async function POST(request: NextRequest) {
         res.status === 401 || res.status === 403
           ? "Invalid PAT or insufficient permissions"
           : `ADO API returned ${res.status}`;
-      return NextResponse.json({ success: false, error: errorMsg });
+      logger.info("Request complete", { route: "settings/integrations/ado/test", method: "POST", durationMs: Date.now() - start, status: res.status });
+      return NextResponse.json({ success: false, error: errorMsg }, { status: res.status });
     }
 
     logger.info("Request complete", { route: "settings/integrations/ado/test", method: "POST", durationMs: Date.now() - start });

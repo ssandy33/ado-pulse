@@ -39,6 +39,7 @@ export async function GET(request: NextRequest) {
     logger.info("Request start", { route: "prs/team-summary", team: teamName, range: searchParams.get("range") });
 
     if (!teamName) {
+      logger.info("Request complete", { route: "prs/team-summary", durationMs: Date.now() - start, status: 400 });
       return jsonWithCache({ error: "No team specified" });
     }
 

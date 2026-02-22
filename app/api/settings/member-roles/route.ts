@@ -6,9 +6,14 @@ import type { MemberRoleExclusion } from "@/lib/ado/types";
 export async function GET() {
   const start = Date.now();
   logger.info("Request start", { route: "settings/member-roles", method: "GET" });
-  const settings = await readSettings();
-  logger.info("Request complete", { route: "settings/member-roles", method: "GET", durationMs: Date.now() - start });
-  return NextResponse.json(settings.memberRoles ?? { exclusions: [] });
+  try {
+    const settings = await readSettings();
+    logger.info("Request complete", { route: "settings/member-roles", method: "GET", durationMs: Date.now() - start });
+    return NextResponse.json(settings.memberRoles ?? { exclusions: [] });
+  } catch (error) {
+    logger.error("Request error", { route: "settings/member-roles", method: "GET", durationMs: Date.now() - start, stack_trace: error instanceof Error ? error.stack : undefined });
+    return NextResponse.json({ error: "Failed to read settings" }, { status: 500 });
+  }
 }
 
 export async function PUT(request: NextRequest) {

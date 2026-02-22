@@ -4,6 +4,7 @@ import type { UsersNoTeamResponse } from "@/lib/ado/types";
 import { logger } from "@/lib/logger";
 
 export async function GET(request: NextRequest) {
+  const start = Date.now();
   logger.info("Request start", { route: "org-health/users-no-team" });
   const configOrError = await extractConfig(request);
   if ("status" in configOrError) return configOrError;
@@ -25,6 +26,6 @@ export async function GET(request: NextRequest) {
     ],
   };
 
-  logger.info("Request complete", { route: "org-health/users-no-team" });
+  logger.info("Request complete", { route: "org-health/users-no-team", durationMs: Date.now() - start });
   return jsonWithCache(response);
 }
