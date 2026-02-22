@@ -6,6 +6,12 @@ interface AlignmentKPITileProps {
   data: AlignmentApiResponse;
 }
 
+/**
+ * Renders a compact card that displays pull request alignment metrics and the reporting period.
+ *
+ * @param data - AlignmentApiResponse containing `alignment` (percentage and counts for aligned, out of scope, and unlinked) and `period` with a display `label`
+ * @returns A JSX element showing the aligned percentage, counts for aligned/out-of-scope/unlinked, and the period label
+ */
 export function AlignmentKPITile({ data }: AlignmentKPITileProps) {
   const { alignment } = data;
 

@@ -18,6 +18,15 @@ export async function getProjectTeams(config: AdoConfig): Promise<Team[]> {
   return data.value.sort((a, b) => a.name.localeCompare(b.name));
 }
 
+/**
+ * Retrieve members of a team in the configured project.
+ *
+ * @param config - ADO connection and project configuration
+ * @param teamName - The team name to resolve when `teamId` is not provided
+ * @param teamId - Optional team id; when provided, skips resolving the team by name
+ * @returns An array of TeamMember objects, each containing `id`, `displayName`, and `uniqueName`
+ * @throws Error if no team with the given `teamName` is found and `teamId` is not provided
+ */
 export async function getTeamMembers(
   config: AdoConfig,
   teamName: string,
@@ -61,6 +70,13 @@ interface TeamFieldValuesResponse {
   values: TeamFieldValue[];
 }
 
+/**
+ * Retrieve a team's default area path and all configured area paths.
+ *
+ * @param teamName - Name of the team to look up; matching is case-insensitive.
+ * @returns An object containing `defaultAreaPath` (the team's default area path) and `areaPaths` (an array of all configured area path strings).
+ * @throws Error if a team with the given `teamName` is not found.
+ */
 export async function getTeamAreaPath(
   config: AdoConfig,
   teamName: string
