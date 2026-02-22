@@ -25,7 +25,13 @@ export interface ODataPullRequest {
   WorkItems: ODataWorkItem[];
 }
 
-// ── Helpers ───────────────────────────────────────────────────
+/**
+ * Builds a fully qualified Azure DevOps Analytics OData URL for the specified organization, project, and endpoint path.
+ *
+ * @param config - Configuration containing `org` and `project` used to construct the URL
+ * @param path - OData endpoint path (relative to the analytics OData root), including any query components
+ * @returns The fully qualified Analytics OData URL
+ */
 
 export function analyticsUrl(
   config: AdoConfig,
@@ -34,6 +40,12 @@ export function analyticsUrl(
   return `https://analytics.dev.azure.com/${encodeURIComponent(config.org)}/${encodeURIComponent(config.project)}/_odata/v4.0/${path}`;
 }
 
+/**
+ * Fetches OData JSON from the Azure DevOps analytics endpoint for the provided path and returns it parsed as the requested type.
+ *
+ * @param path - The analytics API path and query string to request (OData query).
+ * @returns The fetched OData response parsed into the requested type `T`.
+ */
 export function odataFetch<T>(
   config: AdoConfig,
   path: string
@@ -41,7 +53,13 @@ export function odataFetch<T>(
   return adoFetch<T>(config, analyticsUrl(config, path));
 }
 
-// ── Queries ───────────────────────────────────────────────────
+/**
+ * Fetches pull requests completed within the given date range, including creator and work item details.
+ *
+ * @param from - Inclusive start date string used in the OData CompletedDate filter (e.g., "2025-01-01T00:00:00Z")
+ * @param to - Inclusive end date string used in the OData CompletedDate filter (e.g., "2025-01-31T23:59:59Z")
+ * @returns An array of `ODataPullRequest` objects matching the filter; each contains `PullRequestId`, `Title`, `CreatedDate`, `CompletedDate`, `CreatedBy` (`UserName`, `UserEmail`), and `WorkItems` (`WorkItemId`, `AreaPath`)
+ */
 
 export async function getPRsWithWorkItems(
   config: AdoConfig,

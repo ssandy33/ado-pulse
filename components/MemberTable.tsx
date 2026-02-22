@@ -68,6 +68,18 @@ const COLUMNS: DataTableColumn[] = [
 
 const ALL_STATUSES: StatusKind[] = ["active", "low-reviews", "reviewing", "inactive", "non-contributor"];
 
+/**
+ * Renders an expanded table row summarizing a member's PR alignment to team areas.
+ *
+ * Shows a single-line summary when all PRs are aligned, a detailed breakdown of
+ * aligned, out-of-scope (with counts by area path), and unlinked PRs when present,
+ * and returns null if the member has no PRs.
+ *
+ * @param alignment - Alignment details for the member, including `total`, `aligned`,
+ *   `outOfScope` (with `count` and `byAreaPath` entries), and `unlinked`.
+ * @returns A table row (`<tr>`) containing the alignment summary or breakdown, or `null`
+ *   when `alignment.total` is zero.
+ */
 function AlignmentExpandedRow({ alignment }: { alignment: MemberAlignmentDetail }) {
   if (alignment.total === 0) return null;
 
@@ -122,6 +134,16 @@ function AlignmentExpandedRow({ alignment }: { alignment: MemberAlignmentDetail 
   );
 }
 
+/**
+ * Render a developer breakdown table for a team, optionally showing per-member alignment details.
+ *
+ * Displays members (non-excluded members first), PR/review metrics, repositories touched, last PR date, and a status badge.
+ *
+ * @param members - List of member summaries to display
+ * @param teamName - Team name shown in the card header
+ * @param alignmentData - Optional alignment response; when provided members with alignment entries render an expandable row with alignment details
+ * @returns The React element for the member breakdown table
+ */
 export function MemberTable({ members, teamName, alignmentData }: MemberTableProps) {
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
@@ -183,6 +205,16 @@ export function MemberTable({ members, teamName, alignmentData }: MemberTablePro
   );
 }
 
+/**
+ * Render a single member table row with optional expandable alignment details.
+ *
+ * @param member - Member summary data used to populate the row cells (name, counts, role, etc.)
+ * @param status - Calculated status kind used to render the status badge
+ * @param alignment - Optional alignment details; when present the row becomes expandable to show alignment breakdown
+ * @param isExpanded - Whether the member's alignment details are currently expanded
+ * @param onToggle - Callback invoked to toggle the expanded state for this member
+ * @returns The table row (and optional expanded alignment row) JSX for the given member
+ */
 function MemberRow({
   member,
   status,

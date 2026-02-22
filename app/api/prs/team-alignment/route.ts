@@ -15,12 +15,26 @@ import type {
   AlignmentApiResponse,
 } from "@/lib/ado/types";
 
+/**
+ * Determines whether an area path exactly matches or is nested under any of the team's area paths.
+ *
+ * @param areaPath - The area path to test (e.g., "Project\\Component\\Sub").
+ * @param teamAreaPaths - Array of team area path prefixes to match against.
+ * @returns `true` if `areaPath` exactly equals one of `teamAreaPaths` or starts with one of them followed by a backslash, `false` otherwise.
+ */
 function areaPathMatches(areaPath: string, teamAreaPaths: string[]): boolean {
   return teamAreaPaths.some(
     (tap) => areaPath === tap || areaPath.startsWith(tap + "\\")
   );
 }
 
+/**
+ * Classifies a pull request as aligned, outOfScope, or unlinked based on its linked work items' area paths.
+ *
+ * @param pr - Pull request whose linked work items' `AreaPath` values will be evaluated
+ * @param teamAreaPaths - Team area paths considered in-scope; a matching `AreaPath` marks the PR as aligned
+ * @returns `'aligned'` if any linked work item's `AreaPath` matches a team area path, `'unlinked'` if the pull request has no linked work items, `'outOfScope'` otherwise
+ */
 function classifyPR(
   pr: ODataPullRequest,
   teamAreaPaths: string[]
@@ -32,6 +46,17 @@ function classifyPR(
   return hasAligned ? "aligned" : "outOfScope";
 }
 
+/**
+ * Compute alignment metrics for a member's pull requests against the team's area paths.
+ *
+ * @param prs - Pull requests to analyze; each PR may include `WorkItems` with `AreaPath` values.
+ * @param teamAreaPaths - Team area paths used to determine whether a work item's area path is in-scope.
+ * @returns `MemberAlignmentDetail` containing:
+ *  - `aligned`: number of PRs with at least one work item matching the team area paths,
+ *  - `unlinked`: number of PRs with no associated work items,
+ *  - `total`: total number of PRs analyzed,
+ *  - `outOfScope`: an object with `count` (PRs that have work items but none match) and `byAreaPath` (array of `{ areaPath, count }` sorted by `count` descending). 
+ */
 function buildMemberAlignment(
   prs: ODataPullRequest[],
   teamAreaPaths: string[]
@@ -72,6 +97,16 @@ function buildMemberAlignment(
   };
 }
 
+/**
+ * Compute PR alignment metrics for a team over a specified date range and return them as a JSON HTTP response.
+ *
+ * @returns A JSON HTTP response containing:
+ *  - period: the resolved date range (days, from, to, label)
+ *  - teamAreaPath: the team's default area path
+ *  - alignment: team-level totals and aligned percentage
+ *  - members: per-member alignment details
+ * Or an error JSON: 400 if the `team` query parameter is missing, 403 if the Analytics API is unavailable or the PAT lacks required scope, or a delegated API error response for other failures.
+ */
 export async function GET(request: NextRequest) {
   const configOrError = await extractConfig(request);
   if (configOrError instanceof NextResponse) return configOrError;

@@ -23,6 +23,17 @@ interface DashboardProps {
   onDisconnect: () => void;
 }
 
+/**
+ * Render the PR Hygiene dashboard UI with tabs for team, timetracking, organization, debug, and settings.
+ *
+ * Renders team-level KPIs, member and repo tables, stale PRs, and alignment metrics for a selected team;
+ * fetches team summary, stale PRs, and alignment data in parallel when a team is selected and surfaces
+ * loading, error, and empty states. Also provides controls for time range, refresh, and disconnecting credentials.
+ *
+ * @param creds - ADO connection credentials containing `org`, `project`, and `pat`.
+ * @param onDisconnect - Callback invoked when the user requests to disconnect the provided credentials.
+ * @returns The Dashboard React element.
+ */
 export function Dashboard({ creds, onDisconnect }: DashboardProps) {
   const [activeTab, setActiveTab] = useState<TabKey>("team");
   const [selectedTeam, setSelectedTeam] = useState("");
