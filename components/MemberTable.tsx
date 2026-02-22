@@ -74,7 +74,7 @@ function AlignmentExpandedRow({ alignment }: { alignment: MemberAlignmentDetail 
   if (alignment.aligned === alignment.total) {
     return (
       <tr>
-        <td colSpan={6} className="px-0 py-0">
+        <td colSpan={COLUMNS.length} className="px-0 py-0">
           <div className="bg-pulse-bg/50 px-8 py-3">
             <span className="text-[12px] text-emerald-600">
               All {alignment.total} PRs aligned to team area
@@ -87,7 +87,7 @@ function AlignmentExpandedRow({ alignment }: { alignment: MemberAlignmentDetail 
 
   return (
     <tr>
-      <td colSpan={6} className="px-0 py-0">
+      <td colSpan={COLUMNS.length} className="px-0 py-0">
         <div className="bg-pulse-bg/50 px-8 py-2">
           <table className="w-full text-[11px]">
             <tbody>
@@ -207,17 +207,28 @@ function MemberRow({
         <td className="px-5 py-3 text-[13px] font-medium text-pulse-text">
           <div className="flex items-center gap-1.5">
             {alignment && (
-              <svg
-                className={`w-3 h-3 text-pulse-muted transition-transform flex-shrink-0 ${
-                  isExpanded ? "rotate-90" : ""
-                }`}
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                strokeWidth={2}
+              <button
+                type="button"
+                className="p-0 bg-transparent border-0 flex-shrink-0"
+                aria-label={isExpanded ? "Collapse alignment details" : "Expand alignment details"}
+                aria-expanded={isExpanded}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onToggle();
+                }}
               >
-                <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-              </svg>
+                <svg
+                  className={`w-3 h-3 text-pulse-muted transition-transform ${
+                    isExpanded ? "rotate-90" : ""
+                  }`}
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  strokeWidth={2}
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                </svg>
+              </button>
             )}
             <div>
               <EmailTooltip

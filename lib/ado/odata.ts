@@ -31,7 +31,7 @@ export function analyticsUrl(
   config: AdoConfig,
   path: string
 ): string {
-  return `https://analytics.dev.azure.com/${config.org}/${config.project}/_odata/v4.0/${path}`;
+  return `https://analytics.dev.azure.com/${encodeURIComponent(config.org)}/${encodeURIComponent(config.project)}/_odata/v4.0/${path}`;
 }
 
 export function odataFetch<T>(

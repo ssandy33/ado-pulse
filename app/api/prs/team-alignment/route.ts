@@ -38,6 +38,7 @@ function buildMemberAlignment(
 ): MemberAlignmentDetail {
   let aligned = 0;
   let unlinked = 0;
+  let outOfScopeCount = 0;
   const outOfScopeByArea = new Map<string, number>();
 
   for (const pr of prs) {
@@ -47,6 +48,7 @@ function buildMemberAlignment(
     } else if (classification === "unlinked") {
       unlinked++;
     } else {
+      outOfScopeCount++;
       for (const wi of pr.WorkItems) {
         if (!areaPathMatches(wi.AreaPath, teamAreaPaths)) {
           outOfScopeByArea.set(
@@ -57,10 +59,6 @@ function buildMemberAlignment(
       }
     }
   }
-
-  const outOfScopeCount = prs.filter(
-    (pr) => classifyPR(pr, teamAreaPaths) === "outOfScope"
-  ).length;
 
   const byAreaPath = Array.from(outOfScopeByArea.entries())
     .map(([areaPath, count]) => ({ areaPath, count }))

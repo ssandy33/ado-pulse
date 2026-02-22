@@ -20,11 +20,11 @@ describe("analyticsUrl", () => {
     );
   });
 
-  it("handles special characters in org/project", () => {
+  it("encodes special characters in org/project", () => {
     const cfg: AdoConfig = { org: "my org", project: "my project", pat: "p" };
     const url = analyticsUrl(cfg, "WorkItems");
     expect(url).toBe(
-      "https://analytics.dev.azure.com/my org/my project/_odata/v4.0/WorkItems"
+      "https://analytics.dev.azure.com/my%20org/my%20project/_odata/v4.0/WorkItems"
     );
   });
 });
@@ -40,6 +40,7 @@ describe("odataFetch", () => {
     expect(adoFetch).toHaveBeenCalledWith(
       config,
       "https://analytics.dev.azure.com/test-org/test-project/_odata/v4.0/PullRequests"
+      // test-org and test-project have no special chars, so encoding is a no-op
     );
     expect(result).toEqual({ value: [{ id: 1 }] });
   });
