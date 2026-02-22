@@ -72,6 +72,17 @@ function buildMemberAlignment(
   };
 }
 
+/**
+ * Handle GET requests to compute pull-request alignment for a team over a specified date range.
+ *
+ * Parses the query for a team and date range, fetches team members, team area paths, and PRs,
+ * aggregates per-member and team alignment metrics, and returns an AlignmentApiResponse as JSON
+ * (cached). Responds with 400 if the team is not specified and with 403 when analytics access is
+ * unavailable or PAT scopes are insufficient.
+ *
+ * @param request - The incoming Next.js request containing query parameters (`team`, optional `range`)
+ * @returns An AlignmentApiResponse serialized as a JSON NextResponse, or an error JSON NextResponse for bad requests or authorization/extension issues
+ */
 export async function GET(request: NextRequest) {
   const configOrError = await extractConfig(request);
   if (configOrError instanceof NextResponse) return configOrError;
