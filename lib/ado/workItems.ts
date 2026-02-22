@@ -8,6 +8,7 @@ interface WorkItem {
     "System.WorkItemType"?: string;
     "System.Parent"?: number;
     "Custom.FeatureExpense"?: string;
+    "System.AreaPath"?: string;
   };
 }
 
@@ -22,7 +23,7 @@ export interface ResolvedFeature {
   expenseType: ExpenseType;
 }
 
-const FIELDS = "System.Title,System.WorkItemType,System.Parent,Custom.FeatureExpense";
+const FIELDS = "System.Title,System.WorkItemType,System.Parent,Custom.FeatureExpense,System.AreaPath";
 const BATCH_SIZE = 200;
 const BATCH_CONCURRENCY = 3;
 

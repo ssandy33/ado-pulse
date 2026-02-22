@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getTeamMembers, getTeamAreaPath } from "@/lib/ado/teams";
 import { getPRsWithWorkItems } from "@/lib/ado/odata";
 import type { ODataPullRequest } from "@/lib/ado/odata";
+import { getPRsWithWorkItemsREST } from "@/lib/ado/pullRequests";
 import {
   extractConfig,
   jsonWithCache,
@@ -72,6 +73,17 @@ function buildMemberAlignment(
   };
 }
 
+/**
+ * Produce an alignment report for a team's pull requests within a specified date range.
+ *
+ * Reads the required `team` query parameter and optional `range` parameter, fetches team members,
+ * team area paths, and pull requests (attempting OData first and falling back to REST on specific ADO authorization/410 errors),
+ * computes per-member and team alignment metrics, and returns the assembled JSON response.
+ *
+ * @param request - Incoming Next.js request. Query parameters:
+ *   - `team` (required): team name to report on.
+ *   - `range` (optional): date range specifier parsed by the endpoint (defaults applied if omitted).
+ * @returns A NextResponse containing the alignment report (AlignmentApiResponse) as JSON, or an HTTP error response when the request is invalid or an error occurs.
 export async function GET(request: NextRequest) {
   const configOrError = await extractConfig(request);
   if (configOrError instanceof NextResponse) return configOrError;
@@ -90,11 +102,24 @@ export async function GET(request: NextRequest) {
   const toISO = to.toISOString().split("T")[0];
 
   try {
-    const [members, teamAreaData, prs] = await Promise.all([
+    // Fetch team data and PRs in parallel
+    let prs: ODataPullRequest[];
+    const [members, teamAreaData] = await Promise.all([
       getTeamMembers(configOrError, teamName),
       getTeamAreaPath(configOrError, teamName),
-      getPRsWithWorkItems(configOrError, fromISO, toISO),
     ]);
+
+    // Try OData first, fall back to REST on 410/401
+    try {
+      prs = await getPRsWithWorkItems(configOrError, fromISO, toISO);
+    } catch (err) {
+      const adoErr = coerceAdoApiError(err);
+      if (adoErr && (adoErr.status === 410 || adoErr.status === 401)) {
+        prs = await getPRsWithWorkItemsREST(configOrError, fromISO, toISO);
+      } else {
+        throw err;
+      }
+    }
 
     const memberNameSet = new Set(
       members.map((m) => m.uniqueName.toLowerCase())
@@ -149,18 +174,6 @@ export async function GET(request: NextRequest) {
 
     return jsonWithCache(response);
   } catch (error) {
-    const adoErr = coerceAdoApiError(error);
-
-    if (adoErr && (adoErr.status === 401 || adoErr.status === 410)) {
-      const message =
-        adoErr.status === 410
-          ? "Analytics extension is not enabled for this organization. Install the Analytics Marketplace extension to use PR Alignment."
-          : "Analytics API requires the Analytics:Read PAT scope. Update your PAT to include this scope.";
-      return NextResponse.json(
-        { error: message, scopeError: true },
-        { status: 403 }
-      );
-    }
     return handleApiError(error);
   }
 }
