@@ -149,13 +149,13 @@ export async function GET(request: NextRequest) {
 
     return jsonWithCache(response);
   } catch (error) {
-    if (error instanceof AdoApiError && error.status === 401) {
+    if (error instanceof AdoApiError && (error.status === 401 || error.status === 410)) {
+      const message =
+        error.status === 410
+          ? "Analytics extension is not enabled for this organization. Install the Analytics Marketplace extension to use PR Alignment."
+          : "Analytics API requires the Analytics:Read PAT scope. Update your PAT to include this scope.";
       return NextResponse.json(
-        {
-          error:
-            "Analytics API requires the Analytics:Read PAT scope. Update your PAT to include this scope.",
-          scopeError: true,
-        },
+        { error: message, scopeError: true },
         { status: 403 }
       );
     }
