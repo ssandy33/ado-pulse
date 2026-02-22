@@ -112,9 +112,7 @@ export function Dashboard({ creds, onDisconnect }: DashboardProps) {
       } else {
         const body = await alignRes.json().catch(() => ({}));
         setAlignmentError(
-          body.scopeError
-            ? "PR Alignment requires the Analytics:Read PAT scope. Update your PAT in Settings to enable this feature."
-            : body.error || "Failed to load alignment data"
+          body.error || "Failed to load alignment data"
         );
       }
     } catch {
