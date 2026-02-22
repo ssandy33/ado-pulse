@@ -74,14 +74,14 @@ export async function getPRsWithWorkItemsREST(
   to: string
 ): Promise<ODataPullRequest[]> {
   const fromDate = new Date(from);
-  const toDate = new Date(to);
 
   const prs = await getPullRequests(config, fromDate);
 
-  // REST only supports minTime, so filter closedDate <= to
+  // REST only supports minTime, so filter closedDate <= to (date-only compare
+  // to match OData's inclusive day boundary — "to" is a yyyy-mm-dd string)
   const filtered = prs.filter((pr) => {
     if (!pr.closedDate) return false;
-    return new Date(pr.closedDate) <= toDate;
+    return pr.closedDate.slice(0, 10) <= to;
   });
 
   // Collect all work item IDs
