@@ -149,7 +149,7 @@ describe("GET /api/prs/team-alignment", () => {
     expect(memberTotals.unlinked).toBe(body.alignment.unlinked);
   });
 
-  it("returns 403 with scopeError when Analytics scope missing", async () => {
+  it("returns 403 with scopeError when Analytics scope missing (401)", async () => {
     const { AdoApiError } = require("@/lib/ado/client");
     mockGetPRsWithWorkItems.mockRejectedValueOnce(
       new AdoApiError("Unauthorized", 401, "https://analytics.dev.azure.com/...")
@@ -161,6 +161,20 @@ describe("GET /api/prs/team-alignment", () => {
     const body = await res.json();
     expect(body.scopeError).toBe(true);
     expect(body.error).toMatch(/Analytics:Read/);
+  });
+
+  it("returns 403 with scopeError when Analytics extension not installed (410)", async () => {
+    const { AdoApiError } = require("@/lib/ado/client");
+    mockGetPRsWithWorkItems.mockRejectedValueOnce(
+      new AdoApiError("Gone", 410, "https://analytics.dev.azure.com/...")
+    );
+
+    const res = await GET(makeRequest({ team: "TeamA", range: "14" }));
+    expect(res.status).toBe(403);
+
+    const body = await res.json();
+    expect(body.scopeError).toBe(true);
+    expect(body.error).toMatch(/Analytics extension/);
   });
 
   it("filters PRs to team members only (case-insensitive)", async () => {
