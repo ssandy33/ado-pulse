@@ -14,7 +14,7 @@ PR hygiene & team productivity dashboard for Azure DevOps. Surfaces PR metrics, 
 - CodeRabbit for automated PR review (Context7 MCP integration enabled)
 - Dependabot enabled for npm and GitHub Actions (weekly schedule)
 - UptimeRobot for uptime monitoring on Hetzner
-- Axiom for logging *(planned — PRD complete, not yet implemented)*
+- Axiom for structured logging (`lib/logger.ts`) with console fallback
 
 ## Commands
 

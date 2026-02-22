@@ -13,8 +13,15 @@ jest.mock("@axiomhq/js", () => ({
 
 // Helper to reload the logger module with specific env vars
 function loadLogger(env: Record<string, string | undefined>) {
-  const original = { ...process.env };
-  Object.assign(process.env, env);
+  const original: Record<string, string | undefined> = {};
+  for (const key of Object.keys(env)) {
+    original[key] = process.env[key];
+    if (env[key] === undefined) {
+      delete process.env[key];
+    } else {
+      process.env[key] = env[key];
+    }
+  }
 
   // Clear the module cache so the logger re-initializes
   jest.resetModules();
@@ -28,8 +35,14 @@ function loadLogger(env: Record<string, string | undefined>) {
   }));
 
   const mod = require("@/lib/logger");
-  // Restore env
-  process.env = original;
+  // Restore env in-place
+  for (const key of Object.keys(env)) {
+    if (original[key] === undefined) {
+      delete process.env[key];
+    } else {
+      process.env[key] = original[key];
+    }
+  }
   return mod.logger;
 }
 

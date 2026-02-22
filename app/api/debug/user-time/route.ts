@@ -109,9 +109,13 @@ export async function GET(request: NextRequest) {
     // 2. Fetch worklogs for this user via OData API (real server-side filtering)
     const { from: fromDate, to: toDate } = getLookbackDateRange(LOOKBACK_DAYS);
 
+    const redactedEmail = email.length >= 4
+      ? `***${email.slice(-4)}`
+      : "***";
+
     logger.info("Fetching worklogs via OData", {
       route: "debug/user-time",
-      email,
+      email: redactedEmail,
       fromTimestamp: fromDate.toISOString(),
       toTimestamp: toDate.toISOString(),
     });
@@ -133,7 +137,7 @@ export async function GET(request: NextRequest) {
 
     logger.info("Worklogs received (OData-filtered)", {
       route: "debug/user-time",
-      email,
+      email: redactedEmail,
       worklogCount: userWorklogs.length,
       fetchApi: worklogResult.fetchApi,
       pagination: worklogResult.pagination,
