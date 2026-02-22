@@ -41,8 +41,8 @@ export function coerceAdoApiError(error: unknown): AdoApiError | null {
   if (
     error instanceof Error &&
     error.name === "AdoApiError" &&
-    typeof (error as Record<string, unknown>).status === "number" &&
-    typeof (error as Record<string, unknown>).url === "string"
+    typeof (error as unknown as Record<string, unknown>).status === "number" &&
+    typeof (error as unknown as Record<string, unknown>).url === "string"
   ) {
     return error as AdoApiError;
   }
