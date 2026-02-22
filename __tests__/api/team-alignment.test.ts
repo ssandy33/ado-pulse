@@ -35,10 +35,16 @@ jest.mock("@/lib/ado/teams", () => ({
 }));
 
 const mockGetPRsWithWorkItems = jest.fn();
+const mockGetPRsWithWorkItemsREST = jest.fn();
 
 jest.mock("@/lib/ado/odata", () => ({
   getPRsWithWorkItems: (...args: unknown[]) =>
     mockGetPRsWithWorkItems(...args),
+}));
+
+jest.mock("@/lib/ado/pullRequests", () => ({
+  getPRsWithWorkItemsREST: (...args: unknown[]) =>
+    mockGetPRsWithWorkItemsREST(...args),
 }));
 
 function makeRequest(params: Record<string, string> = {}) {
@@ -153,32 +159,82 @@ describe("GET /api/prs/team-alignment", () => {
     expect(memberTotals.unlinked).toBe(body.alignment.unlinked);
   });
 
-  it("returns 403 with scopeError when Analytics scope missing (401)", async () => {
+  it("falls back to REST when OData returns 401", async () => {
     const { AdoApiError } = require("@/lib/ado/client");
     mockGetPRsWithWorkItems.mockRejectedValueOnce(
       new AdoApiError("Unauthorized", 401, "https://analytics.dev.azure.com/...")
     );
+    mockGetPRsWithWorkItemsREST.mockResolvedValueOnce([
+      {
+        PullRequestId: 1,
+        Title: "REST fallback PR",
+        CreatedDate: "2025-01-01",
+        CompletedDate: "2025-01-02",
+        CreatedBy: { UserName: "alice@test.com", UserEmail: "alice@test.com" },
+        WorkItems: [{ WorkItemId: 100, AreaPath: "Project\\TeamA" }],
+      },
+    ]);
 
     const res = await GET(makeRequest({ team: "TeamA", range: "14" }));
-    expect(res.status).toBe(403);
+    expect(res.status).toBe(200);
 
     const body = await res.json();
-    expect(body.scopeError).toBe(true);
-    expect(body.error).toMatch(/Analytics:Read/);
+    expect(body.alignment.total).toBe(1);
+    expect(body.alignment.aligned).toBe(1);
+    expect(mockGetPRsWithWorkItemsREST).toHaveBeenCalledTimes(1);
   });
 
-  it("returns 403 with scopeError when Analytics extension not installed (410)", async () => {
+  it("falls back to REST when OData returns 410 (Analytics not installed)", async () => {
     const { AdoApiError } = require("@/lib/ado/client");
     mockGetPRsWithWorkItems.mockRejectedValueOnce(
       new AdoApiError("Gone", 410, "https://analytics.dev.azure.com/...")
     );
+    mockGetPRsWithWorkItemsREST.mockResolvedValueOnce([
+      {
+        PullRequestId: 1,
+        Title: "REST fallback PR",
+        CreatedDate: "2025-01-01",
+        CompletedDate: "2025-01-02",
+        CreatedBy: { UserName: "bob@test.com", UserEmail: "bob@test.com" },
+        WorkItems: [],
+      },
+    ]);
 
     const res = await GET(makeRequest({ team: "TeamA", range: "14" }));
-    expect(res.status).toBe(403);
+    expect(res.status).toBe(200);
 
     const body = await res.json();
-    expect(body.scopeError).toBe(true);
-    expect(body.error).toMatch(/Analytics extension/);
+    expect(body.alignment.total).toBe(1);
+    expect(body.alignment.unlinked).toBe(1);
+    expect(mockGetPRsWithWorkItemsREST).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not call REST fallback when OData succeeds", async () => {
+    mockGetPRsWithWorkItems.mockResolvedValueOnce([
+      {
+        PullRequestId: 1,
+        Title: "OData PR",
+        CreatedDate: "2025-01-01",
+        CompletedDate: "2025-01-02",
+        CreatedBy: { UserName: "alice@test.com", UserEmail: "alice@test.com" },
+        WorkItems: [{ WorkItemId: 100, AreaPath: "Project\\TeamA" }],
+      },
+    ]);
+
+    const res = await GET(makeRequest({ team: "TeamA", range: "14" }));
+    expect(res.status).toBe(200);
+    expect(mockGetPRsWithWorkItemsREST).not.toHaveBeenCalled();
+  });
+
+  it("propagates non-410/401 errors to outer handler", async () => {
+    const { AdoApiError } = require("@/lib/ado/client");
+    mockGetPRsWithWorkItems.mockRejectedValueOnce(
+      new AdoApiError("Internal Server Error", 500, "https://analytics.dev.azure.com/...")
+    );
+
+    const res = await GET(makeRequest({ team: "TeamA", range: "14" }));
+    expect(res.status).toBe(500);
+    expect(mockGetPRsWithWorkItemsREST).not.toHaveBeenCalled();
   });
 
   it("filters PRs to team members only (case-insensitive)", async () => {
@@ -209,7 +265,7 @@ describe("GET /api/prs/team-alignment", () => {
     expect(body.alignment.aligned).toBe(1);
   });
 
-  it("returns 403 when error has AdoApiError shape but fails instanceof (bundling edge case)", async () => {
+  it("falls back to REST when error has AdoApiError shape but fails instanceof (bundling edge case)", async () => {
     // Simulate a module bundling issue where instanceof fails
     // but the error has the correct name and status properties
     const error = new Error("ADO API error: 410 Gone");
@@ -218,13 +274,23 @@ describe("GET /api/prs/team-alignment", () => {
     (error as Error & { status: number; url: string }).url = "https://analytics.dev.azure.com/...";
 
     mockGetPRsWithWorkItems.mockRejectedValueOnce(error);
+    mockGetPRsWithWorkItemsREST.mockResolvedValueOnce([
+      {
+        PullRequestId: 1,
+        Title: "REST fallback PR",
+        CreatedDate: "2025-01-01",
+        CompletedDate: "2025-01-02",
+        CreatedBy: { UserName: "alice@test.com", UserEmail: "alice@test.com" },
+        WorkItems: [{ WorkItemId: 100, AreaPath: "Project\\TeamA" }],
+      },
+    ]);
 
     const res = await GET(makeRequest({ team: "TeamA", range: "14" }));
-    expect(res.status).toBe(403);
+    expect(res.status).toBe(200);
 
     const body = await res.json();
-    expect(body.scopeError).toBe(true);
-    expect(body.error).toMatch(/Analytics extension/);
+    expect(body.alignment.total).toBe(1);
+    expect(mockGetPRsWithWorkItemsREST).toHaveBeenCalledTimes(1);
   });
 
   it("does not match area path prefix without backslash boundary", async () => {

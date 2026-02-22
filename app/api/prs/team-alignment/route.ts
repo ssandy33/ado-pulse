@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getTeamMembers, getTeamAreaPath } from "@/lib/ado/teams";
 import { getPRsWithWorkItems } from "@/lib/ado/odata";
 import type { ODataPullRequest } from "@/lib/ado/odata";
+import { getPRsWithWorkItemsREST } from "@/lib/ado/pullRequests";
 import {
   extractConfig,
   jsonWithCache,
@@ -90,11 +91,24 @@ export async function GET(request: NextRequest) {
   const toISO = to.toISOString().split("T")[0];
 
   try {
-    const [members, teamAreaData, prs] = await Promise.all([
+    // Fetch team data and PRs in parallel
+    let prs: ODataPullRequest[];
+    const [members, teamAreaData] = await Promise.all([
       getTeamMembers(configOrError, teamName),
       getTeamAreaPath(configOrError, teamName),
-      getPRsWithWorkItems(configOrError, fromISO, toISO),
     ]);
+
+    // Try OData first, fall back to REST on 410/401
+    try {
+      prs = await getPRsWithWorkItems(configOrError, fromISO, toISO);
+    } catch (err) {
+      const adoErr = coerceAdoApiError(err);
+      if (adoErr && (adoErr.status === 410 || adoErr.status === 401)) {
+        prs = await getPRsWithWorkItemsREST(configOrError, fromISO, toISO);
+      } else {
+        throw err;
+      }
+    }
 
     const memberNameSet = new Set(
       members.map((m) => m.uniqueName.toLowerCase())
@@ -149,18 +163,6 @@ export async function GET(request: NextRequest) {
 
     return jsonWithCache(response);
   } catch (error) {
-    const adoErr = coerceAdoApiError(error);
-
-    if (adoErr && (adoErr.status === 401 || adoErr.status === 410)) {
-      const message =
-        adoErr.status === 410
-          ? "Analytics extension is not enabled for this organization. Install the Analytics Marketplace extension to use PR Alignment."
-          : "Analytics API requires the Analytics:Read PAT scope. Update your PAT to include this scope.";
-      return NextResponse.json(
-        { error: message, scopeError: true },
-        { status: 403 }
-      );
-    }
     return handleApiError(error);
   }
 }
