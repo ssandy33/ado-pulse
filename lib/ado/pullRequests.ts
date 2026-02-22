@@ -1,7 +1,14 @@
-import { adoFetch, projectUrl } from "./client";
+import { adoFetch, projectUrl, batchAsync } from "./client";
 import type { AdoConfig, AdoListResponse, PullRequest } from "./types";
 import type { ODataPullRequest } from "./odata";
 import { getWorkItems } from "./workItems";
+
+interface WorkItemRef {
+  id: string;
+  url: string;
+}
+
+const PR_WORKITEMS_CONCURRENCY = 5;
 
 /**
  * Retrieve pull requests that were completed on or after the specified date.
@@ -84,35 +91,49 @@ export async function getPRsWithWorkItemsREST(
     return pr.closedDate.slice(0, 10) <= to;
   });
 
-  // Collect all work item IDs
+  // The PR list endpoint doesn't include workItemRefs — fetch them per PR
+  const workItemRefTasks = filtered.map(
+    (pr) => () => {
+      const url = projectUrl(
+        config,
+        `_apis/git/repositories/${encodeURIComponent(pr.repository.id)}/pullRequests/${pr.pullRequestId}/workitems?api-version=7.1`
+      );
+      return adoFetch<AdoListResponse<WorkItemRef>>(config, url)
+        .then((data) => ({ prId: pr.pullRequestId, refs: data.value }))
+        .catch(() => ({ prId: pr.pullRequestId, refs: [] as WorkItemRef[] }));
+    }
+  );
+  const prWorkItemResults = await batchAsync(workItemRefTasks, PR_WORKITEMS_CONCURRENCY);
+  const prWorkItemMap = new Map(prWorkItemResults.map((r) => [r.prId, r.refs]));
+
+  // Collect all work item IDs and batch-fetch details (includes AreaPath)
   const allWorkItemIds: number[] = [];
-  for (const pr of filtered) {
-    if (pr.workItemRefs) {
-      for (const ref of pr.workItemRefs) {
-        allWorkItemIds.push(Number(ref.id));
-      }
+  for (const refs of prWorkItemMap.values()) {
+    for (const ref of refs) {
+      allWorkItemIds.push(Number(ref.id));
     }
   }
-
-  // Batch-fetch work items (includes AreaPath)
   const workItemMap = await getWorkItems(config, allWorkItemIds);
 
   // Map to ODataPullRequest shape
-  return filtered.map((pr) => ({
-    PullRequestId: pr.pullRequestId,
-    Title: pr.title,
-    CreatedDate: pr.creationDate,
-    CompletedDate: pr.closedDate,
-    CreatedBy: {
-      UserName: pr.createdBy.uniqueName,
-      UserEmail: pr.createdBy.uniqueName,
-    },
-    WorkItems: (pr.workItemRefs || []).map((ref) => {
-      const wi = workItemMap.get(Number(ref.id));
-      return {
-        WorkItemId: Number(ref.id),
-        AreaPath: wi?.fields["System.AreaPath"] || "",
-      };
-    }),
-  }));
+  return filtered.map((pr) => {
+    const refs = prWorkItemMap.get(pr.pullRequestId) || [];
+    return {
+      PullRequestId: pr.pullRequestId,
+      Title: pr.title,
+      CreatedDate: pr.creationDate,
+      CompletedDate: pr.closedDate,
+      CreatedBy: {
+        UserName: pr.createdBy.uniqueName,
+        UserEmail: pr.createdBy.uniqueName,
+      },
+      WorkItems: refs.map((ref) => {
+        const wi = workItemMap.get(Number(ref.id));
+        return {
+          WorkItemId: Number(ref.id),
+          AreaPath: wi?.fields["System.AreaPath"] || "",
+        };
+      }),
+    };
+  });
 }
