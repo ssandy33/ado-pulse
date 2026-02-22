@@ -6,8 +6,8 @@ import {
   extractConfig,
   jsonWithCache,
   handleApiError,
+  coerceAdoApiError,
 } from "@/lib/ado/helpers";
-import { AdoApiError } from "@/lib/ado/client";
 import { parseRange, resolveRange } from "@/lib/dateRange";
 import type {
   TeamAlignment,
@@ -149,16 +149,7 @@ export async function GET(request: NextRequest) {
 
     return jsonWithCache(response);
   } catch (error) {
-    // Check for ADO API errors (use name check as fallback for instanceof
-    // failures that can occur in Next.js standalone bundled output)
-    const adoErr =
-      error instanceof AdoApiError
-        ? error
-        : error instanceof Error &&
-            error.name === "AdoApiError" &&
-            "status" in error
-          ? (error as AdoApiError)
-          : null;
+    const adoErr = coerceAdoApiError(error);
 
     if (adoErr && (adoErr.status === 401 || adoErr.status === 410)) {
       const message =

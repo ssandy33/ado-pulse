@@ -34,16 +34,23 @@ export function jsonWithCache<T>(data: T, cacheSecs = 300): NextResponse {
   });
 }
 
+/** Coerce an unknown error to AdoApiError if it matches the shape.
+ *  Handles instanceof failures from Next.js standalone bundling. */
+export function coerceAdoApiError(error: unknown): AdoApiError | null {
+  if (error instanceof AdoApiError) return error;
+  if (
+    error instanceof Error &&
+    error.name === "AdoApiError" &&
+    typeof (error as Record<string, unknown>).status === "number" &&
+    typeof (error as Record<string, unknown>).url === "string"
+  ) {
+    return error as AdoApiError;
+  }
+  return null;
+}
+
 export function handleApiError(error: unknown): NextResponse {
-  // Use name check as fallback for instanceof failures in bundled output
-  const adoErr =
-    error instanceof AdoApiError
-      ? error
-      : error instanceof Error &&
-          error.name === "AdoApiError" &&
-          "status" in error
-        ? (error as AdoApiError)
-        : null;
+  const adoErr = coerceAdoApiError(error);
 
   if (adoErr) {
     return NextResponse.json(

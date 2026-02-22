@@ -1,23 +1,27 @@
 import { GET } from "@/app/api/prs/team-alignment/route";
 import { NextRequest } from "next/server";
 
-jest.mock("@/lib/ado/helpers", () => ({
-  extractConfig: jest.fn().mockResolvedValue({
-    org: "test-org",
-    project: "test-project",
-    pat: "test-pat",
-  }),
-  jsonWithCache: jest.fn((data: unknown) => {
-    const { NextResponse } = require("next/server");
-    return NextResponse.json(data);
-  }),
-  handleApiError: jest.fn((error: unknown) => {
-    const { NextResponse } = require("next/server");
-    const message =
-      error instanceof Error ? error.message : "An unexpected error occurred";
-    return NextResponse.json({ error: message }, { status: 500 });
-  }),
-}));
+jest.mock("@/lib/ado/helpers", () => {
+  const actual = jest.requireActual("@/lib/ado/helpers");
+  return {
+    extractConfig: jest.fn().mockResolvedValue({
+      org: "test-org",
+      project: "test-project",
+      pat: "test-pat",
+    }),
+    jsonWithCache: jest.fn((data: unknown) => {
+      const { NextResponse } = require("next/server");
+      return NextResponse.json(data);
+    }),
+    handleApiError: jest.fn((error: unknown) => {
+      const { NextResponse } = require("next/server");
+      const message =
+        error instanceof Error ? error.message : "An unexpected error occurred";
+      return NextResponse.json({ error: message }, { status: 500 });
+    }),
+    coerceAdoApiError: actual.coerceAdoApiError,
+  };
+});
 
 jest.mock("@/lib/ado/teams", () => ({
   getTeamMembers: jest.fn().mockResolvedValue([
