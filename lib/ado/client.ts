@@ -1,4 +1,14 @@
 import type { AdoConfig } from "./types";
+import { logger } from "@/lib/logger";
+
+function sanitizeUrl(url: string): string {
+  try {
+    const parsed = new URL(url);
+    return parsed.pathname + parsed.search;
+  } catch {
+    return url;
+  }
+}
 
 export class AdoApiError extends Error {
   constructor(
@@ -36,6 +46,8 @@ const fetchCache = new Map<string, CacheEntry>();
 async function _adoFetchRaw<T>(config: AdoConfig, url: string): Promise<T> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 30000);
+  const start = Date.now();
+  const safeUrl = sanitizeUrl(url);
 
   try {
     const res = await fetch(url, {
@@ -48,6 +60,8 @@ async function _adoFetchRaw<T>(config: AdoConfig, url: string): Promise<T> {
     });
 
     if (!res.ok) {
+      const durationMs = Date.now() - start;
+      logger.warn("ADO fetch failed", { url: safeUrl, status: res.status, durationMs });
       throw new AdoApiError(
         `ADO API error: ${res.status} ${res.statusText}`,
         res.status,
@@ -55,9 +69,13 @@ async function _adoFetchRaw<T>(config: AdoConfig, url: string): Promise<T> {
       );
     }
 
+    const durationMs = Date.now() - start;
+    logger.info("ADO fetch OK", { url: safeUrl, status: res.status, durationMs });
     return res.json() as Promise<T>;
   } catch (error) {
     if (error instanceof Error && error.name === "AbortError") {
+      const durationMs = Date.now() - start;
+      logger.error("ADO fetch timeout", { url: safeUrl, durationMs });
       throw new AdoApiError("ADO API request timed out", 504, url);
     }
     throw error;

@@ -20,6 +20,7 @@ jest.mock("@/lib/ado/helpers", () => {
       return NextResponse.json({ error: message }, { status: 500 });
     }),
     coerceAdoApiError: actual.coerceAdoApiError,
+    withLogging: jest.fn((_name: string, handler: unknown) => handler),
   };
 });
 

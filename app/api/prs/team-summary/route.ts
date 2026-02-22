@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getTeamMembers } from "@/lib/ado/teams";
 import { getPullRequests, getReviewsGivenByMember } from "@/lib/ado/pullRequests";
 import { batchAsync } from "@/lib/ado/client";
-import { extractConfig, jsonWithCache, handleApiError } from "@/lib/ado/helpers";
+import { extractConfig, jsonWithCache, handleApiError, withLogging } from "@/lib/ado/helpers";
 import { getExclusions } from "@/lib/settings";
 import { parseRange, resolveRange } from "@/lib/dateRange";
 import type {
@@ -13,7 +13,7 @@ import type {
   DiagnosticRosterMember,
 } from "@/lib/ado/types";
 
-export async function GET(request: NextRequest) {
+async function handler(request: NextRequest) {
   const configOrError = await extractConfig(request);
   if (configOrError instanceof NextResponse) return configOrError;
 
@@ -238,3 +238,5 @@ export async function GET(request: NextRequest) {
     return handleApiError(error);
   }
 }
+
+export const GET = withLogging("prs/team-summary", handler);

@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getProjectTeams } from "@/lib/ado/teams";
-import { extractConfig, jsonWithCache, handleApiError } from "@/lib/ado/helpers";
+import { extractConfig, jsonWithCache, handleApiError, withLogging } from "@/lib/ado/helpers";
 import { readSettings } from "@/lib/settings";
 
-export async function GET(request: NextRequest) {
+async function handler(request: NextRequest) {
   const configOrError = await extractConfig(request);
   if (configOrError instanceof NextResponse) return configOrError;
 
@@ -38,3 +38,5 @@ export async function GET(request: NextRequest) {
     return handleApiError(error);
   }
 }
+
+export const GET = withLogging("teams", handler);

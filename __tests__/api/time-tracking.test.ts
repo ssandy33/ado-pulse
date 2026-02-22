@@ -18,6 +18,7 @@ jest.mock("@/lib/ado/helpers", () => ({
       error instanceof Error ? error.message : "An unexpected error occurred";
     return NextResponse.json({ error: message }, { status: 500 });
   }),
+  withLogging: jest.fn((_name: string, handler: unknown) => handler),
 }));
 
 // Mock ADO client (batchAsync used for per-member fetches)

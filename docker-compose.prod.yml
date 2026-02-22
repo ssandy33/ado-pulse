@@ -27,6 +27,8 @@ services:
       - ./data:/app/data
     environment:
       - NODE_OPTIONS=--max-old-space-size=768
+      - AXIOM_API_TOKEN=${AXIOM_API_TOKEN:-}
+      - AXIOM_DATASET=${AXIOM_DATASET:-ado-pulse}
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:3000/"]
       interval: 30s

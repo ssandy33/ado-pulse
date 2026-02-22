@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getTeamMembers } from "@/lib/ado/teams";
-import { extractConfig, jsonWithCache, handleApiError } from "@/lib/ado/helpers";
+import { extractConfig, jsonWithCache, handleApiError, withLogging } from "@/lib/ado/helpers";
 import { batchAsync } from "@/lib/ado/client";
 import { getExclusions } from "@/lib/settings";
 import { parseRange, resolveRange, countBusinessDays } from "@/lib/dateRange";
@@ -20,7 +20,7 @@ import type {
   ExpenseType,
 } from "@/lib/ado/types";
 
-export async function GET(request: NextRequest) {
+async function handler(request: NextRequest) {
   const configOrError = await extractConfig(request);
   if (configOrError instanceof NextResponse) return configOrError;
 
@@ -323,3 +323,5 @@ export async function GET(request: NextRequest) {
     return handleApiError(error);
   }
 }
+
+export const GET = withLogging("timetracking/team-summary", handler);

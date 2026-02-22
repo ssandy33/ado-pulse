@@ -8,6 +8,7 @@ import {
   jsonWithCache,
   handleApiError,
   coerceAdoApiError,
+  withLogging,
 } from "@/lib/ado/helpers";
 import { parseRange, resolveRange } from "@/lib/dateRange";
 import type {
@@ -73,7 +74,7 @@ function buildMemberAlignment(
   };
 }
 
-export async function GET(request: NextRequest) {
+async function handler(request: NextRequest) {
   const configOrError = await extractConfig(request);
   if (configOrError instanceof NextResponse) return configOrError;
 
@@ -168,3 +169,5 @@ export async function GET(request: NextRequest) {
     return handleApiError(error);
   }
 }
+
+export const GET = withLogging("prs/team-alignment", handler);

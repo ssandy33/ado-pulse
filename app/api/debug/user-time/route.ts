@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { extractConfig, jsonWithCache, handleApiError } from "@/lib/ado/helpers";
+import { logger } from "@/lib/logger";
 import { adoFetch, projectUrl, batchAsync } from "@/lib/ado/client";
 import type { AdoConfig } from "@/lib/ado/types";
 import { resolveFeature } from "@/lib/ado/workItems";
@@ -95,7 +96,8 @@ export async function GET(request: NextRequest) {
     // 2. Fetch worklogs for this user via OData API (real server-side filtering)
     const { from: fromDate, to: toDate } = getLookbackDateRange(LOOKBACK_DAYS);
 
-    console.log("[user-time] fetching worklogs via OData", {
+    logger.info("Fetching worklogs via OData", {
+      route: "debug/user-time",
       email,
       fromTimestamp: fromDate.toISOString(),
       toTimestamp: toDate.toISOString(),
@@ -116,7 +118,8 @@ export async function GET(request: NextRequest) {
 
     const userWorklogs = worklogResult.worklogs;
 
-    console.log("[user-time] worklogs received (OData-filtered)", {
+    logger.info("Worklogs received (OData-filtered)", {
+      route: "debug/user-time",
       email,
       worklogCount: userWorklogs.length,
       fetchApi: worklogResult.fetchApi,
