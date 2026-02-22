@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { extractConfig, jsonWithCache, handleApiError } from "@/lib/ado/helpers";
+import { logger } from "@/lib/logger";
 import { adoFetch, projectUrl } from "@/lib/ado/client";
 import {
   getSevenPaceConfig,
@@ -45,6 +46,7 @@ async function fetchSingleWorkItem(
 }
 
 export async function GET(request: NextRequest) {
+  const start = Date.now();
   const configOrError = await extractConfig(request);
   if (configOrError instanceof NextResponse) return configOrError;
 
@@ -56,6 +58,8 @@ export async function GET(request: NextRequest) {
     );
   }
   const workItemId = parseInt(workItemIdStr, 10);
+
+  logger.info("Request start", { route: "debug/workitem-timelogs", workItemId, team: request.nextUrl.searchParams.get("team") });
 
   try {
     // 1. Check 7pace config
@@ -200,8 +204,10 @@ export async function GET(request: NextRequest) {
       },
     };
 
+    logger.info("Request complete", { route: "debug/workitem-timelogs", durationMs: Date.now() - start });
     return jsonWithCache(response, 60);
   } catch (error) {
+    logger.error("Request error", { route: "debug/workitem-timelogs", durationMs: Date.now() - start, stack_trace: error instanceof Error ? error.stack : undefined });
     return handleApiError(error);
   }
 }

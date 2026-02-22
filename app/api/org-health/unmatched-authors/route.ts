@@ -1,8 +1,10 @@
 import { NextRequest } from "next/server";
 import { extractConfig, jsonWithCache } from "@/lib/ado/helpers";
 import type { UnmatchedAuthorsResponse } from "@/lib/ado/types";
+import { logger } from "@/lib/logger";
 
 export async function GET(request: NextRequest) {
+  logger.info("Request start", { route: "org-health/unmatched-authors" });
   const configOrError = await extractConfig(request);
   if ("status" in configOrError) return configOrError;
 
@@ -76,5 +78,6 @@ export async function GET(request: NextRequest) {
     ],
   };
 
+  logger.info("Request complete", { route: "org-health/unmatched-authors" });
   return jsonWithCache(response);
 }

@@ -8,8 +8,8 @@ import {
   jsonWithCache,
   handleApiError,
   coerceAdoApiError,
-  withLogging,
 } from "@/lib/ado/helpers";
+import { logger } from "@/lib/logger";
 import { parseRange, resolveRange } from "@/lib/dateRange";
 import type {
   TeamAlignment,
@@ -91,7 +91,8 @@ function buildMemberAlignment(
  * @param request - The incoming Next.js request containing query parameters `team` and optional `range`
  * @returns A NextResponse containing the alignment payload on success or a JSON error response on failure
  */
-async function handler(request: NextRequest) {
+export async function GET(request: NextRequest) {
+  const start = Date.now();
   const configOrError = await extractConfig(request);
   if (configOrError instanceof NextResponse) return configOrError;
 
@@ -107,6 +108,8 @@ async function handler(request: NextRequest) {
   const { from, to, label, days } = resolveRange(range);
   const fromISO = from.toISOString().split("T")[0];
   const toISO = to.toISOString().split("T")[0];
+
+  logger.info("Request start", { route: "prs/team-alignment", team: teamName, range: request.nextUrl.searchParams.get("range") });
 
   try {
     // Fetch team data and PRs in parallel
@@ -181,10 +184,10 @@ async function handler(request: NextRequest) {
       members: memberResults,
     };
 
+    logger.info("Request complete", { route: "prs/team-alignment", durationMs: Date.now() - start });
     return jsonWithCache(response);
   } catch (error) {
+    logger.error("Request error", { route: "prs/team-alignment", durationMs: Date.now() - start, stack_trace: error instanceof Error ? error.stack : undefined });
     return handleApiError(error);
   }
 }
-
-export const GET = withLogging("prs/team-alignment", handler);

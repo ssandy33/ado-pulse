@@ -1,11 +1,15 @@
 import { NextRequest } from "next/server";
 import { extractConfig, jsonWithCache, handleApiError } from "@/lib/ado/helpers";
+import { logger } from "@/lib/logger";
 import { getPolicyConfigurations, buildRepoPolicyStatuses } from "@/lib/ado/policies";
 import type { PolicyAuditResponse } from "@/lib/ado/types";
 
 export async function GET(request: NextRequest) {
+  const start = Date.now();
   const configOrError = await extractConfig(request);
   if ("status" in configOrError) return configOrError;
+
+  logger.info("Request start", { route: "policies/team-audit" });
 
   try {
     const reposParam = request.nextUrl.searchParams.get("repos");
@@ -33,8 +37,10 @@ export async function GET(request: NextRequest) {
       repos: repoStatuses,
     };
 
+    logger.info("Request complete", { route: "policies/team-audit", durationMs: Date.now() - start });
     return jsonWithCache(response);
   } catch (error) {
+    logger.error("Request error", { route: "policies/team-audit", durationMs: Date.now() - start, stack_trace: error instanceof Error ? error.stack : undefined });
     return handleApiError(error);
   }
 }

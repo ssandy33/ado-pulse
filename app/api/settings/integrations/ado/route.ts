@@ -1,12 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { readSettings, writeSettings } from "@/lib/settings";
+import { logger } from "@/lib/logger";
 
 export async function GET() {
+  const start = Date.now();
+  logger.info("Request start", { route: "settings/integrations/ado", method: "GET" });
   try {
     const settings = await readSettings();
     const ado = settings.integrations?.ado;
 
     if (ado?.pat) {
+      logger.info("Request complete", { route: "settings/integrations/ado", method: "GET", durationMs: Date.now() - start });
       return NextResponse.json({
         configured: true,
         source: "settings",
@@ -15,11 +19,14 @@ export async function GET() {
     }
 
     if (process.env.ADO_PAT) {
+      logger.info("Request complete", { route: "settings/integrations/ado", method: "GET", durationMs: Date.now() - start });
       return NextResponse.json({ configured: true, source: "env", orgUrl: "" });
     }
 
+    logger.info("Request complete", { route: "settings/integrations/ado", method: "GET", durationMs: Date.now() - start });
     return NextResponse.json({ configured: false, source: "none", orgUrl: "" });
-  } catch {
+  } catch (error) {
+    logger.error("Request error", { route: "settings/integrations/ado", method: "GET", durationMs: Date.now() - start, stack_trace: error instanceof Error ? error.stack : undefined });
     return NextResponse.json(
       { error: "Failed to read settings" },
       { status: 500 }
@@ -28,6 +35,8 @@ export async function GET() {
 }
 
 export async function PUT(request: NextRequest) {
+  const start = Date.now();
+  logger.info("Request start", { route: "settings/integrations/ado", method: "PUT" });
   try {
     const body = await request.json();
     const { pat, org, orgUrl } = body;
@@ -77,8 +86,10 @@ export async function PUT(request: NextRequest) {
     };
     await writeSettings(settings);
 
+    logger.info("Request complete", { route: "settings/integrations/ado", method: "PUT", durationMs: Date.now() - start });
     return NextResponse.json({ success: true });
-  } catch {
+  } catch (error) {
+    logger.error("Request error", { route: "settings/integrations/ado", method: "PUT", durationMs: Date.now() - start, stack_trace: error instanceof Error ? error.stack : undefined });
     return NextResponse.json(
       { success: false, error: "Failed to save PAT" },
       { status: 500 }
@@ -87,6 +98,8 @@ export async function PUT(request: NextRequest) {
 }
 
 export async function DELETE() {
+  const start = Date.now();
+  logger.info("Request start", { route: "settings/integrations/ado", method: "DELETE" });
   try {
     const settings = await readSettings();
 
@@ -95,8 +108,10 @@ export async function DELETE() {
       await writeSettings(settings);
     }
 
+    logger.info("Request complete", { route: "settings/integrations/ado", method: "DELETE", durationMs: Date.now() - start });
     return NextResponse.json({ success: true });
-  } catch {
+  } catch (error) {
+    logger.error("Request error", { route: "settings/integrations/ado", method: "DELETE", durationMs: Date.now() - start, stack_trace: error instanceof Error ? error.stack : undefined });
     return NextResponse.json(
       { success: false, error: "Failed to remove PAT" },
       { status: 500 }
