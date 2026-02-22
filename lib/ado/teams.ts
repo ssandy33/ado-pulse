@@ -18,25 +18,26 @@ export async function getProjectTeams(config: AdoConfig): Promise<Team[]> {
   return data.value.sort((a, b) => a.name.localeCompare(b.name));
 }
 
+async function findTeamByName(
+  config: AdoConfig,
+  teamName: string
+): Promise<Team> {
+  const teams = await getProjectTeams(config);
+  const team = teams.find(
+    (t) => t.name.toLowerCase() === teamName.toLowerCase()
+  );
+  if (!team) {
+    throw new Error(`Team "${teamName}" not found`);
+  }
+  return team;
+}
+
 export async function getTeamMembers(
   config: AdoConfig,
   teamName: string,
   teamId?: string
 ): Promise<TeamMember[]> {
-  let resolvedId = teamId;
-
-  if (!resolvedId) {
-    const teams = await getProjectTeams(config);
-    const team = teams.find(
-      (t) => t.name.toLowerCase() === teamName.toLowerCase()
-    );
-
-    if (!team) {
-      throw new Error(`Team "${teamName}" not found`);
-    }
-
-    resolvedId = team.id;
-  }
+  const resolvedId = teamId ?? (await findTeamByName(config, teamName)).id;
 
   const url = orgUrl(
     config,
@@ -65,14 +66,7 @@ export async function getTeamAreaPath(
   config: AdoConfig,
   teamName: string
 ): Promise<{ defaultAreaPath: string; areaPaths: string[] }> {
-  const teams = await getProjectTeams(config);
-  const team = teams.find(
-    (t) => t.name.toLowerCase() === teamName.toLowerCase()
-  );
-
-  if (!team) {
-    throw new Error(`Team "${teamName}" not found`);
-  }
+  const team = await findTeamByName(config, teamName);
 
   const url = projectUrl(
     config,

@@ -115,8 +115,8 @@ export function Dashboard({ creds, onDisconnect }: DashboardProps) {
           body.error || "Failed to load alignment data"
         );
       }
-    } catch {
-      // Alignment fetch failures are non-critical
+    } catch (err) {
+      console.debug("Alignment fetch failed:", err);
     } finally {
       setAlignmentLoading(false);
     }
