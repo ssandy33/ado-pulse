@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { extractConfig, jsonWithCache, handleApiError } from "@/lib/ado/helpers";
+import { logger } from "@/lib/logger";
 import { adoFetch, projectUrl, batchAsync } from "@/lib/ado/client";
 import type { AdoConfig } from "@/lib/ado/types";
 import { resolveFeature } from "@/lib/ado/workItems";
@@ -70,6 +71,19 @@ async function fetchWorkItemsWithState(
   return result;
 }
 
+/**
+ * Handle GET requests that retrieve a user's 7pace worklogs over a lookback period, aggregate them by work item, and return a summarized report.
+ *
+ * The response JSON contains:
+ * - `user`: object with `id`, `email`, and `displayName`.
+ * - `summary`: totals including `totalHours`, `workItemCount`, `entryCount`, optional `dateRange` (`earliest`, `latest`), and `period` (`from`, `to`, `days`).
+ * - `workItems`: array of work items with metadata (`workItemId`, `title`, `type`, `state`, `featureId`, `featureTitle`, `classification`), aggregated metrics (`totalHours`, `entryCount`, `activities`) and `entries` sorted by date descending.
+ * - `_debug`: diagnostic information about the fetch mode, API used, timestamps, pagination, and request metadata.
+ *
+ * The handler validates the `email` query parameter, ensures 7pace is configured, fetches worklogs via the 7pace API, enriches work items with Azure DevOps data and feature resolution, and caches the JSON response.
+ *
+ * @returns A JSON response object as described above, or an error response (status 400, 401, or 502) when configuration or upstream API errors occur.
+ */
 export async function GET(request: NextRequest) {
   const configOrError = await extractConfig(request);
   if (configOrError instanceof NextResponse) return configOrError;
@@ -95,8 +109,13 @@ export async function GET(request: NextRequest) {
     // 2. Fetch worklogs for this user via OData API (real server-side filtering)
     const { from: fromDate, to: toDate } = getLookbackDateRange(LOOKBACK_DAYS);
 
-    console.log("[user-time] fetching worklogs via OData", {
-      email,
+    const redactedEmail = email.length >= 4
+      ? `***${email.slice(-4)}`
+      : "***";
+
+    logger.info("Fetching worklogs via OData", {
+      route: "debug/user-time",
+      email: redactedEmail,
       fromTimestamp: fromDate.toISOString(),
       toTimestamp: toDate.toISOString(),
     });
@@ -116,8 +135,9 @@ export async function GET(request: NextRequest) {
 
     const userWorklogs = worklogResult.worklogs;
 
-    console.log("[user-time] worklogs received (OData-filtered)", {
-      email,
+    logger.info("Worklogs received (OData-filtered)", {
+      route: "debug/user-time",
+      email: redactedEmail,
       worklogCount: userWorklogs.length,
       fetchApi: worklogResult.fetchApi,
       pagination: worklogResult.pagination,

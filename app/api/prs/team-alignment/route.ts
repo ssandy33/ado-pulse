@@ -8,6 +8,7 @@ import {
   jsonWithCache,
   handleApiError,
   coerceAdoApiError,
+  withLogging,
 } from "@/lib/ado/helpers";
 import { parseRange, resolveRange } from "@/lib/dateRange";
 import type {
@@ -33,6 +34,15 @@ function classifyPR(
   return hasAligned ? "aligned" : "outOfScope";
 }
 
+/**
+ * Aggregate alignment statistics for a set of pull requests against a team's area paths.
+ *
+ * Counts how many PRs are classified as aligned, unlinked, or outOfScope and tallies out-of-scope work item area paths.
+ *
+ * @param prs - Pull requests to evaluate; each PR should include its `WorkItems` with `AreaPath` values.
+ * @param teamAreaPaths - Team area paths used to determine whether a work item's area path is considered aligned.
+ * @returns An object with `aligned`, `unlinked`, and `total` counts, plus `outOfScope` containing a `count` and a `byAreaPath` array of `{ areaPath, count }` entries sorted by descending count.
+ */
 function buildMemberAlignment(
   prs: ODataPullRequest[],
   teamAreaPaths: string[]
@@ -73,7 +83,15 @@ function buildMemberAlignment(
   };
 }
 
-export async function GET(request: NextRequest) {
+/**
+ * Handle the GET request that computes team pull-request alignment for a specified date range and team.
+ *
+ * Parses query parameters (team and range), retrieves team members, area paths, and pull requests, aggregates per-member and team alignment statistics, and returns an AlignmentApiResponse or an error response.
+ *
+ * @param request - The incoming Next.js request containing query parameters `team` and optional `range`
+ * @returns A NextResponse containing the alignment payload on success or a JSON error response on failure
+ */
+async function handler(request: NextRequest) {
   const configOrError = await extractConfig(request);
   if (configOrError instanceof NextResponse) return configOrError;
 
@@ -168,3 +186,5 @@ export async function GET(request: NextRequest) {
     return handleApiError(error);
   }
 }
+
+export const GET = withLogging("prs/team-alignment", handler);

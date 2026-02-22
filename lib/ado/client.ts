@@ -1,4 +1,20 @@
 import type { AdoConfig } from "./types";
+import { logger } from "@/lib/logger";
+
+/**
+ * Extracts the pathname and query string from a URL string, returning the original input if it cannot be parsed.
+ *
+ * @param url - The input URL string to sanitize; can be any string
+ * @returns The URL's `pathname` concatenated with its `search` component (e.g., `/path?x=1`), or the original `url` if parsing fails
+ */
+function sanitizeUrl(url: string): string {
+  try {
+    const parsed = new URL(url);
+    return parsed.pathname + parsed.search;
+  } catch {
+    return url;
+  }
+}
 
 export class AdoApiError extends Error {
   constructor(
@@ -33,9 +49,20 @@ interface CacheEntry {
 const CACHE_TTL_MS = 60_000; // 60 seconds
 const fetchCache = new Map<string, CacheEntry>();
 
+/**
+ * Fetches JSON from an Azure DevOps API URL using credentials from `config` and returns the parsed response body.
+ *
+ * @param config - ADO configuration containing the personal access token used for authorization
+ * @param url - Full request URL to fetch
+ * @returns The parsed JSON response body as type `T`
+ * @throws AdoApiError - when the response has a non-OK HTTP status (contains status and URL)
+ * @throws AdoApiError - when the request times out (status 504, contains URL)
+ */
 async function _adoFetchRaw<T>(config: AdoConfig, url: string): Promise<T> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 30000);
+  const start = Date.now();
+  const safeUrl = sanitizeUrl(url);
 
   try {
     const res = await fetch(url, {
@@ -48,6 +75,8 @@ async function _adoFetchRaw<T>(config: AdoConfig, url: string): Promise<T> {
     });
 
     if (!res.ok) {
+      const durationMs = Date.now() - start;
+      logger.warn("ADO fetch failed", { url: safeUrl, status: res.status, durationMs });
       throw new AdoApiError(
         `ADO API error: ${res.status} ${res.statusText}`,
         res.status,
@@ -55,9 +84,13 @@ async function _adoFetchRaw<T>(config: AdoConfig, url: string): Promise<T> {
       );
     }
 
+    const durationMs = Date.now() - start;
+    logger.info("ADO fetch OK", { url: safeUrl, status: res.status, durationMs });
     return res.json() as Promise<T>;
   } catch (error) {
     if (error instanceof Error && error.name === "AbortError") {
+      const durationMs = Date.now() - start;
+      logger.error("ADO fetch timeout", { url: safeUrl, durationMs });
       throw new AdoApiError("ADO API request timed out", 504, url);
     }
     throw error;

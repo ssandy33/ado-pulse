@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getTeamMembers } from "@/lib/ado/teams";
-import { extractConfig, jsonWithCache, handleApiError } from "@/lib/ado/helpers";
+import { extractConfig, jsonWithCache, handleApiError, withLogging } from "@/lib/ado/helpers";
 import { batchAsync } from "@/lib/ado/client";
 import { getExclusions } from "@/lib/settings";
 import { parseRange, resolveRange, countBusinessDays } from "@/lib/dateRange";
@@ -20,7 +20,16 @@ import type {
   ExpenseType,
 } from "@/lib/ado/types";
 
-export async function GET(request: NextRequest) {
+/**
+ * Handle GET requests for a team's time-tracking summary and return aggregated metrics.
+ *
+ * Parses query parameters (range, team), queries SevenPace and ADO for worklogs and work items,
+ * aggregates per-member and per-feature hours, computes governance/compliance metrics and diagnostics,
+ * and returns a JSON response describing the team's time data.
+ *
+ * @returns `NextResponse` containing the team's aggregated time-tracking summary (`TeamTimeData`) on success, or a JSON error payload with an appropriate HTTP status when an error occurs.
+ */
+async function handler(request: NextRequest) {
   const configOrError = await extractConfig(request);
   if (configOrError instanceof NextResponse) return configOrError;
 
@@ -323,3 +332,5 @@ export async function GET(request: NextRequest) {
     return handleApiError(error);
   }
 }
+
+export const GET = withLogging("timetracking/team-summary", handler);

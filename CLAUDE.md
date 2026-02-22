@@ -7,6 +7,14 @@ PR hygiene & team productivity dashboard for Azure DevOps. Surfaces PR metrics, 
 - Next.js 16 (App Router), React 19, TypeScript
 - Tailwind CSS 4
 - Jest 30 + ts-jest, Testing Library
+- Playwright for UI testing *(planned — PRD complete, not yet implemented)*
+
+## CI/CD & tooling
+
+- CodeRabbit for automated PR review (Context7 MCP integration enabled)
+- Dependabot enabled for npm and GitHub Actions (weekly schedule)
+- UptimeRobot for uptime monitoring on Hetzner
+- Axiom for structured logging (`lib/logger.ts`) with console fallback
 
 ## Commands
 
