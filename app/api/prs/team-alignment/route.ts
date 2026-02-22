@@ -103,7 +103,9 @@ export async function GET(request: NextRequest) {
       prs = await getPRsWithWorkItems(configOrError, fromISO, toISO);
     } catch (err) {
       const adoErr = coerceAdoApiError(err);
-      if (adoErr && (adoErr.status === 410 || adoErr.status === 401)) {
+      const status = adoErr?.status
+        ?? (err instanceof Error ? (err as unknown as Record<string, unknown>).status : undefined);
+      if (status === 410 || status === 401) {
         prs = await getPRsWithWorkItemsREST(configOrError, fromISO, toISO);
       } else {
         throw err;
