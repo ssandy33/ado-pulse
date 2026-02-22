@@ -35,10 +35,20 @@ export function jsonWithCache<T>(data: T, cacheSecs = 300): NextResponse {
 }
 
 export function handleApiError(error: unknown): NextResponse {
-  if (error instanceof AdoApiError) {
+  // Use name check as fallback for instanceof failures in bundled output
+  const adoErr =
+    error instanceof AdoApiError
+      ? error
+      : error instanceof Error &&
+          error.name === "AdoApiError" &&
+          "status" in error
+        ? (error as AdoApiError)
+        : null;
+
+  if (adoErr) {
     return NextResponse.json(
-      { error: error.message, status: error.status },
-      { status: error.status }
+      { error: adoErr.message, status: adoErr.status },
+      { status: adoErr.status }
     );
   }
 

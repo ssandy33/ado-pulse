@@ -205,6 +205,24 @@ describe("GET /api/prs/team-alignment", () => {
     expect(body.alignment.aligned).toBe(1);
   });
 
+  it("returns 403 when error has AdoApiError shape but fails instanceof (bundling edge case)", async () => {
+    // Simulate a module bundling issue where instanceof fails
+    // but the error has the correct name and status properties
+    const error = new Error("ADO API error: 410 Gone");
+    error.name = "AdoApiError";
+    (error as Error & { status: number; url: string }).status = 410;
+    (error as Error & { status: number; url: string }).url = "https://analytics.dev.azure.com/...";
+
+    mockGetPRsWithWorkItems.mockRejectedValueOnce(error);
+
+    const res = await GET(makeRequest({ team: "TeamA", range: "14" }));
+    expect(res.status).toBe(403);
+
+    const body = await res.json();
+    expect(body.scopeError).toBe(true);
+    expect(body.error).toMatch(/Analytics extension/);
+  });
+
   it("does not match area path prefix without backslash boundary", async () => {
     const { getTeamAreaPath } = require("@/lib/ado/teams");
     getTeamAreaPath.mockResolvedValueOnce({

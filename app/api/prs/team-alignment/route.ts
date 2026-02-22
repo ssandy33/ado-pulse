@@ -149,9 +149,20 @@ export async function GET(request: NextRequest) {
 
     return jsonWithCache(response);
   } catch (error) {
-    if (error instanceof AdoApiError && (error.status === 401 || error.status === 410)) {
+    // Check for ADO API errors (use name check as fallback for instanceof
+    // failures that can occur in Next.js standalone bundled output)
+    const adoErr =
+      error instanceof AdoApiError
+        ? error
+        : error instanceof Error &&
+            error.name === "AdoApiError" &&
+            "status" in error
+          ? (error as AdoApiError)
+          : null;
+
+    if (adoErr && (adoErr.status === 401 || adoErr.status === 410)) {
       const message =
-        error.status === 410
+        adoErr.status === 410
           ? "Analytics extension is not enabled for this organization. Install the Analytics Marketplace extension to use PR Alignment."
           : "Analytics API requires the Analytics:Read PAT scope. Update your PAT to include this scope.";
       return NextResponse.json(
