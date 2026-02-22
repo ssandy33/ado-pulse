@@ -1,4 +1,4 @@
-import { adoFetch, orgUrl } from "./client";
+import { adoFetch, orgUrl, projectUrl } from "./client";
 import type { AdoConfig, AdoListResponse, Team, TeamMember } from "./types";
 
 interface AdoTeamMemberWrapper {
@@ -49,4 +49,39 @@ export async function getTeamMembers(
     displayName: m.identity.displayName,
     uniqueName: m.identity.uniqueName,
   }));
+}
+
+interface TeamFieldValue {
+  value: string;
+  includeChildren: boolean;
+}
+
+interface TeamFieldValuesResponse {
+  defaultValue: string;
+  values: TeamFieldValue[];
+}
+
+export async function getTeamAreaPath(
+  config: AdoConfig,
+  teamName: string
+): Promise<{ defaultAreaPath: string; areaPaths: string[] }> {
+  const teams = await getProjectTeams(config);
+  const team = teams.find(
+    (t) => t.name.toLowerCase() === teamName.toLowerCase()
+  );
+
+  if (!team) {
+    throw new Error(`Team "${teamName}" not found`);
+  }
+
+  const url = projectUrl(
+    config,
+    `${encodeURIComponent(team.id)}/_apis/work/teamsettings/teamfieldvalues?api-version=7.0`
+  );
+  const data = await adoFetch<TeamFieldValuesResponse>(config, url);
+
+  return {
+    defaultAreaPath: data.defaultValue,
+    areaPaths: data.values.map((v) => v.value),
+  };
 }

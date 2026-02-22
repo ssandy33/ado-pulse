@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo } from "react";
 import type { TimeRange } from "@/lib/dateRange";
-import type { TeamSummaryApiResponse, StalePRResponse } from "@/lib/ado/types";
+import type { TeamSummaryApiResponse, StalePRResponse, AlignmentApiResponse } from "@/lib/ado/types";
 import { TeamSelector } from "./TeamSelector";
 import { TimeRangeSelector } from "./TimeRangeSelector";
 import { TabBar, type TabKey } from "./TabBar";
@@ -15,6 +15,7 @@ import { DataConfidencePanel } from "./DataConfidencePanel";
 import { IdentityDebug } from "./IdentityDebug";
 import { SettingsPage } from "./SettingsPage";
 import { TimeTrackingTab } from "./TimeTrackingTab";
+import { AlignmentKPITile } from "./AlignmentKPITile";
 import { SkeletonKPIRow, SkeletonTable } from "./SkeletonLoader";
 
 interface DashboardProps {
@@ -32,6 +33,9 @@ export function Dashboard({ creds, onDisconnect }: DashboardProps) {
   const [refreshedAt, setRefreshedAt] = useState<Date | null>(null);
   const [stalePRData, setStalePRData] = useState<StalePRResponse | null>(null);
   const [stalePRLoading, setStalePRLoading] = useState(false);
+  const [alignmentData, setAlignmentData] = useState<AlignmentApiResponse | null>(null);
+  const [alignmentLoading, setAlignmentLoading] = useState(false);
+  const [alignmentError, setAlignmentError] = useState<string | null>(null);
   const [validatorTeam, setValidatorTeam] = useState("");
 
   const adoHeaders = useMemo(
@@ -50,8 +54,10 @@ export function Dashboard({ creds, onDisconnect }: DashboardProps) {
     setError(null);
     setData(null);
     setStalePRData(null);
+    setAlignmentData(null);
+    setAlignmentError(null);
 
-    // Fire team-summary and stale PR fetch in parallel
+    // Fire team-summary, stale PR, and alignment fetch in parallel
     const summaryPromise = fetch(
       `/api/prs/team-summary?range=${range}&team=${encodeURIComponent(selectedTeam)}`,
       { headers: adoHeaders }
@@ -59,6 +65,11 @@ export function Dashboard({ creds, onDisconnect }: DashboardProps) {
 
     const stalePromise = fetch(
       `/api/prs/stale?team=${encodeURIComponent(selectedTeam)}`,
+      { headers: adoHeaders }
+    );
+
+    const alignmentPromise = fetch(
+      `/api/prs/team-alignment?range=${range}&team=${encodeURIComponent(selectedTeam)}`,
       { headers: adoHeaders }
     );
 
@@ -89,6 +100,27 @@ export function Dashboard({ creds, onDisconnect }: DashboardProps) {
       // Stale PR fetch failures are silent (non-critical section)
     } finally {
       setStalePRLoading(false);
+    }
+
+    // Await alignment result (already in-flight)
+    setAlignmentLoading(true);
+    try {
+      const alignRes = await alignmentPromise;
+      if (alignRes.ok) {
+        const json: AlignmentApiResponse = await alignRes.json();
+        setAlignmentData(json);
+      } else {
+        const body = await alignRes.json().catch(() => ({}));
+        setAlignmentError(
+          body.scopeError
+            ? "PR Alignment requires the Analytics:Read PAT scope. Update your PAT in Settings to enable this feature."
+            : body.error || "Failed to load alignment data"
+        );
+      }
+    } catch {
+      // Alignment fetch failures are non-critical
+    } finally {
+      setAlignmentLoading(false);
     }
   }, [selectedTeam, range, adoHeaders]);
 
@@ -270,6 +302,20 @@ export function Dashboard({ creds, onDisconnect }: DashboardProps) {
               </div>
             )}
 
+            {/* Alignment KPI Tile */}
+            {alignmentLoading && (
+              <div className="bg-pulse-card border border-pulse-border rounded-lg p-6 shadow-sm mb-6 animate-pulse">
+                <div className="h-3 w-24 bg-pulse-bg rounded mb-3" />
+                <div className="h-7 w-32 bg-pulse-bg rounded" />
+              </div>
+            )}
+            {alignmentData && <AlignmentKPITile data={alignmentData} />}
+            {alignmentError && !alignmentLoading && (
+              <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-6">
+                <p className="text-[13px] text-amber-800">{alignmentError}</p>
+              </div>
+            )}
+
             {/* Data Confidence Panel */}
             {data && data.diagnostics && (
               <DataConfidencePanel
@@ -292,6 +338,7 @@ export function Dashboard({ creds, onDisconnect }: DashboardProps) {
                 <MemberTable
                   members={data.members}
                   teamName={data.team.name}
+                  alignmentData={alignmentData}
                 />
               </div>
             )}

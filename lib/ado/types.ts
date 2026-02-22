@@ -247,6 +247,37 @@ export interface TeamValidatorResponse {
   rosterMembers: ValidatorRosterMember[];
 }
 
+// ── PR Alignment types ────────────────────────────────────────
+export interface TeamAlignment {
+  total: number;
+  aligned: number;
+  outOfScope: number;
+  unlinked: number;
+  alignedPct: number;
+  teamAreaPath: string;
+}
+
+export interface MemberAlignmentDetail {
+  aligned: number;
+  outOfScope: {
+    count: number;
+    byAreaPath: { areaPath: string; count: number }[];
+  };
+  unlinked: number;
+  total: number;
+}
+
+export interface AlignmentApiResponse {
+  period: { days: number; from: string; to: string; label: string };
+  teamAreaPath: string;
+  alignment: TeamAlignment;
+  members: {
+    uniqueName: string;
+    displayName: string;
+    alignment: MemberAlignmentDetail;
+  }[];
+}
+
 // ── Time Tracking types ───────────────────────────────────────
 
 export type ExpenseType = "CapEx" | "OpEx" | "Unclassified";
