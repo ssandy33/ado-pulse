@@ -1,6 +1,10 @@
 import { GET } from "@/app/api/prs/team-alignment/route";
 import { NextRequest } from "next/server";
 
+jest.mock("@/lib/logger", () => ({
+  logger: { info: jest.fn(), warn: jest.fn(), error: jest.fn(), flush: jest.fn() },
+}));
+
 jest.mock("@/lib/ado/helpers", () => {
   const actual = jest.requireActual("@/lib/ado/helpers");
   return {
@@ -20,7 +24,6 @@ jest.mock("@/lib/ado/helpers", () => {
       return NextResponse.json({ error: message }, { status: 500 });
     }),
     coerceAdoApiError: actual.coerceAdoApiError,
-    withLogging: jest.fn((_name: string, handler: unknown) => handler),
   };
 });
 

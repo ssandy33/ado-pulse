@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { extractConfig, jsonWithCache, handleApiError } from "@/lib/ado/helpers";
+import { logger } from "@/lib/logger";
 import { adoFetch, projectUrl } from "@/lib/ado/client";
 import {
   getSevenPaceConfig,
@@ -45,11 +46,13 @@ async function fetchSingleWorkItem(
 }
 
 export async function GET(request: NextRequest) {
+  const start = Date.now();
   const configOrError = await extractConfig(request);
   if (configOrError instanceof NextResponse) return configOrError;
 
   const workItemIdStr = request.nextUrl.searchParams.get("workItemId");
   if (!workItemIdStr || isNaN(Number(workItemIdStr))) {
+    logger.info("Request complete", { route: "debug/workitem-timelogs", durationMs: Date.now() - start, status: 400 });
     return NextResponse.json(
       { error: "Missing or invalid workItemId parameter" },
       { status: 400 }
@@ -57,10 +60,13 @@ export async function GET(request: NextRequest) {
   }
   const workItemId = parseInt(workItemIdStr, 10);
 
+  logger.info("Request start", { route: "debug/workitem-timelogs", workItemId, team: request.nextUrl.searchParams.get("team") });
+
   try {
     // 1. Check 7pace config
     const spConfig = await getSevenPaceConfig();
     if (!spConfig) {
+      logger.info("Request complete", { route: "debug/workitem-timelogs", durationMs: Date.now() - start, status: 400 });
       return NextResponse.json(
         { error: "7pace not configured" },
         { status: 400 }
@@ -70,6 +76,7 @@ export async function GET(request: NextRequest) {
     // 2. Fetch the work item from ADO
     const workItem = await fetchSingleWorkItem(configOrError, workItemId);
     if (!workItem) {
+      logger.info("Request complete", { route: "debug/workitem-timelogs", durationMs: Date.now() - start, status: 404 });
       return NextResponse.json(
         { error: `Work item #${workItemId} not found` },
         { status: 404 }
@@ -200,8 +207,10 @@ export async function GET(request: NextRequest) {
       },
     };
 
+    logger.info("Request complete", { route: "debug/workitem-timelogs", durationMs: Date.now() - start });
     return jsonWithCache(response, 60);
   } catch (error) {
+    logger.error("Request error", { route: "debug/workitem-timelogs", durationMs: Date.now() - start, stack_trace: error instanceof Error ? error.stack : undefined });
     return handleApiError(error);
   }
 }

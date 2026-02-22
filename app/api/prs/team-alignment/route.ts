@@ -8,8 +8,8 @@ import {
   jsonWithCache,
   handleApiError,
   coerceAdoApiError,
-  withLogging,
 } from "@/lib/ado/helpers";
+import { logger } from "@/lib/logger";
 import { parseRange, resolveRange } from "@/lib/dateRange";
 import type {
   TeamAlignment,
@@ -91,19 +91,27 @@ function buildMemberAlignment(
  * @param request - The incoming Next.js request containing query parameters `team` and optional `range`
  * @returns A NextResponse containing the alignment payload on success or a JSON error response on failure
  */
-async function handler(request: NextRequest) {
-  const configOrError = await extractConfig(request);
-  if (configOrError instanceof NextResponse) return configOrError;
-
+export async function GET(request: NextRequest) {
+  const start = Date.now();
   const teamName = request.nextUrl.searchParams.get("team") || "";
+  const rangeParam = request.nextUrl.searchParams.get("range");
+  logger.info("Request start", { route: "prs/team-alignment", team: teamName, range: rangeParam });
+
+  const configOrError = await extractConfig(request);
+  if (configOrError instanceof NextResponse) {
+    logger.info("Request complete", { route: "prs/team-alignment", durationMs: Date.now() - start, outcome: "config_error" });
+    return configOrError;
+  }
+
   if (!teamName) {
+    logger.info("Request complete", { route: "prs/team-alignment", durationMs: Date.now() - start, status: 400 });
     return NextResponse.json(
       { error: "No team specified" },
       { status: 400 }
     );
   }
 
-  const range = parseRange(request.nextUrl.searchParams.get("range"));
+  const range = parseRange(rangeParam);
   const { from, to, label, days } = resolveRange(range);
   const fromISO = from.toISOString().split("T")[0];
   const toISO = to.toISOString().split("T")[0];
@@ -181,10 +189,10 @@ async function handler(request: NextRequest) {
       members: memberResults,
     };
 
+    logger.info("Request complete", { route: "prs/team-alignment", durationMs: Date.now() - start });
     return jsonWithCache(response);
   } catch (error) {
+    logger.error("Request error", { route: "prs/team-alignment", durationMs: Date.now() - start, stack_trace: error instanceof Error ? error.stack : undefined });
     return handleApiError(error);
   }
 }
-
-export const GET = withLogging("prs/team-alignment", handler);

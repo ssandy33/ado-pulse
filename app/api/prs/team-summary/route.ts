@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { getTeamMembers } from "@/lib/ado/teams";
 import { getPullRequests, getReviewsGivenByMember } from "@/lib/ado/pullRequests";
 import { batchAsync } from "@/lib/ado/client";
-import { extractConfig, jsonWithCache, handleApiError, withLogging } from "@/lib/ado/helpers";
+import { extractConfig, jsonWithCache, handleApiError } from "@/lib/ado/helpers";
+import { logger } from "@/lib/logger";
 import { getExclusions } from "@/lib/settings";
 import { parseRange, resolveRange } from "@/lib/dateRange";
 import type {
@@ -24,7 +25,8 @@ import type {
  * @returns A JSON response containing the team summary payload (period, team, members, byRepo, diagnostics),
  *          or an error JSON response when configuration or required inputs are missing/invalid.
  */
-async function handler(request: NextRequest) {
+export async function GET(request: NextRequest) {
+  const start = Date.now();
   const configOrError = await extractConfig(request);
   if (configOrError instanceof NextResponse) return configOrError;
 
@@ -34,7 +36,10 @@ async function handler(request: NextRequest) {
     const { from, days, label } = resolveRange(range);
     const teamName = searchParams.get("team") || "";
 
+    logger.info("Request start", { route: "prs/team-summary", team: teamName, range: searchParams.get("range") });
+
     if (!teamName) {
+      logger.info("Request complete", { route: "prs/team-summary", durationMs: Date.now() - start, status: 400 });
       return jsonWithCache({ error: "No team specified" });
     }
 
@@ -244,10 +249,10 @@ async function handler(request: NextRequest) {
       diagnostics,
     };
 
+    logger.info("Request complete", { route: "prs/team-summary", durationMs: Date.now() - start });
     return jsonWithCache(response);
   } catch (error) {
+    logger.error("Request error", { route: "prs/team-summary", durationMs: Date.now() - start, stack_trace: error instanceof Error ? error.stack : undefined });
     return handleApiError(error);
   }
 }
-
-export const GET = withLogging("prs/team-summary", handler);

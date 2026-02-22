@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getProjectTeams } from "@/lib/ado/teams";
-import { extractConfig, jsonWithCache, handleApiError, withLogging } from "@/lib/ado/helpers";
+import { extractConfig, jsonWithCache, handleApiError } from "@/lib/ado/helpers";
+import { logger } from "@/lib/logger";
 import { readSettings } from "@/lib/settings";
 
 /**
@@ -10,14 +11,16 @@ import { readSettings } from "@/lib/settings";
  *
  * @returns A NextResponse whose JSON body includes `teams` (array of team objects), `default` (string), `org` (organization name), and `project` (project name).
  */
-async function handler(request: NextRequest) {
+export async function GET(request: NextRequest) {
+  const start = Date.now();
   const configOrError = await extractConfig(request);
   if (configOrError instanceof NextResponse) return configOrError;
 
   try {
-    const teams = await getProjectTeams(configOrError);
-
     const pinnedOnly = request.nextUrl.searchParams.get("pinnedOnly") === "true";
+    logger.info("Request start", { route: "teams", pinnedOnly });
+
+    const teams = await getProjectTeams(configOrError);
     if (pinnedOnly) {
       const settings = await readSettings();
       const pinned = settings.teamVisibility?.pinnedTeams ?? [];
@@ -26,6 +29,7 @@ async function handler(request: NextRequest) {
         const filtered = teams
           .filter((t) => pinnedSet.has(t.name))
           .sort((a, b) => a.name.localeCompare(b.name));
+        logger.info("Request complete", { route: "teams", durationMs: Date.now() - start, pinnedOnly: true });
         return jsonWithCache({
           teams: filtered,
           default: "",
@@ -35,6 +39,7 @@ async function handler(request: NextRequest) {
       }
     }
 
+    logger.info("Request complete", { route: "teams", durationMs: Date.now() - start });
     return jsonWithCache({
       teams,
       default: "",
@@ -42,8 +47,7 @@ async function handler(request: NextRequest) {
       project: configOrError.project,
     });
   } catch (error) {
+    logger.error("Request error", { route: "teams", durationMs: Date.now() - start, stack_trace: error instanceof Error ? error.stack : undefined });
     return handleApiError(error);
   }
 }
-
-export const GET = withLogging("teams", handler);

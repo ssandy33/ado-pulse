@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getTeamMembers } from "@/lib/ado/teams";
 import { getOpenPullRequests } from "@/lib/ado/pullRequests";
 import { extractConfig, jsonWithCache, handleApiError } from "@/lib/ado/helpers";
+import { logger } from "@/lib/logger";
 import type { Staleness, OpenPR, StalePRResponse } from "@/lib/ado/types";
 
 function getStaleness(ageInDays: number): Staleness {
@@ -11,13 +12,20 @@ function getStaleness(ageInDays: number): Staleness {
 }
 
 export async function GET(request: NextRequest) {
+  const start = Date.now();
   const configOrError = await extractConfig(request);
-  if (configOrError instanceof NextResponse) return configOrError;
+  if (configOrError instanceof NextResponse) {
+    logger.info("Request complete", { route: "prs/stale", durationMs: Date.now() - start, outcome: "config_error" });
+    return configOrError;
+  }
 
   try {
     const teamName = request.nextUrl.searchParams.get("team") || "";
 
+    logger.info("Request start", { route: "prs/stale", team: teamName });
+
     if (!teamName) {
+      logger.info("Request complete", { route: "prs/stale", durationMs: Date.now() - start, status: 400 });
       return jsonWithCache({ error: "No team specified" });
     }
 
@@ -61,8 +69,10 @@ export async function GET(request: NextRequest) {
     };
 
     const response: StalePRResponse = { summary, prs };
+    logger.info("Request complete", { route: "prs/stale", durationMs: Date.now() - start });
     return jsonWithCache(response);
   } catch (error) {
+    logger.error("Request error", { route: "prs/stale", durationMs: Date.now() - start, stack_trace: error instanceof Error ? error.stack : undefined });
     return handleApiError(error);
   }
 }

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { parseRange, resolveRange } from "@/lib/dateRange";
+import { logger } from "@/lib/logger";
 
 /**
  * Raw identity debug endpoint — makes direct ADO API calls without
@@ -68,6 +69,7 @@ interface RawTeam {
 }
 
 export async function GET(request: NextRequest) {
+  const start = Date.now();
   const org = request.headers.get("x-ado-org");
   const project = request.headers.get("x-ado-project");
   const pat = request.headers.get("x-ado-pat");
@@ -82,6 +84,8 @@ export async function GET(request: NextRequest) {
   const range = parseRange(request.nextUrl.searchParams.get("range"));
   const { from, days, label } = resolveRange(range);
   const teamName = request.nextUrl.searchParams.get("team") || "";
+
+  logger.info("Request start", { route: "debug/identity-check", team: teamName, range: request.nextUrl.searchParams.get("range") });
 
   if (!teamName) {
     return NextResponse.json({ error: "No team specified" }, { status: 400 });
@@ -233,8 +237,10 @@ export async function GET(request: NextRequest) {
     };
 
     // No cache — always fresh for diagnostic tool
+    logger.info("Request complete", { route: "debug/identity-check", durationMs: Date.now() - start });
     return NextResponse.json(response);
   } catch (error) {
+    logger.error("Request error", { route: "debug/identity-check", durationMs: Date.now() - start, stack_trace: error instanceof Error ? error.stack : undefined });
     const message =
       error instanceof Error ? error.message : "An unexpected error occurred";
     return NextResponse.json({ error: message }, { status: 500 });

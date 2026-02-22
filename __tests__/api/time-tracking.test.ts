@@ -1,6 +1,10 @@
 import { GET } from "@/app/api/timetracking/team-summary/route";
 import { NextRequest } from "next/server";
 
+jest.mock("@/lib/logger", () => ({
+  logger: { info: jest.fn(), warn: jest.fn(), error: jest.fn(), flush: jest.fn() },
+}));
+
 // Mock extractConfig
 jest.mock("@/lib/ado/helpers", () => ({
   extractConfig: jest.fn().mockResolvedValue({
@@ -18,7 +22,6 @@ jest.mock("@/lib/ado/helpers", () => ({
       error instanceof Error ? error.message : "An unexpected error occurred";
     return NextResponse.json({ error: message }, { status: 500 });
   }),
-  withLogging: jest.fn((_name: string, handler: unknown) => handler),
 }));
 
 // Mock ADO client (batchAsync used for per-member fetches)

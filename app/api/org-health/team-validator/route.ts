@@ -2,10 +2,12 @@ import { NextRequest } from "next/server";
 import { getTeamMembers } from "@/lib/ado/teams";
 import { getPullRequests } from "@/lib/ado/pullRequests";
 import { extractConfig, jsonWithCache, handleApiError } from "@/lib/ado/helpers";
+import { logger } from "@/lib/logger";
 import { parseRange, resolveRange } from "@/lib/dateRange";
 import type { TeamValidatorResponse, ValidatorRosterMember } from "@/lib/ado/types";
 
 export async function GET(request: NextRequest) {
+  const start = Date.now();
   const configOrError = await extractConfig(request);
   if ("status" in configOrError) return configOrError;
 
@@ -14,6 +16,8 @@ export async function GET(request: NextRequest) {
     const teamName = searchParams.get("team") || "";
     const range = parseRange(searchParams.get("range"));
     const { from, days, label } = resolveRange(range);
+
+    logger.info("Request start", { route: "org-health/team-validator", team: teamName, range: searchParams.get("range") });
 
     if (!teamName) {
       return jsonWithCache({ error: "No team specified" }, 0);
@@ -71,8 +75,10 @@ export async function GET(request: NextRequest) {
       rosterMembers,
     };
 
+    logger.info("Request complete", { route: "org-health/team-validator", durationMs: Date.now() - start });
     return jsonWithCache(response, 120);
   } catch (error) {
+    logger.error("Request error", { route: "org-health/team-validator", durationMs: Date.now() - start, stack_trace: error instanceof Error ? error.stack : undefined });
     return handleApiError(error);
   }
 }

@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { readSettings, writeSettings } from "@/lib/settings";
+import { logger } from "@/lib/logger";
 
 export async function GET() {
+  const start = Date.now();
+  logger.info("Request start", { route: "settings/integrations", method: "GET" });
   try {
     const settings = await readSettings();
     const sp = settings.integrations?.sevenPace;
@@ -16,13 +19,17 @@ export async function GET() {
         }
       : null;
 
+    logger.info("Request complete", { route: "settings/integrations", method: "GET", durationMs: Date.now() - start });
     return NextResponse.json({ sevenPace: masked });
-  } catch {
+  } catch (error) {
+    logger.error("Request error", { route: "settings/integrations", method: "GET", durationMs: Date.now() - start, stack_trace: error instanceof Error ? error.stack : undefined });
     return NextResponse.json({ error: "Failed to read settings" }, { status: 500 });
   }
 }
 
 export async function PUT(request: NextRequest) {
+  const start = Date.now();
+  logger.info("Request start", { route: "settings/integrations", method: "PUT" });
   try {
     const body = await request.json();
     const { sevenPace } = body;
@@ -58,8 +65,10 @@ export async function PUT(request: NextRequest) {
       baseUrl,
     };
 
+    logger.info("Request complete", { route: "settings/integrations", method: "PUT", durationMs: Date.now() - start });
     return NextResponse.json({ sevenPace: masked });
-  } catch {
+  } catch (error) {
+    logger.error("Request error", { route: "settings/integrations", method: "PUT", durationMs: Date.now() - start, stack_trace: error instanceof Error ? error.stack : undefined });
     return NextResponse.json({ error: "Failed to save settings" }, { status: 500 });
   }
 }

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getTeamMembers } from "@/lib/ado/teams";
-import { extractConfig, jsonWithCache, handleApiError, withLogging } from "@/lib/ado/helpers";
+import { extractConfig, jsonWithCache, handleApiError } from "@/lib/ado/helpers";
+import { logger } from "@/lib/logger";
 import { batchAsync } from "@/lib/ado/client";
 import { getExclusions } from "@/lib/settings";
 import { parseRange, resolveRange, countBusinessDays } from "@/lib/dateRange";
@@ -29,7 +30,8 @@ import type {
  *
  * @returns `NextResponse` containing the team's aggregated time-tracking summary (`TeamTimeData`) on success, or a JSON error payload with an appropriate HTTP status when an error occurs.
  */
-async function handler(request: NextRequest) {
+export async function GET(request: NextRequest) {
+  const start = Date.now();
   const configOrError = await extractConfig(request);
   if (configOrError instanceof NextResponse) return configOrError;
 
@@ -39,13 +41,17 @@ async function handler(request: NextRequest) {
     const { from, to, days, label } = resolveRange(range);
     const teamName = searchParams.get("team") || "";
 
+    logger.info("Request start", { route: "timetracking/team-summary", team: teamName, range: searchParams.get("range") });
+
     if (!teamName) {
+      logger.info("Request complete", { route: "timetracking/team-summary", durationMs: Date.now() - start, status: 400 });
       return jsonWithCache({ error: "No team specified" }, 0);
     }
 
     // 1. Check 7pace config
     const spConfig = await getSevenPaceConfig();
     if (!spConfig) {
+      logger.info("Request complete", { route: "timetracking/team-summary", durationMs: Date.now() - start, outcome: "7pace_not_connected" });
       return jsonWithCache({
         sevenPaceConnected: false,
         period: { days, from: from.toISOString(), to: to.toISOString(), label },
@@ -321,16 +327,17 @@ async function handler(request: NextRequest) {
       },
     };
 
+    logger.info("Request complete", { route: "timetracking/team-summary", durationMs: Date.now() - start });
     return jsonWithCache(response, 120);
   } catch (error) {
     if (error instanceof SevenPaceApiError) {
+      logger.error("Request error", { route: "timetracking/team-summary", durationMs: Date.now() - start, error: error.message, code: error.code });
       return NextResponse.json(
         { error: error.message, code: error.code },
         { status: error.status === 401 ? 401 : 502 }
       );
     }
+    logger.error("Request error", { route: "timetracking/team-summary", durationMs: Date.now() - start, stack_trace: error instanceof Error ? error.stack : undefined });
     return handleApiError(error);
   }
 }
-
-export const GET = withLogging("timetracking/team-summary", handler);
