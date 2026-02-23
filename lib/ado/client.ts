@@ -46,7 +46,7 @@ interface CacheEntry {
   expiresAt: number;
 }
 
-const CACHE_TTL_MS = 60_000; // 60 seconds
+const CACHE_TTL_MS = 300_000; // 5 minutes – matches jsonWithCache s-maxage
 const fetchCache = new Map<string, CacheEntry>();
 
 /**
