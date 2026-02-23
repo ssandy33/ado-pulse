@@ -69,7 +69,17 @@ export async function GET(request: NextRequest) {
     };
 
     const response: StalePRResponse = { summary, prs };
-    logger.info("Request complete", { route: "prs/stale", durationMs: Date.now() - start });
+    logger.info("Request complete", {
+      route: "prs/stale",
+      team: teamName,
+      durationMs: Date.now() - start,
+      memberCount: members.length,
+      totalOpenPRs: openPRs.length,
+      teamOpenPRs: prs.length,
+      fresh: summary.fresh,
+      aging: summary.aging,
+      stale: summary.stale,
+    });
     return jsonWithCache(response);
   } catch (error) {
     logger.error("Request error", { route: "prs/stale", durationMs: Date.now() - start, stack_trace: error instanceof Error ? error.stack : undefined });
