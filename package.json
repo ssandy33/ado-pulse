@@ -9,10 +9,10 @@
     "lint": "eslint",
     "test": "jest",
     "test:watch": "jest --watch",
-    "test:e2e": "npx playwright test",
-    "test:e2e:ui": "npx playwright test --ui",
-    "test:e2e:debug": "npx playwright test --debug",
-    "test:e2e:codegen": "npx playwright codegen"
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
+    "test:e2e:debug": "playwright test --debug",
+    "test:e2e:codegen": "playwright codegen"
   },
   "dependencies": {
     "@axiomhq/js": "^1.4.0",

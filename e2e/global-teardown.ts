@@ -19,7 +19,7 @@ export default async function globalTeardown(_config: FullConfig) {
 
   try {
     const dataset = process.env.AXIOM_DATASET || "ado-pulse-e2e";
-    await fetch(`https://api.axiom.co/v1/datasets/${dataset}/ingest`, {
+    const response = await fetch(`https://api.axiom.co/v1/datasets/${dataset}/ingest`, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${token}`,
@@ -27,6 +27,12 @@ export default async function globalTeardown(_config: FullConfig) {
       },
       body: JSON.stringify(payload),
     });
+
+    if (!response.ok) {
+      console.warn(`[e2e] Axiom ingest failed: ${response.status} ${response.statusText}`);
+      return;
+    }
+
     console.log(`[e2e] Suite result sent to Axiom (${dataset})`);
   } catch (err) {
     console.warn("[e2e] Failed to send results to Axiom:", err);

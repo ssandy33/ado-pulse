@@ -20,25 +20,27 @@ test.describe("Time Tracking Tab", () => {
   });
 
   test("shows empty state or 7pace not configured message when no team", async ({ page }) => {
-    // Should see either "Select a team to view time tracking" or "7pace Timetracker not configured"
     const selectTeam = page.getByText("Select a team to view time tracking");
     const notConfigured = page.getByText("7pace Timetracker not configured");
+    const totalHours = page.getByText("Total Hours");
 
-    await page.waitForTimeout(3000);
+    // Wait for one of the expected states to appear
+    await expect(
+      page.locator("text=Select a team to view time tracking, text=7pace Timetracker not configured, text=Total Hours").first()
+    ).toBeVisible({ timeout: 10_000 }).catch(() => {});
 
     const hasSelectTeam = await selectTeam.isVisible().catch(() => false);
     const hasNotConfigured = await notConfigured.isVisible().catch(() => false);
+    const hasTimeData = await totalHours.isVisible().catch(() => false);
 
-    // One of these should be visible (or time data if everything is configured)
-    expect(hasSelectTeam || hasNotConfigured || true).toBeTruthy();
+    // One of these real states should be visible
+    expect(hasSelectTeam || hasNotConfigured || hasTimeData).toBeTruthy();
   });
 
   test("shows 7pace not configured message when API token is missing", async ({ page }) => {
-    await page.waitForTimeout(5000);
-
-    // If 7pace isn't configured, the user sees a message to configure it
+    // Wait for the tab content to settle
     const notConfigured = page.getByText("7pace Timetracker not configured");
-    const hasMessage = await notConfigured.isVisible().catch(() => false);
+    const hasMessage = await notConfigured.isVisible({ timeout: 10_000 }).catch(() => false);
 
     if (hasMessage) {
       await expect(page.getByText("Settings")).toBeVisible();
@@ -47,24 +49,25 @@ test.describe("Time Tracking Tab", () => {
   });
 
   test("displays time KPI tiles when data is available", async ({ page }) => {
-    await page.waitForTimeout(5000);
-
     const totalHours = page.getByText("Total Hours");
-    const hasData = await totalHours.isVisible().catch(() => false);
+    const hasData = await totalHours.isVisible({ timeout: 10_000 }).catch(() => false);
 
     if (hasData) {
       await expect(page.getByText("Total Hours")).toBeVisible();
       await expect(page.getByText("CapEx Hours")).toBeVisible();
       await expect(page.getByText("OpEx Hours")).toBeVisible();
       await expect(page.getByText("Not Logging")).toBeVisible();
+    } else {
+      // No time data — verify we're in an expected fallback state
+      const hasEmptyState = await page.getByText("Select a team to view time tracking").isVisible().catch(() => false);
+      const hasNotConfigured = await page.getByText("7pace Timetracker not configured").isVisible().catch(() => false);
+      expect(hasEmptyState || hasNotConfigured).toBeTruthy();
     }
   });
 
   test("member time breakdown table renders", async ({ page }) => {
-    await page.waitForTimeout(5000);
-
     const memberBreakdown = page.getByText("Member Time Breakdown");
-    const hasTable = await memberBreakdown.isVisible().catch(() => false);
+    const hasTable = await memberBreakdown.isVisible({ timeout: 10_000 }).catch(() => false);
 
     if (hasTable) {
       await expect(page.getByText("Total")).toBeVisible();
@@ -75,12 +78,10 @@ test.describe("Time Tracking Tab", () => {
   });
 
   test("view toggle between Member and Feature views", async ({ page }) => {
-    await page.waitForTimeout(5000);
-
     const memberViewBtn = page.getByRole("button", { name: "Member View" });
     const featureViewBtn = page.getByRole("button", { name: "Feature View" });
 
-    const hasToggle = await memberViewBtn.isVisible().catch(() => false);
+    const hasToggle = await memberViewBtn.isVisible({ timeout: 10_000 }).catch(() => false);
 
     if (hasToggle) {
       await featureViewBtn.click();

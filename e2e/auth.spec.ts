@@ -33,7 +33,7 @@ test.describe("Authentication / Connection Form", () => {
   });
 
   test("remember checkbox is checked by default", async ({ page }) => {
-    const checkbox = page.locator('input[type="checkbox"]');
+    const checkbox = page.getByLabel("Remember my PAT for next time");
     await expect(checkbox).toBeChecked();
   });
 
@@ -45,10 +45,12 @@ test.describe("Authentication / Connection Form", () => {
   test("connect button shows 'Connecting...' while submitting", async ({ page }) => {
     await page.locator("#org-url").fill("https://dev.azure.com/testorg/testproject");
     await page.locator("#pat").fill("some-pat-value");
-    await page.getByRole("button", { name: "Connect" }).click();
+
+    const connectBtn = page.getByRole("button", { name: "Connect" });
+    await connectBtn.click();
 
     // Button should briefly show "Connecting..." state
-    await expect(page.getByRole("button", { name: "Connecting..." })).toBeVisible();
+    await expect(connectBtn).toHaveText("Connecting...");
   });
 
   test("shows validation error for malformed org URL", async ({ page }) => {

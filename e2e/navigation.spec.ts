@@ -48,13 +48,10 @@ test.describe("Dashboard Navigation", () => {
   });
 
   test("time range buttons are visible", async ({ page }) => {
-    // Wait for a team to be selected (buttons appear after team selection)
-    await page.waitForTimeout(2000);
-
-    const ranges = ["7d", "14d", "MTD"];
-    for (const range of ranges) {
-      await expect(page.getByRole("button", { name: range })).toBeVisible();
-    }
+    // Wait for the first time range button to appear (team auto-selects)
+    await expect(page.getByRole("button", { name: "7d" })).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByRole("button", { name: "14d" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "MTD" })).toBeVisible();
   });
 
   test("disconnect button is visible and returns to connection form", async ({ page }) => {
@@ -67,7 +64,6 @@ test.describe("Dashboard Navigation", () => {
   });
 
   test("refresh button is visible", async ({ page }) => {
-    await page.waitForTimeout(2000);
-    await expect(page.getByRole("button", { name: "Refresh" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Refresh" })).toBeVisible({ timeout: 10_000 });
   });
 });

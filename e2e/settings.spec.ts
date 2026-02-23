@@ -44,13 +44,14 @@ test.describe("Settings Tab", () => {
   });
 
   test("show/hide toggle for API token", async ({ page }) => {
-    // The API token input has a show/hide button
-    const showBtn = page.getByRole("button", { name: "Show" });
+    // Scope to the 7pace section to avoid matching other show/hide buttons
+    const sevenPaceSection = page.locator("div").filter({ hasText: "7pace Timetracker" }).last();
+    const showBtn = sevenPaceSection.getByRole("button", { name: "Show" });
     const hasShowBtn = await showBtn.isVisible().catch(() => false);
 
     if (hasShowBtn) {
       await showBtn.click();
-      await expect(page.getByRole("button", { name: "Hide" })).toBeVisible();
+      await expect(sevenPaceSection.getByRole("button", { name: "Hide" })).toBeVisible();
     }
   });
 });

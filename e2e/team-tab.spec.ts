@@ -23,21 +23,18 @@ test.describe("Team Tab", () => {
   test("shows empty state when no team selected", async ({ page }) => {
     // If no default team is set, we should see the empty state
     const emptyState = page.getByText("Select a team to get started");
-    const kpiCards = page.locator("[class*='grid']").first();
+    const prsMerged = page.getByText("PRs Merged");
 
     // Either we see the empty state or KPI cards (if a default team was set)
     const hasEmptyState = await emptyState.isVisible().catch(() => false);
-    const hasKpi = await kpiCards.isVisible().catch(() => false);
+    const hasKpi = await prsMerged.isVisible().catch(() => false);
     expect(hasEmptyState || hasKpi).toBeTruthy();
   });
 
   test("displays KPI tiles after team loads", async ({ page }) => {
     // Wait for data to load (may auto-select a default team)
-    await page.waitForTimeout(5000);
-
-    // If a team was auto-selected, KPI cards should appear
     const prsMerged = page.getByText("PRs Merged");
-    const hasData = await prsMerged.isVisible().catch(() => false);
+    const hasData = await prsMerged.isVisible({ timeout: 10_000 }).catch(() => false);
 
     if (hasData) {
       await expect(page.getByText("PRs Merged")).toBeVisible();
@@ -47,11 +44,9 @@ test.describe("Team Tab", () => {
   });
 
   test("developer table shows expected columns", async ({ page }) => {
-    await page.waitForTimeout(5000);
-
-    // Check if member table loaded (requires active data)
+    // Wait for member table to load (requires active data)
     const memberHeader = page.getByText("Member").first();
-    const hasTable = await memberHeader.isVisible().catch(() => false);
+    const hasTable = await memberHeader.isVisible({ timeout: 10_000 }).catch(() => false);
 
     if (hasTable) {
       await expect(page.getByText("PRs Authored")).toBeVisible();
@@ -60,13 +55,15 @@ test.describe("Team Tab", () => {
   });
 
   test("data confidence panel renders when diagnostics are present", async ({ page }) => {
-    await page.waitForTimeout(5000);
-
-    // Confidence panel may or may not appear depending on diagnostics
+    // Wait for data to potentially load
     const confidencePanel = page.getByText("Data Confidence");
-    const hasPanel = await confidencePanel.isVisible().catch(() => false);
+    const hasPanel = await confidencePanel.isVisible({ timeout: 10_000 }).catch(() => false);
 
-    // This is informational — it either shows or doesn't based on data
-    expect(typeof hasPanel).toBe("boolean");
+    if (hasPanel) {
+      // Panel is visible — verify it has meaningful content
+      const panelText = await confidencePanel.textContent();
+      expect(panelText && panelText.trim().length > 0).toBeTruthy();
+    }
+    // If no panel, diagnostics were not returned — that's valid
   });
 });
