@@ -1,4 +1,13 @@
 {$DOMAIN} {
+	# TLS: RSA cert + broad cipher suites for corporate proxy compatibility
+	# ECDSA certs cause ERR_SSL_VERSION_OR_CIPHER_MISMATCH on networks with
+	# SSL inspection proxies that only support RSA key exchange (TLS 1.2)
+	tls {
+		protocols tls1.2 tls1.3
+		ciphers TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256 TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384 TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256
+		key_type rsa2048
+	}
+
 	# Compression
 	encode gzip
 
