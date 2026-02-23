@@ -249,7 +249,18 @@ export async function GET(request: NextRequest) {
       diagnostics,
     };
 
-    logger.info("Request complete", { route: "prs/team-summary", durationMs: Date.now() - start });
+    logger.info("Request complete", {
+      route: "prs/team-summary",
+      team: teamName,
+      durationMs: Date.now() - start,
+      memberCount: members.length,
+      totalProjectPRs: allPRs.length,
+      teamPRs: teamPRs.length,
+      activeContributors,
+      totalPRsFromContributors,
+      repoCount: byRepo.length,
+      confidence: diagnostics.confidence,
+    });
     return jsonWithCache(response);
   } catch (error) {
     logger.error("Request error", { route: "prs/team-summary", durationMs: Date.now() - start, stack_trace: error instanceof Error ? error.stack : undefined });

@@ -125,6 +125,7 @@ export async function GET(request: NextRequest) {
     ]);
 
     // Try OData first, fall back to REST on 410/401
+    let fetchApi = "odata";
     try {
       prs = await getPRsWithWorkItems(configOrError, fromISO, toISO);
     } catch (err) {
@@ -132,11 +133,14 @@ export async function GET(request: NextRequest) {
       const status = adoErr?.status
         ?? (err instanceof Error ? (err as unknown as Record<string, unknown>).status : undefined);
       if (status === 410 || status === 401) {
+        fetchApi = "rest";
+        logger.info("OData fallback to REST", { route: "prs/team-alignment", team: teamName, odataStatus: status });
         prs = await getPRsWithWorkItemsREST(configOrError, fromISO, toISO);
       } else {
         throw err;
       }
     }
+    logger.info("PRs fetched", { route: "prs/team-alignment", team: teamName, fetchApi, prCount: prs.length });
 
     const memberNameSet = new Set(
       members.map((m) => m.uniqueName.toLowerCase())
@@ -189,7 +193,20 @@ export async function GET(request: NextRequest) {
       members: memberResults,
     };
 
-    logger.info("Request complete", { route: "prs/team-alignment", durationMs: Date.now() - start });
+    logger.info("Request complete", {
+      route: "prs/team-alignment",
+      team: teamName,
+      durationMs: Date.now() - start,
+      memberCount: members.length,
+      totalPRs: prs.length,
+      teamPRs: teamPRs.length,
+      aligned: alignment.aligned,
+      outOfScope: alignment.outOfScope,
+      unlinked: alignment.unlinked,
+      alignedPct: alignment.alignedPct,
+      teamAreaPath: teamAreaData.defaultAreaPath,
+      areaPaths: teamAreaData.areaPaths.length,
+    });
     return jsonWithCache(response);
   } catch (error) {
     logger.error("Request error", { route: "prs/team-alignment", durationMs: Date.now() - start, stack_trace: error instanceof Error ? error.stack : undefined });
