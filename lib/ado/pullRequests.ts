@@ -8,7 +8,7 @@ interface WorkItemRef {
   url: string;
 }
 
-const PR_WORKITEMS_CONCURRENCY = 5;
+const PR_WORKITEMS_CONCURRENCY = 10;
 
 /**
  * Retrieve pull requests that were completed on or after the specified date.
