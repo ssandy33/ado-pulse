@@ -30,9 +30,9 @@ test.describe("Dashboard Navigation", () => {
   });
 
   test("clicking tabs switches content", async ({ page }) => {
-    // Click Organization tab
+    // Click Organization tab and verify org-level content appears
     await page.getByRole("button", { name: "Organization" }).click();
-    // Organization-level content should appear (no team-specific empty state)
+    await expect(page.getByText("Unmatched Authors")).toBeVisible({ timeout: 15_000 });
 
     // Click Settings tab
     await page.getByRole("button", { name: "Settings" }).click();
@@ -41,10 +41,12 @@ test.describe("Dashboard Navigation", () => {
   });
 
   test("team selector is visible in the header", async ({ page }) => {
-    // Team selector shows "Select team" or an auto-selected team name
-    await expect(
-      page.locator("button").filter({ hasText: /select team|team/i }).first()
-    ).toBeVisible();
+    // The team selector sits in the org / project / team breadcrumb.
+    // It shows "Select team" when no default or the team name when auto-selected.
+    // Parse org name from the URL to locate the breadcrumb row.
+    const orgName = ORG_URL.match(/dev\.azure\.com\/([^/]+)/)?.[1] || "";
+    const breadcrumb = page.locator("div").filter({ hasText: orgName }).filter({ has: page.locator("button") });
+    await expect(breadcrumb.locator("button").first()).toBeVisible();
   });
 
   test("time range buttons are visible", async ({ page }) => {

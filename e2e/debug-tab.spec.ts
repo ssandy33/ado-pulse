@@ -45,15 +45,10 @@ test.describe("Debug Tab", () => {
     // Expand Identity Debug section
     await page.getByText("Identity Debug").click();
 
-    // Wait for one of the expected states
+    // Wait for one of the expected states using locator.or()
     const noTeam = page.getByText("Select a team using the dropdown above");
     const rosterMembers = page.getByText("Roster Members");
-
-    // Race the two locators — one should appear
-    await Promise.race([
-      noTeam.waitFor({ timeout: 10_000 }).catch(() => {}),
-      rosterMembers.waitFor({ timeout: 10_000 }).catch(() => {}),
-    ]);
+    await noTeam.or(rosterMembers).waitFor({ timeout: 10_000 });
 
     const hasNoTeam = await noTeam.isVisible().catch(() => false);
     const hasRoster = await rosterMembers.isVisible().catch(() => false);
