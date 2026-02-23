@@ -75,9 +75,13 @@ export function handleApiError(error: unknown): NextResponse {
       url: adoErr.url,
       errorMessage: adoErr.message,
     });
+    // ADO may return 2xx with non-JSON (e.g. 203 login page for bad orgs);
+    // surface these as 502 so clients don't treat them as success.
+    const httpStatus =
+      adoErr.status >= 200 && adoErr.status < 300 ? 502 : adoErr.status;
     return NextResponse.json(
       { error: adoErr.message, status: adoErr.status },
-      { status: adoErr.status }
+      { status: httpStatus }
     );
   }
 

@@ -67,7 +67,8 @@ export async function PUT(request: NextRequest) {
       }
     );
 
-    if (!testRes.ok) {
+    const contentType = testRes.headers.get("content-type") || "";
+    if (!testRes.ok || !contentType.includes("application/json")) {
       logger.info("Request complete", { route: "settings/integrations/ado", method: "PUT", durationMs: Date.now() - start, status: 400 });
       return NextResponse.json(
         {
