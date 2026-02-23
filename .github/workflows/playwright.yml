@@ -1,10 +1,9 @@
 name: Playwright E2E Tests
 
 on:
-  push:
-    branches: [main]
   pull_request:
     branches: [main]
+  workflow_call:
 
 jobs:
   e2e:
@@ -39,8 +38,8 @@ jobs:
           CI: true
           BASE_URL: http://localhost:3000
           AXIOM_API_TOKEN: ${{ secrets.AXIOM_API_TOKEN }}
-          ADO_ORG_URL: ${{ secrets.ADO_ORG_URL }}
-          ADO_PAT: ${{ secrets.ADO_PAT }}
+          ADO_ORG_URL: ""
+          ADO_PAT: ""
 
       - uses: actions/upload-artifact@v4
         if: ${{ !cancelled() }}
