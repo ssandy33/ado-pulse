@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import type { TimeRange } from "@/lib/dateRange";
 import type { TeamSummaryApiResponse, StalePRResponse, AlignmentApiResponse } from "@/lib/ado/types";
 import { TeamSelector } from "./TeamSelector";
@@ -47,8 +47,16 @@ export function Dashboard({ creds, onDisconnect }: DashboardProps) {
     [creds]
   );
 
+  const abortRef = useRef<AbortController | null>(null);
+
   const fetchData = useCallback(async () => {
     if (!selectedTeam) return;
+
+    // Cancel any in-flight requests from a previous fetchData call
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
+    const { signal } = controller;
 
     setLoading(true);
     setError(null);
@@ -60,17 +68,17 @@ export function Dashboard({ creds, onDisconnect }: DashboardProps) {
     // Fire team-summary, stale PR, and alignment fetch in parallel
     const summaryPromise = fetch(
       `/api/prs/team-summary?range=${range}&team=${encodeURIComponent(selectedTeam)}`,
-      { headers: adoHeaders }
+      { headers: adoHeaders, signal }
     );
 
     const stalePromise = fetch(
       `/api/prs/stale?team=${encodeURIComponent(selectedTeam)}`,
-      { headers: adoHeaders }
+      { headers: adoHeaders, signal }
     );
 
     const alignmentPromise = fetch(
       `/api/prs/team-alignment?range=${range}&team=${encodeURIComponent(selectedTeam)}`,
-      { headers: adoHeaders }
+      { headers: adoHeaders, signal }
     );
 
     try {
