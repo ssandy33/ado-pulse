@@ -84,6 +84,18 @@ async function _adoFetchRaw<T>(config: AdoConfig, url: string): Promise<T> {
       );
     }
 
+    // Guard against non-JSON responses (e.g. 203 with HTML login page)
+    const contentType = res.headers.get("content-type") || "";
+    if (!contentType.includes("application/json")) {
+      const durationMs = Date.now() - start;
+      logger.warn("ADO fetch non-JSON response", { url: safeUrl, status: res.status, contentType, durationMs });
+      throw new AdoApiError(
+        `ADO API error: ${res.status} Non-JSON response`,
+        res.status,
+        url
+      );
+    }
+
     const durationMs = Date.now() - start;
     logger.info("ADO fetch OK", { url: safeUrl, status: res.status, durationMs });
     return res.json() as Promise<T>;
