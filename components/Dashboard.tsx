@@ -47,16 +47,13 @@ export function Dashboard({ creds, onDisconnect }: DashboardProps) {
     [creds]
   );
 
-  const abortRef = useRef<AbortController | null>(null);
+  const requestIdRef = useRef(0);
 
   const fetchData = useCallback(async () => {
     if (!selectedTeam) return;
 
-    // Cancel any in-flight requests from a previous fetchData call
-    abortRef.current?.abort();
-    const controller = new AbortController();
-    abortRef.current = controller;
-    const { signal } = controller;
+    // Increment request ID so stale responses are ignored
+    const requestId = ++requestIdRef.current;
 
     setLoading(true);
     setError(null);
@@ -65,24 +62,27 @@ export function Dashboard({ creds, onDisconnect }: DashboardProps) {
     setAlignmentData(null);
     setAlignmentError(null);
 
+    const fetchOpts = { headers: adoHeaders, cache: "no-store" as RequestCache };
+
     // Fire team-summary, stale PR, and alignment fetch in parallel
     const summaryPromise = fetch(
       `/api/prs/team-summary?range=${range}&team=${encodeURIComponent(selectedTeam)}`,
-      { headers: adoHeaders, signal }
+      fetchOpts
     );
 
     const stalePromise = fetch(
       `/api/prs/stale?team=${encodeURIComponent(selectedTeam)}`,
-      { headers: adoHeaders, signal }
+      fetchOpts
     );
 
     const alignmentPromise = fetch(
       `/api/prs/team-alignment?range=${range}&team=${encodeURIComponent(selectedTeam)}`,
-      { headers: adoHeaders, signal }
+      fetchOpts
     );
 
     try {
       const res = await summaryPromise;
+      if (requestIdRef.current !== requestId) return;
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
         throw new Error(body.error || `API error: ${res.status}`);
@@ -91,15 +91,17 @@ export function Dashboard({ creds, onDisconnect }: DashboardProps) {
       setData(json);
       setRefreshedAt(new Date());
     } catch (err) {
+      if (requestIdRef.current !== requestId) return;
       setError(err instanceof Error ? err.message : "Failed to load data");
     } finally {
-      setLoading(false);
+      if (requestIdRef.current === requestId) setLoading(false);
     }
 
     // Await stale PR result (already in-flight)
-    setStalePRLoading(true);
+    if (requestIdRef.current === requestId) setStalePRLoading(true);
     try {
       const staleRes = await stalePromise;
+      if (requestIdRef.current !== requestId) return;
       if (staleRes.ok) {
         const json: StalePRResponse = await staleRes.json();
         setStalePRData(json);
@@ -107,13 +109,14 @@ export function Dashboard({ creds, onDisconnect }: DashboardProps) {
     } catch {
       // Stale PR fetch failures are silent (non-critical section)
     } finally {
-      setStalePRLoading(false);
+      if (requestIdRef.current === requestId) setStalePRLoading(false);
     }
 
     // Await alignment result (already in-flight)
-    setAlignmentLoading(true);
+    if (requestIdRef.current === requestId) setAlignmentLoading(true);
     try {
       const alignRes = await alignmentPromise;
+      if (requestIdRef.current !== requestId) return;
       if (alignRes.ok) {
         const json: AlignmentApiResponse = await alignRes.json();
         setAlignmentData(json);
@@ -124,9 +127,10 @@ export function Dashboard({ creds, onDisconnect }: DashboardProps) {
         );
       }
     } catch (err) {
+      if (requestIdRef.current !== requestId) return;
       console.debug("Alignment fetch failed:", err);
     } finally {
-      setAlignmentLoading(false);
+      if (requestIdRef.current === requestId) setAlignmentLoading(false);
     }
   }, [selectedTeam, range, adoHeaders]);
 
