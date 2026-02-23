@@ -68,6 +68,7 @@ function emit(event: LogEvent): void {
   if (axiom) {
     try {
       axiom.ingest(DATASET, [event]);
+      axiom.flush().catch(() => {});
     } catch {
       // Never throw from logging
     }
