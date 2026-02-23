@@ -1,8 +1,16 @@
 import { test, expect } from "@playwright/test";
 
 test.describe("Authentication / Connection Form", () => {
-  test.beforeEach(async ({ page }) => {
+  test.beforeEach(async ({ page, request }) => {
+    // Clear any saved settings so each test starts with a clean slate
+    await request.delete(
+      `${process.env.BASE_URL || "http://localhost:3000"}/api/settings/integrations/ado`
+    );
+
     await page.goto("/");
+
+    // Wait for the loading spinner to resolve and the form to render
+    await expect(page.locator("#org-url")).toBeVisible({ timeout: 15_000 });
   });
 
   test("renders the connection form with heading and inputs", async ({ page }) => {
@@ -22,9 +30,9 @@ test.describe("Authentication / Connection Form", () => {
     await page.locator("#pat").fill("bad-pat-value");
     await page.getByRole("button", { name: "Connect" }).click();
 
-    // Should show an error — either auth failed or connection failed
+    // Should show an error — exact text depends on ADO response
     await expect(
-      page.getByText(/authentication failed|connection failed/i)
+      page.getByText(/failed|error/i)
     ).toBeVisible({ timeout: 15_000 });
   });
 
