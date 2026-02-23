@@ -46,7 +46,7 @@ interface CacheEntry {
   expiresAt: number;
 }
 
-const CACHE_TTL_MS = 60_000; // 60 seconds
+const CACHE_TTL_MS = 300_000; // 5 minutes – matches jsonWithCache s-maxage
 const fetchCache = new Map<string, CacheEntry>();
 
 /**
@@ -79,6 +79,18 @@ async function _adoFetchRaw<T>(config: AdoConfig, url: string): Promise<T> {
       logger.warn("ADO fetch failed", { url: safeUrl, status: res.status, durationMs });
       throw new AdoApiError(
         `ADO API error: ${res.status} ${res.statusText}`,
+        res.status,
+        url
+      );
+    }
+
+    // Guard against non-JSON responses (e.g. 203 with HTML login page)
+    const contentType = res.headers.get("content-type") || "";
+    if (!contentType.includes("application/json")) {
+      const durationMs = Date.now() - start;
+      logger.warn("ADO fetch non-JSON response", { url: safeUrl, status: res.status, contentType, durationMs });
+      throw new AdoApiError(
+        `ADO API error: ${res.status} Non-JSON response`,
         res.status,
         url
       );
