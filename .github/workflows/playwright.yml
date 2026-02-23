@@ -28,6 +28,11 @@ jobs:
       - name: Build app
         run: npm run build
 
+      - name: Prepare standalone server
+        run: |
+          cp -r .next/static .next/standalone/.next/static
+          cp -r public .next/standalone/public
+
       - name: Run Playwright tests
         run: npx playwright test
         env:
