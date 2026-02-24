@@ -14,8 +14,15 @@ export default function Home() {
 
   // On mount, check localStorage for saved credentials
   useEffect(() => {
-    const orgUrl = localStorage.getItem(STORAGE_KEYS.ORG_URL);
-    const pat = localStorage.getItem(STORAGE_KEYS.PAT);
+    let orgUrl: string | null;
+    let pat: string | null;
+    try {
+      orgUrl = localStorage.getItem(STORAGE_KEYS.ORG_URL);
+      pat = localStorage.getItem(STORAGE_KEYS.PAT);
+    } catch {
+      setChecking(false);
+      return;
+    }
 
     if (!orgUrl || !pat) {
       setChecking(false);
@@ -24,6 +31,10 @@ export default function Home() {
 
     const parsed = parseOrgUrl(orgUrl);
     if (!parsed) {
+      try {
+        localStorage.removeItem(STORAGE_KEYS.ORG_URL);
+        localStorage.removeItem(STORAGE_KEYS.PAT);
+      } catch {}
       setChecking(false);
       return;
     }
@@ -38,15 +49,27 @@ export default function Home() {
       .then((res) => {
         if (res.ok) {
           setCreds({ org: parsed.org, project: parsed.project, pat });
+        } else {
+          try {
+            localStorage.removeItem(STORAGE_KEYS.ORG_URL);
+            localStorage.removeItem(STORAGE_KEYS.PAT);
+          } catch {}
         }
       })
-      .catch(() => {})
+      .catch(() => {
+        try {
+          localStorage.removeItem(STORAGE_KEYS.ORG_URL);
+          localStorage.removeItem(STORAGE_KEYS.PAT);
+        } catch {}
+      })
       .finally(() => setChecking(false));
   }, []);
 
   const handleDisconnect = () => {
-    localStorage.removeItem(STORAGE_KEYS.ORG_URL);
-    localStorage.removeItem(STORAGE_KEYS.PAT);
+    try {
+      localStorage.removeItem(STORAGE_KEYS.ORG_URL);
+      localStorage.removeItem(STORAGE_KEYS.PAT);
+    } catch {}
     setCreds(null);
   };
 

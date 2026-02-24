@@ -35,17 +35,24 @@ export { STORAGE_KEYS, parseOrgUrl };
 
 export function ConnectionForm({ onConnect }: ConnectionFormProps) {
   const [orgUrl, setOrgUrl] = useState(() => {
-    if (typeof window === "undefined") return "";
-    return localStorage.getItem(STORAGE_KEYS.ORG_URL) || "";
+    try {
+      return localStorage.getItem(STORAGE_KEYS.ORG_URL) || "";
+    } catch {
+      return "";
+    }
   });
   const [pat, setPat] = useState(() => {
-    if (typeof window === "undefined") return "";
-    return localStorage.getItem(STORAGE_KEYS.PAT) || "";
+    try {
+      return localStorage.getItem(STORAGE_KEYS.PAT) || "";
+    } catch {
+      return "";
+    }
   });
   const [error, setError] = useState("");
   const [connecting, setConnecting] = useState(false);
 
   const handleConnect = async () => {
+    if (connecting) return;
     if (!orgUrl.trim()) return;
     if (!pat.trim()) return;
     setError("");
@@ -79,8 +86,12 @@ export function ConnectionForm({ onConnect }: ConnectionFormProps) {
         throw new Error(body.error || `Connection failed (${res.status})`);
       }
 
-      localStorage.setItem(STORAGE_KEYS.ORG_URL, orgUrl.trim());
-      localStorage.setItem(STORAGE_KEYS.PAT, pat.trim());
+      try {
+        localStorage.setItem(STORAGE_KEYS.ORG_URL, orgUrl.trim());
+        localStorage.setItem(STORAGE_KEYS.PAT, pat.trim());
+      } catch {
+        // localStorage unavailable or quota exceeded — continue without persisting
+      }
 
       onConnect({
         org: parsed.org,
