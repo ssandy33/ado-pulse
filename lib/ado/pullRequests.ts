@@ -127,11 +127,13 @@ export async function getPRsWithWorkItemsREST(
         UserName: pr.createdBy.uniqueName,
         UserEmail: pr.createdBy.uniqueName,
       },
+      RepositoryName: pr.repository.name,
       WorkItems: refs.map((ref) => {
         const wi = workItemMap.get(Number(ref.id));
         return {
           WorkItemId: Number(ref.id),
           AreaPath: wi?.fields["System.AreaPath"] || "",
+          Title: wi?.fields["System.Title"] || undefined,
         };
       }),
     };

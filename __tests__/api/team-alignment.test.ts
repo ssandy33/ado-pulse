@@ -188,6 +188,32 @@ describe("GET /api/prs/team-alignment", () => {
     expect(mockGetPRsWithWorkItemsREST).toHaveBeenCalledTimes(1);
   });
 
+  it("falls back to REST when OData returns 400 (unsupported fields)", async () => {
+    const { AdoApiError } = require("@/lib/ado/client");
+    mockGetPRsWithWorkItems.mockRejectedValueOnce(
+      new AdoApiError("Bad Request", 400, "https://analytics.dev.azure.com/...")
+    );
+    mockGetPRsWithWorkItemsREST.mockResolvedValueOnce([
+      {
+        PullRequestId: 1,
+        Title: "REST fallback PR",
+        CreatedDate: "2025-01-01",
+        CompletedDate: "2025-01-02",
+        RepositoryName: "my-repo",
+        CreatedBy: { UserName: "alice@test.com", UserEmail: "alice@test.com" },
+        WorkItems: [{ WorkItemId: 100, AreaPath: "Project\\TeamA", Title: "Item" }],
+      },
+    ]);
+
+    const res = await GET(makeRequest({ team: "TeamA", range: "14" }));
+    expect(res.status).toBe(200);
+
+    const body = await res.json();
+    expect(body.alignment.total).toBe(1);
+    expect(body.alignment.aligned).toBe(1);
+    expect(mockGetPRsWithWorkItemsREST).toHaveBeenCalledTimes(1);
+  });
+
   it("falls back to REST when OData returns 410 (Analytics not installed)", async () => {
     const { AdoApiError } = require("@/lib/ado/client");
     mockGetPRsWithWorkItems.mockRejectedValueOnce(
@@ -295,6 +321,100 @@ describe("GET /api/prs/team-alignment", () => {
     const body = await res.json();
     expect(body.alignment.total).toBe(1);
     expect(mockGetPRsWithWorkItemsREST).toHaveBeenCalledTimes(1);
+  });
+
+  it("returns categorizedPRs with correct shape, URL, and author display names", async () => {
+    mockGetPRsWithWorkItems.mockResolvedValueOnce([
+      {
+        PullRequestId: 1,
+        Title: "Aligned PR",
+        CreatedDate: "2025-01-01",
+        CompletedDate: "2025-01-10",
+        RepositoryName: "my-repo",
+        CreatedBy: { UserName: "alice@test.com", UserEmail: "alice@test.com" },
+        WorkItems: [
+          { WorkItemId: 100, AreaPath: "Project\\TeamA\\SubArea", Title: "My work item" },
+        ],
+      },
+      {
+        PullRequestId: 2,
+        Title: "Out of scope PR",
+        CreatedDate: "2025-01-01",
+        CompletedDate: "2025-01-10",
+        RepositoryName: "other-repo",
+        CreatedBy: { UserName: "bob@test.com", UserEmail: "bob@test.com" },
+        WorkItems: [
+          { WorkItemId: 200, AreaPath: "Project\\TeamB", Title: "Other item" },
+        ],
+      },
+      {
+        PullRequestId: 3,
+        Title: "Unlinked PR",
+        CreatedDate: "2025-01-01",
+        CompletedDate: "2025-01-10",
+        RepositoryName: "unlinked-repo",
+        CreatedBy: { UserName: "alice@test.com", UserEmail: "alice@test.com" },
+        WorkItems: [],
+      },
+    ]);
+
+    const res = await GET(makeRequest({ team: "TeamA", range: "14" }));
+    expect(res.status).toBe(200);
+
+    const body = await res.json();
+    const { categorizedPRs } = body;
+
+    // Three arrays must be present
+    expect(Array.isArray(categorizedPRs.aligned)).toBe(true);
+    expect(Array.isArray(categorizedPRs.outOfScope)).toBe(true);
+    expect(Array.isArray(categorizedPRs.unlinked)).toBe(true);
+
+    // Correct distribution
+    expect(categorizedPRs.aligned).toHaveLength(1);
+    expect(categorizedPRs.outOfScope).toHaveLength(1);
+    expect(categorizedPRs.unlinked).toHaveLength(1);
+
+    // Aligned PR shape
+    const alignedPR = categorizedPRs.aligned[0];
+    expect(alignedPR.pullRequestId).toBe(1);
+    expect(alignedPR.title).toBe("Aligned PR");
+    expect(alignedPR.author).toBe("Alice");
+    expect(alignedPR.repoName).toBe("my-repo");
+    expect(alignedPR.mergedDate).toBe("2025-01-10");
+    expect(alignedPR.workItem).toEqual({
+      id: 100,
+      title: "My work item",
+      areaPath: "Project\\TeamA\\SubArea",
+    });
+    expect(alignedPR.url).toBe(
+      "https://dev.azure.com/test-org/test-project/_git/my-repo/pullrequest/1"
+    );
+
+    // Out-of-scope PR shape
+    const outOfScopePR = categorizedPRs.outOfScope[0];
+    expect(outOfScopePR.pullRequestId).toBe(2);
+    expect(outOfScopePR.title).toBe("Out of scope PR");
+    expect(outOfScopePR.author).toBe("Bob");
+    expect(outOfScopePR.repoName).toBe("other-repo");
+    expect(outOfScopePR.workItem).toEqual({
+      id: 200,
+      title: "Other item",
+      areaPath: "Project\\TeamB",
+    });
+    expect(outOfScopePR.url).toBe(
+      "https://dev.azure.com/test-org/test-project/_git/other-repo/pullrequest/2"
+    );
+
+    // Unlinked PR shape — workItem must be null
+    const unlinkedPR = categorizedPRs.unlinked[0];
+    expect(unlinkedPR.pullRequestId).toBe(3);
+    expect(unlinkedPR.title).toBe("Unlinked PR");
+    expect(unlinkedPR.author).toBe("Alice");
+    expect(unlinkedPR.repoName).toBe("unlinked-repo");
+    expect(unlinkedPR.workItem).toBeNull();
+    expect(unlinkedPR.url).toBe(
+      "https://dev.azure.com/test-org/test-project/_git/unlinked-repo/pullrequest/3"
+    );
   });
 
   it("does not match area path prefix without backslash boundary", async () => {

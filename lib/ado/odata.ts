@@ -11,6 +11,7 @@ export interface ODataResponse<T> {
 export interface ODataWorkItem {
   WorkItemId: number;
   AreaPath: string;
+  Title?: string;
 }
 
 export interface ODataPullRequest {
@@ -22,6 +23,7 @@ export interface ODataPullRequest {
     UserName: string;
     UserEmail: string;
   };
+  RepositoryName?: string;
   WorkItems: ODataWorkItem[];
 }
 
@@ -49,9 +51,9 @@ export async function getPRsWithWorkItems(
   to: string
 ): Promise<ODataPullRequest[]> {
   const filter = `CompletedDate ge ${from} and CompletedDate le ${to}`;
-  const select = "PullRequestId,Title,CreatedDate,CompletedDate";
+  const select = "PullRequestId,Title,CreatedDate,CompletedDate,RepositoryName";
   const expand =
-    "CreatedBy($select=UserName,UserEmail),WorkItems($select=WorkItemId,AreaPath)";
+    "CreatedBy($select=UserName,UserEmail),WorkItems($select=WorkItemId,AreaPath,Title)";
 
   const path =
     `PullRequests?$filter=${encodeURIComponent(filter)}` +
