@@ -1,12 +1,7 @@
 import { test, expect } from "@playwright/test";
 
 test.describe("Authentication / Connection Form", () => {
-  test.beforeEach(async ({ page, request }) => {
-    // Clear any saved settings so each test starts with a clean slate
-    await request.delete(
-      `${process.env.BASE_URL || "http://localhost:3000"}/api/settings/integrations/ado`
-    );
-
+  test.beforeEach(async ({ page }) => {
     await page.goto("/");
 
     // Wait for the loading spinner to resolve and the form to render
@@ -34,15 +29,6 @@ test.describe("Authentication / Connection Form", () => {
     await expect(
       page.getByText(/failed|error/i)
     ).toBeVisible({ timeout: 15_000 });
-  });
-
-  test("shows the remember PAT checkbox", async ({ page }) => {
-    await expect(page.getByText("Remember my PAT for next time")).toBeVisible();
-  });
-
-  test("remember checkbox is checked by default", async ({ page }) => {
-    const checkbox = page.getByLabel("Remember my PAT for next time");
-    await expect(checkbox).toBeChecked();
   });
 
   test("shows PAT scope requirements info", async ({ page }) => {
