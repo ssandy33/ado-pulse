@@ -351,14 +351,18 @@ describe("AlignmentKPITile", () => {
   });
 
   describe("PR links", () => {
-    it("should render the PR title as a link with the correct href", () => {
+    it("should render an end-of-row link icon with the correct href", () => {
       render(<AlignmentKPITile data={makeData()} />);
 
       const [alignedBtn] = screen.getAllByRole("button");
       fireEvent.click(alignedBtn);
 
-      const link = screen.getByRole("link", { name: /Aligned PR title/i });
-      expect(link).toHaveAttribute(
+      const links = screen.getAllByRole("link");
+      const prLink = links.find((l) =>
+        l.getAttribute("href")?.includes("pullrequest/1")
+      );
+      expect(prLink).toBeDefined();
+      expect(prLink).toHaveAttribute(
         "href",
         "https://dev.azure.com/org/proj/_git/my-repo/pullrequest/1"
       );
@@ -370,9 +374,25 @@ describe("AlignmentKPITile", () => {
       const [alignedBtn] = screen.getAllByRole("button");
       fireEvent.click(alignedBtn);
 
-      const link = screen.getByRole("link", { name: /Aligned PR title/i });
-      expect(link).toHaveAttribute("target", "_blank");
-      expect(link).toHaveAttribute("rel", "noopener noreferrer");
+      const links = screen.getAllByRole("link");
+      const prLink = links.find((l) =>
+        l.getAttribute("href")?.includes("pullrequest/1")
+      );
+      expect(prLink).toHaveAttribute("target", "_blank");
+      expect(prLink).toHaveAttribute("rel", "noopener noreferrer");
+    });
+
+    it("should style the link icon with pulse-accent", () => {
+      render(<AlignmentKPITile data={makeData()} />);
+
+      const [alignedBtn] = screen.getAllByRole("button");
+      fireEvent.click(alignedBtn);
+
+      const links = screen.getAllByRole("link");
+      const prLink = links.find((l) =>
+        l.getAttribute("href")?.includes("pullrequest/1")
+      );
+      expect(prLink).toHaveClass("text-pulse-accent");
     });
   });
 });
