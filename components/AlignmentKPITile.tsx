@@ -22,6 +22,7 @@ const COLUMNS: DataTableColumn[] = [
   { header: "Repo" },
   { header: "Merged" },
   { header: "Work Item" },
+  { header: "", align: "right" },
 ];
 
 function formatRelativeDate(iso: string): string {
@@ -55,15 +56,7 @@ function DrillDownPanel({
             className="hover:bg-pulse-hover transition-colors"
           >
             <td className="px-5 py-3 text-[13px] font-medium text-pulse-text max-w-[280px] truncate">
-              <a
-                href={pr.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="hover:underline"
-              >
-                {pr.title}
-                <span className="inline-block ml-1 text-pulse-muted">&#8599;</span>
-              </a>
+              {pr.title}
             </td>
             <td className="px-5 py-3 text-[12px] text-pulse-muted">
               {pr.author}
@@ -87,6 +80,17 @@ function DrillDownPanel({
               ) : (
                 <span className="text-red-500">— No work item</span>
               )}
+            </td>
+            <td className="px-5 py-3 text-right">
+              <a
+                href={pr.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label={`Open PR ${pr.pullRequestId} in new tab`}
+                className="text-pulse-accent hover:underline"
+              >
+                &#8599;
+              </a>
             </td>
           </tr>
         ))}

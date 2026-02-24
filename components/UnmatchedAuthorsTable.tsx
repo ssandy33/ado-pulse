@@ -167,6 +167,7 @@ export function UnmatchedAuthorsTable({ data }: UnmatchedAuthorsTableProps) {
                                     href={pr.url}
                                     target="_blank"
                                     rel="noopener noreferrer"
+                                    aria-label={`Open PR ${pr.pullRequestId} in new tab`}
                                     className="text-pulse-accent hover:underline"
                                     onClick={(e) => e.stopPropagation()}
                                   >
