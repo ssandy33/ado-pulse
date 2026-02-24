@@ -13,17 +13,15 @@ interface TimeTrackingTabProps {
   range: TimeRange;
 }
 
-function WorkItemLink({ id, org, project, children }: {
+function WorkItemLinkCell({ id, org, project }: {
   id: number | null;
   org: string;
   project: string;
-  children?: React.ReactNode;
 }) {
-  if (!id || !org || !project) return <>{children ?? (id ? `#${id}` : null)}</>;
+  if (!id || !org || !project) return <td className="px-2 py-1.5 w-8" />;
   const url = `https://dev.azure.com/${encodeURIComponent(org)}/${encodeURIComponent(project)}/_workitems/edit/${id}`;
   return (
-    <span className="inline-flex items-center gap-1">
-      {children ?? `#${id}`}
+    <td className="px-2 py-1.5 text-right w-8">
       <a
         href={url}
         target="_blank"
@@ -32,11 +30,11 @@ function WorkItemLink({ id, org, project, children }: {
         onClick={(e) => e.stopPropagation()}
         className="text-pulse-muted hover:text-pulse-text"
       >
-        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden="true" focusable="false">
+        <svg className="w-3 h-3 inline" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden="true" focusable="false">
           <path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
         </svg>
       </a>
-    </span>
+    </td>
   );
 }
 
@@ -110,17 +108,19 @@ function WrongLevelBanner({ entries, org, project }: { entries: WrongLevelEntry[
                   <th className="px-2 py-1.5 font-medium">Type</th>
                   <th className="px-2 py-1.5 font-medium">Member</th>
                   <th className="px-2 py-1.5 font-medium text-right">Hours</th>
+                  <th className="px-2 py-1.5 w-8" />
                 </tr>
               </thead>
               <tbody>
                 {entries.map((entry, i) => (
                   <tr key={`${entry.workItemId}-${i}`} className="border-b border-amber-100 last:border-0">
                     <td className="px-2 py-1.5 text-amber-900">
-                      <WorkItemLink id={entry.workItemId} org={org} project={project}>#{entry.workItemId}</WorkItemLink>{" "}{entry.title}
+                      #{entry.workItemId} {entry.title}
                     </td>
                     <td className="px-2 py-1.5 text-amber-700">{entry.workItemType}</td>
                     <td className="px-2 py-1.5 text-amber-700">{entry.memberName}</td>
                     <td className="px-2 py-1.5 text-right text-amber-900">{entry.hours.toFixed(1)}</td>
+                    <WorkItemLinkCell id={entry.workItemId} org={org} project={project} />
                   </tr>
                 ))}
               </tbody>
@@ -204,6 +204,7 @@ function MemberRow({ member, isExpanded, onToggle, org, project }: {
                     <th className="text-left px-2 py-1 font-medium">Feature</th>
                     <th className="text-left px-2 py-1 font-medium">Type</th>
                     <th className="text-right px-2 py-1 font-medium">Hours</th>
+                    <th className="px-2 py-1 w-8" />
                   </tr>
                 </thead>
                 <tbody>
@@ -213,7 +214,7 @@ function MemberRow({ member, isExpanded, onToggle, org, project }: {
                       className="border-t border-pulse-border/30"
                     >
                       <td className="px-2 py-1 text-pulse-text">
-                        {f.featureId ? <><WorkItemLink id={f.featureId} org={org} project={project} />{" "}</> : ""}
+                        {f.featureId ? `#${f.featureId} ` : ""}
                         {f.featureTitle}
                         {f.loggedAtWrongLevel && (
                           <span className="ml-1 text-[10px] text-amber-600">(wrong level)</span>
@@ -233,6 +234,7 @@ function MemberRow({ member, isExpanded, onToggle, org, project }: {
                         </span>
                       </td>
                       <td className="px-2 py-1 text-right text-pulse-text">{f.hours.toFixed(1)}</td>
+                      <WorkItemLinkCell id={f.featureId} org={org} project={project} />
                     </tr>
                   ))}
                 </tbody>
@@ -332,7 +334,7 @@ function FeatureBreakdownRow({ row, isExpanded, onToggle, org, project }: {
               {row.isNoFeature ? (
                 <span className="text-amber-700">Unclassified — no parent feature</span>
               ) : (
-                <>{row.featureTitle} <WorkItemLink id={row.featureId} org={org} project={project} /></>
+                <>{row.featureTitle} {row.featureId ? `#${row.featureId}` : ""}</>
               )}
             </span>
           </div>
@@ -376,10 +378,11 @@ function FeatureBreakdownRow({ row, isExpanded, onToggle, org, project }: {
             </span>
           )}
         </td>
+        <WorkItemLinkCell id={row.featureId} org={org} project={project} />
       </tr>
       {isExpanded && (
         <tr>
-          <td colSpan={5} className="px-0 py-0">
+          <td colSpan={6} className="px-0 py-0">
             <div className="bg-pulse-bg/50 px-8 py-2">
               <table className="w-full text-[11px]">
                 <thead>
@@ -698,6 +701,7 @@ export function TimeTrackingTab({
                     <th className="px-4 py-2.5 font-medium text-right">Total Hours</th>
                     <th className="px-4 py-2.5 font-medium text-right">Members</th>
                     <th className="px-4 py-2.5 font-medium text-right">Status</th>
+                    <th className="px-4 py-2.5 w-8" />
                   </tr>
                 </thead>
                 <tbody>
