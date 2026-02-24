@@ -15,6 +15,7 @@ import type {
   TeamAlignment,
   MemberAlignmentDetail,
   AlignmentApiResponse,
+  AlignmentPR,
 } from "@/lib/ado/types";
 
 function areaPathMatches(areaPath: string, teamAreaPaths: string[]): boolean {
@@ -32,6 +33,41 @@ function classifyPR(
     areaPathMatches(wi.AreaPath, teamAreaPaths)
   );
   return hasAligned ? "aligned" : "outOfScope";
+}
+
+function toAlignmentPR(
+  pr: ODataPullRequest,
+  classification: "aligned" | "outOfScope" | "unlinked",
+  teamAreaPaths: string[],
+  displayNameMap: Map<string, string>,
+  org: string,
+  project: string
+): AlignmentPR {
+  const author =
+    displayNameMap.get(pr.CreatedBy.UserName.toLowerCase()) ??
+    pr.CreatedBy.UserName;
+  const repoName = pr.RepositoryName ?? "";
+
+  let workItem: AlignmentPR["workItem"] = null;
+  if (classification === "aligned") {
+    const wi = pr.WorkItems.find((w) => areaPathMatches(w.AreaPath, teamAreaPaths));
+    if (wi) workItem = { id: wi.WorkItemId, title: wi.Title ?? "", areaPath: wi.AreaPath };
+  } else if (classification === "outOfScope") {
+    const wi = pr.WorkItems.find((w) => !areaPathMatches(w.AreaPath, teamAreaPaths));
+    if (wi) workItem = { id: wi.WorkItemId, title: wi.Title ?? "", areaPath: wi.AreaPath };
+  }
+
+  const url = `https://dev.azure.com/${encodeURIComponent(org)}/${encodeURIComponent(project)}/_git/${encodeURIComponent(repoName)}/pullrequest/${pr.PullRequestId}`;
+
+  return {
+    pullRequestId: pr.PullRequestId,
+    title: pr.Title,
+    author,
+    repoName,
+    mergedDate: pr.CompletedDate,
+    workItem,
+    url,
+  };
 }
 
 /**
@@ -150,6 +186,22 @@ export async function GET(request: NextRequest) {
       memberNameSet.has(pr.CreatedBy.UserName.toLowerCase())
     );
 
+    // Build display name lookup and categorized PR lists
+    const displayNameMap = new Map<string, string>(
+      members.map((m) => [m.uniqueName.toLowerCase(), m.displayName])
+    );
+    const categorizedPRs: AlignmentApiResponse["categorizedPRs"] = {
+      aligned: [],
+      outOfScope: [],
+      unlinked: [],
+    };
+    for (const pr of teamPRs) {
+      const cat = classifyPR(pr, teamAreaData.areaPaths);
+      categorizedPRs[cat].push(
+        toAlignmentPR(pr, cat, teamAreaData.areaPaths, displayNameMap, configOrError.org, configOrError.project)
+      );
+    }
+
     // Build per-member alignment
     const prsByMember = new Map<string, ODataPullRequest[]>();
     for (const pr of teamPRs) {
@@ -191,6 +243,7 @@ export async function GET(request: NextRequest) {
       teamAreaPath: teamAreaData.defaultAreaPath,
       alignment,
       members: memberResults,
+      categorizedPRs,
     };
 
     logger.info("Request complete", {

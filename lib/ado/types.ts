@@ -249,6 +249,16 @@ export interface TeamValidatorResponse {
 }
 
 // ── PR Alignment types ────────────────────────────────────────
+export interface AlignmentPR {
+  pullRequestId: number;
+  title: string;
+  author: string;
+  repoName: string;
+  mergedDate: string;
+  workItem: { id: number; title: string; areaPath: string } | null;
+  url: string;
+}
+
 export interface TeamAlignment {
   total: number;
   aligned: number;
@@ -277,6 +287,11 @@ export interface AlignmentApiResponse {
     displayName: string;
     alignment: MemberAlignmentDetail;
   }[];
+  categorizedPRs: {
+    aligned: AlignmentPR[];
+    outOfScope: AlignmentPR[];
+    unlinked: AlignmentPR[];
+  };
 }
 
 // ── Time Tracking types ───────────────────────────────────────
