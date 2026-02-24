@@ -188,6 +188,32 @@ describe("GET /api/prs/team-alignment", () => {
     expect(mockGetPRsWithWorkItemsREST).toHaveBeenCalledTimes(1);
   });
 
+  it("falls back to REST when OData returns 400 (unsupported fields)", async () => {
+    const { AdoApiError } = require("@/lib/ado/client");
+    mockGetPRsWithWorkItems.mockRejectedValueOnce(
+      new AdoApiError("Bad Request", 400, "https://analytics.dev.azure.com/...")
+    );
+    mockGetPRsWithWorkItemsREST.mockResolvedValueOnce([
+      {
+        PullRequestId: 1,
+        Title: "REST fallback PR",
+        CreatedDate: "2025-01-01",
+        CompletedDate: "2025-01-02",
+        RepositoryName: "my-repo",
+        CreatedBy: { UserName: "alice@test.com", UserEmail: "alice@test.com" },
+        WorkItems: [{ WorkItemId: 100, AreaPath: "Project\\TeamA", Title: "Item" }],
+      },
+    ]);
+
+    const res = await GET(makeRequest({ team: "TeamA", range: "14" }));
+    expect(res.status).toBe(200);
+
+    const body = await res.json();
+    expect(body.alignment.total).toBe(1);
+    expect(body.alignment.aligned).toBe(1);
+    expect(mockGetPRsWithWorkItemsREST).toHaveBeenCalledTimes(1);
+  });
+
   it("falls back to REST when OData returns 410 (Analytics not installed)", async () => {
     const { AdoApiError } = require("@/lib/ado/client");
     mockGetPRsWithWorkItems.mockRejectedValueOnce(

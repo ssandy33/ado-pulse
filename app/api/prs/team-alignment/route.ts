@@ -160,7 +160,7 @@ export async function GET(request: NextRequest) {
       getTeamAreaPath(configOrError, teamName),
     ]);
 
-    // Try OData first, fall back to REST on non-JSON / 410 / 401
+    // Try OData first, fall back to REST on non-JSON / 400 / 410 / 401
     let fetchApi = "odata";
     try {
       prs = await getPRsWithWorkItems(configOrError, fromISO, toISO);
@@ -168,7 +168,7 @@ export async function GET(request: NextRequest) {
       const adoErr = coerceAdoApiError(err);
       const status = adoErr?.status
         ?? (err instanceof Error ? (err as unknown as Record<string, unknown>).status : undefined);
-      if (status === 410 || status === 401 || status === 203) {
+      if (status === 400 || status === 410 || status === 401 || status === 203) {
         fetchApi = "rest";
         logger.info("OData fallback to REST", { route: "prs/team-alignment", team: teamName, odataStatus: status });
         prs = await getPRsWithWorkItemsREST(configOrError, fromISO, toISO);
