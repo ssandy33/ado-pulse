@@ -1,5 +1,3 @@
-/* eslint-disable @typescript-eslint/no-require-imports */
-
 // Mock @axiomhq/js before importing the logger
 const mockIngest = jest.fn();
 const mockFlush = jest.fn().mockResolvedValue(undefined);

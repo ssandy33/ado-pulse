@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo } from "react";
 import type { TimeRange } from "@/lib/dateRange";
-import type { TeamTimeData, MemberTimeEntry, WrongLevelEntry, TimeTrackingDiagnostics, GovernanceData, ExpenseType } from "@/lib/ado/types";
+import type { TeamTimeData, MemberTimeEntry, WrongLevelEntry, TimeTrackingDiagnostics, ExpenseType } from "@/lib/ado/types";
 import { KPICard } from "./KPICard";
 import { SkeletonKPIRow, SkeletonTable } from "./SkeletonLoader";
 import { EmailTooltip } from "./EmailTooltip";

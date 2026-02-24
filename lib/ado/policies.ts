@@ -75,7 +75,7 @@ export function buildRepoPolicyStatuses(
     for (const scope of scopes) {
       if (scope.repositoryId === null) {
         // Project-wide policy — applies to all tracked repos
-        for (const [repoId, entry] of repoStatusMap) {
+        for (const [, entry] of repoStatusMap) {
           if (entry.policies[policyKey] === "not_configured") {
             entry.policies[policyKey] = status;
           }
