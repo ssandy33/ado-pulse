@@ -8,6 +8,7 @@ import type {
   Team,
   TeamsApiResponse,
 } from "@/lib/ado/types";
+import { CollapsibleSection } from "./CollapsibleSection";
 
 interface MemberRolesSettingsProps {
   adoHeaders: Record<string, string>;
@@ -201,45 +202,37 @@ export function MemberRolesSettings({
     localEdits.get(uniqueName.toLowerCase());
 
   return (
-    <div className="bg-pulse-card border border-pulse-border rounded-lg">
-      <div className="px-5 py-4 border-b border-pulse-border">
-        <div className="flex items-center justify-between">
-          <div>
-            <h3 className="text-[14px] font-semibold text-pulse-text">
-              Member Role Exclusions
-            </h3>
-            <p className="text-[12px] text-pulse-muted mt-0.5">
-              Mark non-contributors (Scrum Masters, POs, Managers) to exclude
-              them from PR metrics while keeping them visible.
-            </p>
-          </div>
-          <div className="flex items-center gap-3">
-            {saveError && (
-              <span className="text-[11px] text-red-600 font-medium">
-                {saveError}
-              </span>
-            )}
-            {dirty && !saveError && (
-              <span className="text-[11px] text-amber-600 font-medium">
-                Unsaved changes
-              </span>
-            )}
-            {savedFeedback && (
-              <span className="text-[11px] text-emerald-600 font-medium">
-                Saved
-              </span>
-            )}
-            <button
-              onClick={handleSave}
-              disabled={saving || !dirty}
-              className="px-3 py-1.5 text-[12px] font-medium bg-pulse-accent text-white rounded-md hover:bg-pulse-accent-hover transition-colors disabled:opacity-50 cursor-pointer"
-            >
-              {saving ? "Saving..." : "Save"}
-            </button>
-          </div>
+    <CollapsibleSection
+      id="member-roles"
+      title="Member Role Exclusions"
+      description="Mark non-contributors (Scrum Masters, POs, Managers) to exclude them from PR metrics while keeping them visible."
+      headerActions={
+        <div className="flex items-center gap-3 shrink-0">
+          {saveError && (
+            <span className="text-[11px] text-red-600 font-medium">
+              {saveError}
+            </span>
+          )}
+          {dirty && !saveError && (
+            <span className="text-[11px] text-amber-600 font-medium">
+              Unsaved changes
+            </span>
+          )}
+          {savedFeedback && (
+            <span className="text-[11px] text-emerald-600 font-medium">
+              Saved
+            </span>
+          )}
+          <button
+            onClick={handleSave}
+            disabled={saving || !dirty}
+            className="px-3 py-1.5 text-[12px] font-medium bg-pulse-accent text-white rounded-md hover:bg-pulse-accent-hover transition-colors disabled:opacity-50 cursor-pointer"
+          >
+            {saving ? "Saving..." : "Save"}
+          </button>
         </div>
-      </div>
-
+      }
+    >
       {/* Team selector */}
       <div className="px-5 py-3 border-b border-pulse-border">
         <label className="text-[12px] text-pulse-muted mr-2">Team:</label>
@@ -334,6 +327,6 @@ export function MemberRolesSettings({
           </table>
         )}
       </div>
-    </div>
+    </CollapsibleSection>
   );
 }

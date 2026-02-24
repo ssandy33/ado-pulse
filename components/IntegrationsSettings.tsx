@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import { CollapsibleSection } from "./CollapsibleSection";
 
 interface IntegrationState {
   apiToken: string;
@@ -111,53 +112,43 @@ export function IntegrationsSettings() {
     }
   };
 
-  if (loading) {
-    return (
-      <div className="bg-pulse-card border border-pulse-border rounded-lg p-5">
-        <div className="animate-pulse h-4 bg-pulse-bg rounded w-48" />
-      </div>
-    );
-  }
-
   return (
-    <div className="bg-pulse-card border border-pulse-border rounded-lg">
-      <div className="px-5 py-4 border-b border-pulse-border">
-        <div className="flex items-center justify-between">
-          <div>
-            <h3 className="text-[14px] font-semibold text-pulse-text">
-              Integrations
-            </h3>
-            <p className="text-[12px] text-pulse-muted mt-0.5">
-              Connect external services like 7pace Timetracker.
-            </p>
-          </div>
-          <div className="flex items-center gap-3">
-            {saveError && (
-              <span className="text-[11px] text-red-600 font-medium">
-                {saveError}
-              </span>
-            )}
-            {dirty && !saveError && (
-              <span className="text-[11px] text-amber-600 font-medium">
-                Unsaved changes
-              </span>
-            )}
-            {savedFeedback && (
-              <span className="text-[11px] text-emerald-600 font-medium">
-                Saved
-              </span>
-            )}
-            <button
-              onClick={handleSave}
-              disabled={saving || !dirty}
-              className="px-3 py-1.5 text-[12px] font-medium bg-pulse-accent text-white rounded-md hover:bg-pulse-accent-hover transition-colors disabled:opacity-50 cursor-pointer"
-            >
-              {saving ? "Saving..." : "Save"}
-            </button>
-          </div>
+    <CollapsibleSection
+      id="integrations"
+      title="Integrations"
+      description="Connect external services like 7pace Timetracker."
+      headerActions={
+        <div className="flex items-center gap-3 shrink-0">
+          {saveError && (
+            <span className="text-[11px] text-red-600 font-medium">
+              {saveError}
+            </span>
+          )}
+          {dirty && !saveError && (
+            <span className="text-[11px] text-amber-600 font-medium">
+              Unsaved changes
+            </span>
+          )}
+          {savedFeedback && (
+            <span className="text-[11px] text-emerald-600 font-medium">
+              Saved
+            </span>
+          )}
+          <button
+            onClick={handleSave}
+            disabled={saving || !dirty}
+            className="px-3 py-1.5 text-[12px] font-medium bg-pulse-accent text-white rounded-md hover:bg-pulse-accent-hover transition-colors disabled:opacity-50 cursor-pointer"
+          >
+            {saving ? "Saving..." : "Save"}
+          </button>
         </div>
-      </div>
-
+      }
+    >
+      {loading ? (
+        <div className="px-5 py-8">
+          <div className="animate-pulse h-4 bg-pulse-bg rounded w-48" />
+        </div>
+      ) : (
       <div className="px-5 py-4 space-y-4">
         {/* 7pace section header */}
         <div>
@@ -230,6 +221,7 @@ export function IntegrationsSettings() {
           )}
         </div>
       </div>
-    </div>
+      )}
+    </CollapsibleSection>
   );
 }
