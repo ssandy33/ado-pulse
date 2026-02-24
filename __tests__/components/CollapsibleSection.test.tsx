@@ -263,6 +263,48 @@ describe("CollapsibleSection", () => {
     });
   });
 
+  describe("aria-controls and region", () => {
+    it("should link button to content region via aria-controls", () => {
+      render(<CollapsibleSection {...defaultProps} />);
+
+      const toggleButton = screen.getByRole("button");
+      const controlsId = toggleButton.getAttribute("aria-controls");
+      expect(controlsId).toBeTruthy();
+
+      const region = screen.getByRole("region");
+      expect(region).toHaveAttribute("id", controlsId);
+    });
+
+    it("should set aria-labelledby on the region pointing to the button", () => {
+      render(<CollapsibleSection {...defaultProps} />);
+
+      const toggleButton = screen.getByRole("button");
+      const region = screen.getByRole("region");
+      expect(region).toHaveAttribute("aria-labelledby", toggleButton.id);
+    });
+
+    it("should remove the region from the DOM when collapsed", () => {
+      render(<CollapsibleSection {...defaultProps} />);
+
+      fireEvent.click(screen.getByRole("button"));
+
+      expect(screen.queryByRole("region")).not.toBeInTheDocument();
+    });
+
+    it("should set aria-labelledby and aria-describedby on the button", () => {
+      render(<CollapsibleSection {...defaultProps} />);
+
+      const toggleButton = screen.getByRole("button");
+      const labelledById = toggleButton.getAttribute("aria-labelledby");
+      const describedById = toggleButton.getAttribute("aria-describedby");
+
+      expect(labelledById).toBeTruthy();
+      expect(describedById).toBeTruthy();
+      expect(document.getElementById(labelledById!)).toHaveTextContent("Section Title");
+      expect(document.getElementById(describedById!)).toHaveTextContent("Section description text");
+    });
+  });
+
   describe("aria-expanded attribute", () => {
     it("should have aria-expanded true when expanded", () => {
       render(<CollapsibleSection {...defaultProps} />);

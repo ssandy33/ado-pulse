@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, type ReactNode } from "react";
+import { useState, useEffect, useCallback, useId, type ReactNode } from "react";
 
 interface CollapsibleSectionProps {
   id: string;
@@ -22,6 +22,11 @@ export function CollapsibleSection({
   defaultExpanded = true,
 }: CollapsibleSectionProps) {
   const [expanded, setExpanded] = useState(defaultExpanded);
+  const baseId = useId();
+  const buttonId = `${baseId}-toggle`;
+  const titleId = `${baseId}-title`;
+  const descId = `${baseId}-desc`;
+  const contentId = `${baseId}-content`;
 
   useEffect(() => {
     try {
@@ -53,10 +58,14 @@ export function CollapsibleSection({
       >
         <div className="flex items-center justify-between">
           <button
+            id={buttonId}
             type="button"
             onClick={toggle}
             className="flex items-center gap-2 text-left cursor-pointer"
             aria-expanded={expanded}
+            aria-controls={contentId}
+            aria-labelledby={titleId}
+            aria-describedby={descId}
           >
             <svg
               className={`w-4 h-4 text-pulse-muted transition-transform shrink-0 ${
@@ -74,18 +83,22 @@ export function CollapsibleSection({
               />
             </svg>
             <div>
-              <h3 className="text-[14px] font-semibold text-pulse-text">
+              <span id={titleId} className="block text-[14px] font-semibold text-pulse-text">
                 {title}
-              </h3>
-              <p className="text-[12px] text-pulse-muted mt-0.5">
+              </span>
+              <span id={descId} className="block text-[12px] text-pulse-muted mt-0.5">
                 {description}
-              </p>
+              </span>
             </div>
           </button>
           {headerActions}
         </div>
       </div>
-      {expanded && children}
+      {expanded && (
+        <div id={contentId} role="region" aria-labelledby={buttonId}>
+          {children}
+        </div>
+      )}
     </div>
   );
 }
