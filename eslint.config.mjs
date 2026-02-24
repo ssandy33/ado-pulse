@@ -13,6 +13,29 @@ const eslintConfig = defineConfig([
     "build/**",
     "next-env.d.ts",
   ]),
+  // Allow require() in test files (standard jest mocking pattern)
+  {
+    files: ["__tests__/**/*.ts", "__tests__/**/*.tsx"],
+    rules: {
+      "@typescript-eslint/no-require-imports": "off",
+    },
+  },
+  // Treat setState-in-effect as a warning, not an error — common data-fetching pattern
+  {
+    files: ["**/*.tsx"],
+    rules: {
+      "react-hooks/set-state-in-effect": "warn",
+    },
+  },
+  // Allow unused args/vars prefixed with _
+  {
+    rules: {
+      "@typescript-eslint/no-unused-vars": [
+        "warn",
+        { argsIgnorePattern: "^_", varsIgnorePattern: "^_" },
+      ],
+    },
+  },
 ]);
 
 export default eslintConfig;

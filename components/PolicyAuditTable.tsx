@@ -22,14 +22,6 @@ const POLICY_KEYS: (keyof RepoPolicyStatus["policies"])[] = [
   "mergeStrategy",
 ];
 
-const POLICY_LABELS: Record<keyof RepoPolicyStatus["policies"], string> = {
-  minReviewers: "Min Reviewers",
-  buildValidation: "Build",
-  workItemLinking: "Work Items",
-  commentResolution: "Comments",
-  mergeStrategy: "Merge Strategy",
-};
-
 const COLUMNS: DataTableColumn[] = [
   { header: "Repository" },
   { header: "Min Reviewers", align: "center" },
