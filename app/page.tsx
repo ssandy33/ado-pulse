@@ -1,17 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { ConnectionForm } from "@/components/ConnectionForm";
+import { ConnectionForm, STORAGE_KEYS, parseOrgUrl } from "@/components/ConnectionForm";
 import { Dashboard } from "@/components/Dashboard";
-
-function parseOrgUrl(input: string): { org: string; project: string } | null {
-  const cleaned = input.trim().replace(/\/+$/, "");
-  const urlMatch = cleaned.match(/dev\.azure\.com\/([^/]+)\/([^/]+)/);
-  if (urlMatch) return { org: urlMatch[1], project: urlMatch[2] };
-  const plainMatch = cleaned.match(/^([^/]+)\/([^/]+)$/);
-  if (plainMatch) return { org: plainMatch[1], project: plainMatch[2] };
-  return null;
-}
 
 export default function Home() {
   const [creds, setCreds] = useState<{
@@ -21,31 +12,43 @@ export default function Home() {
   } | null>(null);
   const [checking, setChecking] = useState(true);
 
-  // On mount, check for a saved connection
+  // On mount, check localStorage for saved credentials
   useEffect(() => {
-    fetch("/api/settings/integrations/ado")
-      .then((res) => res.json())
-      .then(async (data) => {
-        if (data.configured && data.source === "settings" && data.orgUrl) {
-          const parsed = parseOrgUrl(data.orgUrl);
-          if (parsed) {
-            // Verify the saved connection still works (server uses saved PAT)
-            const testRes = await fetch("/api/teams", {
-              headers: {
-                "x-ado-org": parsed.org,
-                "x-ado-project": parsed.project,
-              },
-            });
-            if (testRes.ok) {
-              setCreds({ org: parsed.org, project: parsed.project, pat: "" });
-              return;
-            }
-          }
+    const orgUrl = localStorage.getItem(STORAGE_KEYS.ORG_URL);
+    const pat = localStorage.getItem(STORAGE_KEYS.PAT);
+
+    if (!orgUrl || !pat) {
+      setChecking(false);
+      return;
+    }
+
+    const parsed = parseOrgUrl(orgUrl);
+    if (!parsed) {
+      setChecking(false);
+      return;
+    }
+
+    fetch("/api/teams", {
+      headers: {
+        "x-ado-org": parsed.org,
+        "x-ado-project": parsed.project,
+        "x-ado-pat": pat,
+      },
+    })
+      .then((res) => {
+        if (res.ok) {
+          setCreds({ org: parsed.org, project: parsed.project, pat });
         }
       })
       .catch(() => {})
       .finally(() => setChecking(false));
   }, []);
+
+  const handleDisconnect = () => {
+    localStorage.removeItem(STORAGE_KEYS.ORG_URL);
+    localStorage.removeItem(STORAGE_KEYS.PAT);
+    setCreds(null);
+  };
 
   if (checking) {
     return (
@@ -59,5 +62,5 @@ export default function Home() {
     return <ConnectionForm onConnect={setCreds} />;
   }
 
-  return <Dashboard creds={creds} onDisconnect={() => setCreds(null)} />;
+  return <Dashboard creds={creds} onDisconnect={handleDisconnect} />;
 }
