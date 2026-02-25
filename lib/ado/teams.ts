@@ -12,7 +12,7 @@ interface AdoTeamMemberWrapper {
 export async function getProjectTeams(config: AdoConfig): Promise<Team[]> {
   const url = orgUrl(
     config,
-    `_apis/projects/${encodeURIComponent(config.project)}/teams?api-version=7.1`
+    `_apis/projects/${encodeURIComponent(config.project)}/teams?$top=500&api-version=7.1`
   );
   const data = await adoFetch<AdoListResponse<Team>>(config, url);
   return data.value.sort((a, b) => a.name.localeCompare(b.name));
