@@ -48,16 +48,7 @@ export function ConnectionForm({ onConnect }: ConnectionFormProps) {
       return "";
     }
   });
-  const [rememberMe, setRememberMe] = useState(() => {
-    try {
-      return !!(
-        localStorage.getItem(STORAGE_KEYS.ORG_URL) &&
-        localStorage.getItem(STORAGE_KEYS.PAT)
-      );
-    } catch {
-      return false;
-    }
-  });
+  const [rememberMe, setRememberMe] = useState(true);
   const [error, setError] = useState("");
   const [connecting, setConnecting] = useState(false);
 
