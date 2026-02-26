@@ -10,12 +10,22 @@ interface AdoTeamMemberWrapper {
 }
 
 export async function getProjectTeams(config: AdoConfig): Promise<Team[]> {
-  const url = orgUrl(
-    config,
-    `_apis/projects/${encodeURIComponent(config.project)}/teams?api-version=7.1`
-  );
-  const data = await adoFetch<AdoListResponse<Team>>(config, url);
-  return data.value.sort((a, b) => a.name.localeCompare(b.name));
+  const pageSize = 500;
+  const allTeams: Team[] = [];
+  let skip = 0;
+
+  for (;;) {
+    const url = orgUrl(
+      config,
+      `_apis/projects/${encodeURIComponent(config.project)}/teams?$top=${pageSize}&$skip=${skip}&api-version=7.1`
+    );
+    const data = await adoFetch<AdoListResponse<Team>>(config, url);
+    allTeams.push(...data.value);
+    if (data.value.length < pageSize) break;
+    skip += pageSize;
+  }
+
+  return allTeams.sort((a, b) => a.name.localeCompare(b.name));
 }
 
 async function findTeamByName(
