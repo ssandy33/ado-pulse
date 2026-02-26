@@ -48,6 +48,16 @@ export function ConnectionForm({ onConnect }: ConnectionFormProps) {
       return "";
     }
   });
+  const [rememberMe, setRememberMe] = useState(() => {
+    try {
+      return !!(
+        localStorage.getItem(STORAGE_KEYS.ORG_URL) &&
+        localStorage.getItem(STORAGE_KEYS.PAT)
+      );
+    } catch {
+      return false;
+    }
+  });
   const [error, setError] = useState("");
   const [connecting, setConnecting] = useState(false);
 
@@ -87,8 +97,13 @@ export function ConnectionForm({ onConnect }: ConnectionFormProps) {
       }
 
       try {
-        localStorage.setItem(STORAGE_KEYS.ORG_URL, orgUrl.trim());
-        localStorage.setItem(STORAGE_KEYS.PAT, pat.trim());
+        if (rememberMe) {
+          localStorage.setItem(STORAGE_KEYS.ORG_URL, orgUrl.trim());
+          localStorage.setItem(STORAGE_KEYS.PAT, pat.trim());
+        } else {
+          localStorage.removeItem(STORAGE_KEYS.ORG_URL);
+          localStorage.removeItem(STORAGE_KEYS.PAT);
+        }
       } catch {
         // localStorage unavailable or quota exceeded — continue without persisting
       }
@@ -156,6 +171,28 @@ export function ConnectionForm({ onConnect }: ConnectionFormProps) {
           </div>
         </div>
 
+        <label className="flex items-center gap-2 mb-5 cursor-pointer select-none">
+          <input
+            type="checkbox"
+            checked={rememberMe}
+            onChange={(e) => {
+              if (!e.target.checked) {
+                try {
+                  localStorage.removeItem(STORAGE_KEYS.ORG_URL);
+                  localStorage.removeItem(STORAGE_KEYS.PAT);
+                } catch {
+                  // localStorage unavailable — continue
+                }
+              }
+              setRememberMe(e.target.checked);
+            }}
+            className="accent-pulse-accent w-3.5 h-3.5 cursor-pointer"
+          />
+          <span className="text-[12px] text-pulse-muted">
+            Remember credentials on this browser
+          </span>
+        </label>
+
         {error && (
           <div className="mb-4 p-3 bg-pulse-red-bg border border-red-200 rounded-lg">
             <p className="text-[12px] text-pulse-red">{error}</p>
@@ -180,8 +217,8 @@ export function ConnectionForm({ onConnect }: ConnectionFormProps) {
             <span className="font-medium text-pulse-secondary">Code (Read)</span>{" "}
             and{" "}
             <span className="font-medium text-pulse-secondary">Policy (Read)</span>{" "}
-            scopes. Credentials are saved in your browser automatically on
-            successful connect.
+            scopes. Check &ldquo;Remember credentials on this browser&rdquo; to
+            save your connection for next time.
           </p>
         </div>
       </div>
