@@ -5,6 +5,7 @@ import { batchAsync } from "@/lib/ado/client";
 import { extractConfig, jsonWithCache, handleApiError } from "@/lib/ado/helpers";
 import { logger } from "@/lib/logger";
 import { getExclusions } from "@/lib/settings";
+import { hasTeamSnapshotToday, saveTeamSnapshot } from "@/lib/snapshots";
 import { parseRange, resolveRange } from "@/lib/dateRange";
 import type {
   MemberSummary,
@@ -248,6 +249,20 @@ export async function GET(request: NextRequest) {
       byRepo,
       diagnostics,
     };
+
+    // Persist daily snapshot (fire-and-forget, never blocks response)
+    try {
+      if (!hasTeamSnapshotToday(teamName, configOrError.org, configOrError.project)) {
+        saveTeamSnapshot({
+          teamSlug: teamName,
+          org: configOrError.org,
+          project: configOrError.project,
+          metrics: response,
+        });
+      }
+    } catch (err) {
+      console.error("[snapshot] Failed to save team PR snapshot:", err);
+    }
 
     logger.info("Request complete", {
       route: "prs/team-summary",
