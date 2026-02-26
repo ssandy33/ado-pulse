@@ -175,7 +175,17 @@ export function ConnectionForm({ onConnect }: ConnectionFormProps) {
           <input
             type="checkbox"
             checked={rememberMe}
-            onChange={(e) => setRememberMe(e.target.checked)}
+            onChange={(e) => {
+              if (!e.target.checked) {
+                try {
+                  localStorage.removeItem(STORAGE_KEYS.ORG_URL);
+                  localStorage.removeItem(STORAGE_KEYS.PAT);
+                } catch {
+                  // localStorage unavailable — continue
+                }
+              }
+              setRememberMe(e.target.checked);
+            }}
             className="accent-pulse-accent w-3.5 h-3.5 cursor-pointer"
           />
           <span className="text-[12px] text-pulse-muted">
@@ -207,8 +217,8 @@ export function ConnectionForm({ onConnect }: ConnectionFormProps) {
             <span className="font-medium text-pulse-secondary">Code (Read)</span>{" "}
             and{" "}
             <span className="font-medium text-pulse-secondary">Policy (Read)</span>{" "}
-            scopes. Check &ldquo;Remember credentials&rdquo; to save your
-            connection for next time.
+            scopes. Check &ldquo;Remember credentials on this browser&rdquo; to
+            save your connection for next time.
           </p>
         </div>
       </div>
