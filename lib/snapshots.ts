@@ -1,22 +1,6 @@
 import { getDb } from "@/lib/db";
 import { today } from "@/lib/dateUtils";
 
-export function hasTeamSnapshotToday(
-  teamSlug: string,
-  org: string,
-  project: string
-): boolean {
-  const db = getDb();
-  const row = db
-    .prepare(
-      `SELECT 1 FROM team_pr_snapshots
-       WHERE snapshot_date = ? AND team_slug = ? AND org = ? AND project = ?
-       LIMIT 1`
-    )
-    .get(today(), teamSlug, org, project);
-  return row !== undefined;
-}
-
 export function saveTeamSnapshot(params: {
   teamSlug: string;
   org: string;
@@ -35,21 +19,6 @@ export function saveTeamSnapshot(params: {
     params.project,
     JSON.stringify(params.metrics)
   );
-}
-
-export function hasTimeSnapshotToday(
-  memberId: string,
-  org: string
-): boolean {
-  const db = getDb();
-  const row = db
-    .prepare(
-      `SELECT 1 FROM time_tracking_snapshots
-       WHERE snapshot_date = ? AND member_id = ? AND org = ?
-       LIMIT 1`
-    )
-    .get(today(), memberId, org);
-  return row !== undefined;
 }
 
 export function saveTimeSnapshot(params: {

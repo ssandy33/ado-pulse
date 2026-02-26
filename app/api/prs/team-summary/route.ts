@@ -5,7 +5,7 @@ import { batchAsync } from "@/lib/ado/client";
 import { extractConfig, jsonWithCache, handleApiError } from "@/lib/ado/helpers";
 import { logger } from "@/lib/logger";
 import { getExclusions } from "@/lib/settings";
-import { hasTeamSnapshotToday, saveTeamSnapshot } from "@/lib/snapshots";
+import { saveTeamSnapshot } from "@/lib/snapshots";
 import { parseRange, resolveRange } from "@/lib/dateRange";
 import type {
   MemberSummary,
@@ -250,23 +250,6 @@ export async function GET(request: NextRequest) {
       diagnostics,
     };
 
-    // Persist daily snapshot (fire-and-forget, never blocks response)
-    try {
-      if (!hasTeamSnapshotToday(teamName, configOrError.org, configOrError.project)) {
-        saveTeamSnapshot({
-          teamSlug: teamName,
-          org: configOrError.org,
-          project: configOrError.project,
-          metrics: response,
-        });
-      }
-    } catch (err) {
-      logger.error("[snapshot] Failed to save team PR snapshot", {
-        team: teamName,
-        error: err instanceof Error ? err.message : String(err),
-      });
-    }
-
     logger.info("Request complete", {
       route: "prs/team-summary",
       team: teamName,
@@ -279,6 +262,28 @@ export async function GET(request: NextRequest) {
       repoCount: byRepo.length,
       confidence: diagnostics.confidence,
     });
+
+    // Persist daily snapshot after response is ready (fire-and-forget, deferred off request path)
+    setImmediate(() => {
+      try {
+        saveTeamSnapshot({
+          teamSlug: teamName,
+          org: configOrError.org,
+          project: configOrError.project,
+          metrics: response,
+        });
+      } catch (err) {
+        try {
+          logger.error("[snapshot] Failed to save team PR snapshot", {
+            team: teamName,
+            error: err instanceof Error ? err.message : String(err),
+          });
+        } catch {
+          // Deferred writes are best-effort; silently ignore if context is unavailable
+        }
+      }
+    });
+
     return jsonWithCache(response);
   } catch (error) {
     logger.error("Request error", { route: "prs/team-summary", durationMs: Date.now() - start, stack_trace: error instanceof Error ? error.stack : undefined });

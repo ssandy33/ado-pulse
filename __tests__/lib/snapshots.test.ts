@@ -12,9 +12,7 @@ jest.mock("better-sqlite3", () => {
 
 import { getDb, closeDb } from "@/lib/db";
 import {
-  hasTeamSnapshotToday,
   saveTeamSnapshot,
-  hasTimeSnapshotToday,
   saveTimeSnapshot,
 } from "@/lib/snapshots";
 
@@ -34,10 +32,6 @@ afterEach(() => {
 // ── Team PR snapshots ───────────────────────────────────────────────
 
 describe("team PR snapshots", () => {
-  it("hasTeamSnapshotToday returns false when no snapshot exists", () => {
-    expect(hasTeamSnapshotToday("alpha", "myorg", "myproject")).toBe(false);
-  });
-
   it("saveTeamSnapshot inserts a row", () => {
     saveTeamSnapshot({
       teamSlug: "alpha",
@@ -63,18 +57,7 @@ describe("team PR snapshots", () => {
     expect(JSON.parse(rows[0].metrics_json)).toEqual({ totalPRs: 5 });
   });
 
-  it("hasTeamSnapshotToday returns true after insert", () => {
-    saveTeamSnapshot({
-      teamSlug: "alpha",
-      org: "myorg",
-      project: "myproject",
-      metrics: { totalPRs: 5 },
-    });
-
-    expect(hasTeamSnapshotToday("alpha", "myorg", "myproject")).toBe(true);
-  });
-
-  it("duplicate insert for same date/team/org/project is ignored", () => {
+  it("duplicate insert for same date/team/org/project is ignored via UNIQUE constraint", () => {
     const params = {
       teamSlug: "alpha",
       org: "myorg",
@@ -131,10 +114,6 @@ describe("team PR snapshots", () => {
 // ── Time tracking snapshots ─────────────────────────────────────────
 
 describe("time tracking snapshots", () => {
-  it("hasTimeSnapshotToday returns false when no snapshot exists", () => {
-    expect(hasTimeSnapshotToday("alice@example.com", "myorg")).toBe(false);
-  });
-
   it("saveTimeSnapshot inserts a row", () => {
     saveTimeSnapshot({
       memberId: "alice@example.com",
@@ -168,19 +147,7 @@ describe("time tracking snapshots", () => {
     });
   });
 
-  it("hasTimeSnapshotToday returns true after insert", () => {
-    saveTimeSnapshot({
-      memberId: "alice@example.com",
-      memberName: "Alice",
-      org: "myorg",
-      hours: {},
-      totalHours: 6.5,
-    });
-
-    expect(hasTimeSnapshotToday("alice@example.com", "myorg")).toBe(true);
-  });
-
-  it("duplicate insert for same date/member/org is ignored", () => {
+  it("duplicate insert for same date/member/org is ignored via UNIQUE constraint", () => {
     const params = {
       memberId: "alice@example.com",
       memberName: "Alice",
