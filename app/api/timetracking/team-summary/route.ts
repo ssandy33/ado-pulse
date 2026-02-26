@@ -343,11 +343,13 @@ export async function GET(request: NextRequest) {
               totalHours: member.totalHours ?? 0,
             });
           } catch (err) {
-            logger.error("[snapshot] Failed to save time tracking snapshot", {
-              member: member.uniqueName,
-              displayName: member.displayName,
-              error: err instanceof Error ? err.message : String(err),
-            });
+            try {
+              logger.error("[snapshot] Failed to save time tracking snapshot", {
+                member: member.uniqueName,
+                displayName: member.displayName,
+                error: err instanceof Error ? err.message : String(err),
+              });
+            } catch { /* noop — don't let a logging failure abort remaining members */ }
           }
         }
       } catch {
