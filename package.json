@@ -16,6 +16,7 @@
   },
   "dependencies": {
     "@axiomhq/js": "^1.4.0",
+    "better-sqlite3": "^12.6.2",
     "next": "16.1.6",
     "react": "19.2.4",
     "react-dom": "19.2.4"
@@ -25,6 +26,7 @@
     "@tailwindcss/postcss": "^4",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
+    "@types/better-sqlite3": "^7.6.13",
     "@types/jest": "^30.0.0",
     "@types/node": "^25",
     "@types/react": "^19",

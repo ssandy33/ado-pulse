@@ -63,6 +63,11 @@ jest.mock("@/lib/sevenPace", () => ({
   },
 }));
 
+// Mock snapshot persistence (uses native better-sqlite3 which can't run after teardown)
+jest.mock("@/lib/snapshots", () => ({
+  saveTimeSnapshot: jest.fn(),
+}));
+
 // Mock ADO teams — return one member that maps to the 7pace user
 jest.mock("@/lib/ado/teams", () => ({
   getTeamMembers: jest.fn().mockResolvedValue([

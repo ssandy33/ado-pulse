@@ -1,4 +1,4 @@
-import { getLookbackDateRange } from "@/lib/dateUtils";
+import { getLookbackDateRange, today } from "@/lib/dateUtils";
 
 describe("getLookbackDateRange", () => {
   const fixedNow = new Date("2026-02-20T00:00:00.000Z");
@@ -27,5 +27,24 @@ describe("getLookbackDateRange", () => {
   it("handles 0-day lookback", () => {
     const { from, to } = getLookbackDateRange(0, fixedNow);
     expect(from.toISOString()).toBe(to.toISOString());
+  });
+});
+
+describe("today", () => {
+  beforeAll(() => {
+    jest.useFakeTimers();
+    jest.setSystemTime(new Date("2026-02-25T18:30:00Z"));
+  });
+
+  afterAll(() => {
+    jest.useRealTimers();
+  });
+
+  it("returns a YYYY-MM-DD string for the current UTC date", () => {
+    expect(today()).toBe("2026-02-25");
+  });
+
+  it("returns a 10-character string", () => {
+    expect(today()).toHaveLength(10);
   });
 });

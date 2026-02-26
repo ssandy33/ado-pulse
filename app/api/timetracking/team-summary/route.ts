@@ -3,6 +3,7 @@ import { getTeamMembers } from "@/lib/ado/teams";
 import { extractConfig, jsonWithCache, handleApiError } from "@/lib/ado/helpers";
 import { logger } from "@/lib/logger";
 import { batchAsync } from "@/lib/ado/client";
+import { saveTimeSnapshot } from "@/lib/snapshots";
 import { getExclusions } from "@/lib/settings";
 import { parseRange, resolveRange, countBusinessDays } from "@/lib/dateRange";
 import {
@@ -328,6 +329,34 @@ export async function GET(request: NextRequest) {
     };
 
     logger.info("Request complete", { route: "timetracking/team-summary", durationMs: Date.now() - start });
+
+    // Persist daily snapshots after response is ready (fire-and-forget, deferred off request path)
+    setImmediate(() => {
+      try {
+        for (const member of memberEntries) {
+          try {
+            saveTimeSnapshot({
+              memberId: member.uniqueName,
+              memberName: member.displayName,
+              org: configOrError.org,
+              hours: member,
+              totalHours: member.totalHours ?? 0,
+            });
+          } catch (err) {
+            try {
+              logger.error("[snapshot] Failed to save time tracking snapshot", {
+                member: member.uniqueName,
+                displayName: member.displayName,
+                error: err instanceof Error ? err.message : String(err),
+              });
+            } catch { /* noop — don't let a logging failure abort remaining members */ }
+          }
+        }
+      } catch {
+        // Deferred writes are best-effort; silently ignore if context is unavailable
+      }
+    });
+
     return jsonWithCache(response, 120);
   } catch (error) {
     if (error instanceof SevenPaceApiError) {
