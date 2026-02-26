@@ -1,3 +1,8 @@
+jest.mock("fs", () => ({
+  ...jest.requireActual("fs"),
+  mkdirSync: jest.fn(),
+}));
+
 jest.mock("better-sqlite3", () => {
   const Actual = jest.requireActual("better-sqlite3");
   return function () {

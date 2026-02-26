@@ -1,4 +1,11 @@
 /**
+ * Return today's date as a UTC YYYY-MM-DD string.
+ */
+export function today(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
+/**
  * Returns a { from, to } date range looking back `days` from `now`.
  * `now` defaults to the current time but can be injected for testing.
  */

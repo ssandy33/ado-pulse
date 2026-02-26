@@ -1,8 +1,5 @@
-import { getDb } from "./db";
-
-function today(): string {
-  return new Date().toISOString().slice(0, 10);
-}
+import { getDb } from "@/lib/db";
+import { today } from "@/lib/dateUtils";
 
 export function hasTeamSnapshotToday(
   teamSlug: string,

@@ -261,7 +261,10 @@ export async function GET(request: NextRequest) {
         });
       }
     } catch (err) {
-      console.error("[snapshot] Failed to save team PR snapshot:", err);
+      logger.error("[snapshot] Failed to save team PR snapshot", {
+        team: teamName,
+        error: err instanceof Error ? err.message : String(err),
+      });
     }
 
     logger.info("Request complete", {

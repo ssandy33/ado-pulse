@@ -329,8 +329,8 @@ export async function GET(request: NextRequest) {
     };
 
     // Persist daily snapshot per member (fire-and-forget, never blocks response)
-    try {
-      for (const member of memberEntries) {
+    for (const member of memberEntries) {
+      try {
         if (!hasTimeSnapshotToday(member.uniqueName, configOrError.org)) {
           saveTimeSnapshot({
             memberId: member.uniqueName,
@@ -340,9 +340,13 @@ export async function GET(request: NextRequest) {
             totalHours: member.totalHours ?? 0,
           });
         }
+      } catch (err) {
+        logger.error("[snapshot] Failed to save time tracking snapshot", {
+          member: member.uniqueName,
+          displayName: member.displayName,
+          error: err instanceof Error ? err.message : String(err),
+        });
       }
-    } catch (err) {
-      console.error("[snapshot] Failed to save time tracking snapshots:", err);
     }
 
     logger.info("Request complete", { route: "timetracking/team-summary", durationMs: Date.now() - start });
