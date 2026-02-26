@@ -5,6 +5,7 @@ import { useState } from "react";
 const STORAGE_KEYS = {
   ORG_URL: "ado-pulse:orgUrl",
   PAT: "ado-pulse:pat",
+  REMEMBER_ME: "ado-pulse:rememberMe",
 } as const;
 
 interface ConnectionFormProps {
@@ -48,7 +49,13 @@ export function ConnectionForm({ onConnect }: ConnectionFormProps) {
       return "";
     }
   });
-  const [rememberMe, setRememberMe] = useState(true);
+  const [rememberMe, setRememberMe] = useState(() => {
+    try {
+      return localStorage.getItem(STORAGE_KEYS.REMEMBER_ME) === "true";
+    } catch {
+      return false;
+    }
+  });
   const [error, setError] = useState("");
   const [connecting, setConnecting] = useState(false);
 
@@ -91,9 +98,11 @@ export function ConnectionForm({ onConnect }: ConnectionFormProps) {
         if (rememberMe) {
           localStorage.setItem(STORAGE_KEYS.ORG_URL, orgUrl.trim());
           localStorage.setItem(STORAGE_KEYS.PAT, pat.trim());
+          localStorage.setItem(STORAGE_KEYS.REMEMBER_ME, "true");
         } else {
           localStorage.removeItem(STORAGE_KEYS.ORG_URL);
           localStorage.removeItem(STORAGE_KEYS.PAT);
+          localStorage.setItem(STORAGE_KEYS.REMEMBER_ME, "false");
         }
       } catch {
         // localStorage unavailable or quota exceeded — continue without persisting
@@ -167,13 +176,16 @@ export function ConnectionForm({ onConnect }: ConnectionFormProps) {
             type="checkbox"
             checked={rememberMe}
             onChange={(e) => {
-              if (!e.target.checked) {
-                try {
+              try {
+                if (e.target.checked) {
+                  localStorage.setItem(STORAGE_KEYS.REMEMBER_ME, "true");
+                } else {
                   localStorage.removeItem(STORAGE_KEYS.ORG_URL);
                   localStorage.removeItem(STORAGE_KEYS.PAT);
-                } catch {
-                  // localStorage unavailable — continue
+                  localStorage.setItem(STORAGE_KEYS.REMEMBER_ME, "false");
                 }
+              } catch {
+                // localStorage unavailable — continue
               }
               setRememberMe(e.target.checked);
             }}
