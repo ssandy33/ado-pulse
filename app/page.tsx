@@ -49,26 +49,20 @@ export default function Home() {
       .then((res) => {
         if (res.ok) {
           setCreds({ org: parsed.org, project: parsed.project, pat });
-        } else {
-          try {
-            localStorage.removeItem(STORAGE_KEYS.ORG_URL);
-            localStorage.removeItem(STORAGE_KEYS.PAT);
-          } catch {}
         }
       })
       .catch(() => {
-        try {
-          localStorage.removeItem(STORAGE_KEYS.ORG_URL);
-          localStorage.removeItem(STORAGE_KEYS.PAT);
-        } catch {}
+        // Network error — let the form show with pre-filled credentials
       })
       .finally(() => setChecking(false));
   }, []);
 
   const handleDisconnect = () => {
     try {
-      localStorage.removeItem(STORAGE_KEYS.ORG_URL);
-      localStorage.removeItem(STORAGE_KEYS.PAT);
+      if (localStorage.getItem(STORAGE_KEYS.REMEMBER_ME) !== "true") {
+        localStorage.removeItem(STORAGE_KEYS.ORG_URL);
+        localStorage.removeItem(STORAGE_KEYS.PAT);
+      }
     } catch {}
     setCreds(null);
   };
