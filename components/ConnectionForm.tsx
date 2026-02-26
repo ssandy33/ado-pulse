@@ -51,10 +51,9 @@ export function ConnectionForm({ onConnect }: ConnectionFormProps) {
   });
   const [rememberMe, setRememberMe] = useState(() => {
     try {
-      const stored = localStorage.getItem(STORAGE_KEYS.REMEMBER_ME);
-      return stored === null ? true : stored === "true";
+      return localStorage.getItem(STORAGE_KEYS.REMEMBER_ME) === "true";
     } catch {
-      return true;
+      return false;
     }
   });
   const [error, setError] = useState("");
@@ -103,7 +102,7 @@ export function ConnectionForm({ onConnect }: ConnectionFormProps) {
         } else {
           localStorage.removeItem(STORAGE_KEYS.ORG_URL);
           localStorage.removeItem(STORAGE_KEYS.PAT);
-          localStorage.removeItem(STORAGE_KEYS.REMEMBER_ME);
+          localStorage.setItem(STORAGE_KEYS.REMEMBER_ME, "false");
         }
       } catch {
         // localStorage unavailable or quota exceeded — continue without persisting
@@ -183,7 +182,7 @@ export function ConnectionForm({ onConnect }: ConnectionFormProps) {
                 } else {
                   localStorage.removeItem(STORAGE_KEYS.ORG_URL);
                   localStorage.removeItem(STORAGE_KEYS.PAT);
-                  localStorage.removeItem(STORAGE_KEYS.REMEMBER_ME);
+                  localStorage.setItem(STORAGE_KEYS.REMEMBER_ME, "false");
                 }
               } catch {
                 // localStorage unavailable — continue
