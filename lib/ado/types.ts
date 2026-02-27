@@ -68,6 +68,14 @@ export interface MemberRoleExclusion {
   addedAt: string;
 }
 
+export interface MemberProfile {
+  adoId: string;
+  displayName: string;
+  email: string;
+  employmentType: 'fte' | 'contractor';
+  agency: string;
+}
+
 export interface SevenPaceIntegration {
   apiToken: string;
   baseUrl: string;
@@ -80,6 +88,7 @@ export interface AdoIntegration {
 
 export interface SettingsData {
   memberRoles?: { exclusions: MemberRoleExclusion[] };
+  memberProfiles?: { profiles: MemberProfile[] };
   teamVisibility?: { pinnedTeams: string[] };
   integrations?: { sevenPace?: SevenPaceIntegration; ado?: AdoIntegration };
 }

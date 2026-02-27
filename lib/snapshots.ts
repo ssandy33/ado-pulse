@@ -1,5 +1,5 @@
 import { getDb } from "@/lib/db";
-import { today } from "@/lib/dateUtils";
+import { today, dateDaysAgo } from "@/lib/dateUtils";
 import { logger } from "@/lib/logger";
 
 // ── Row types returned by read helpers ────────────────────────────────
@@ -114,12 +114,6 @@ function safeJsonParse(json: string, context: Record<string, unknown>): unknown 
     logger.warn("[snapshot] Corrupt JSON in snapshot row", context);
     return null;
   }
-}
-
-function dateDaysAgo(days: number): string {
-  const d = new Date(today());
-  d.setDate(d.getDate() - days);
-  return d.toISOString().slice(0, 10);
 }
 
 export function saveTeamSnapshot(params: {

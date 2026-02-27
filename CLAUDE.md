@@ -54,6 +54,7 @@ deploy/           # Deployment scripts
 - Jest + ts-jest, test environment: node
 - Test files: `__tests__/**/*.test.ts(x)` mirroring source structure
 - Run `npm test` before committing
+- **Every feature must include tests covering all acceptance criteria before committing.** Write unit tests for lib/helper functions, API route tests for endpoints, and component tests for UI — matching the acceptance criteria 1:1.
 
 ## Environment variables
 
