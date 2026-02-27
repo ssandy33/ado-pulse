@@ -86,3 +86,7 @@ deploy/           # Deployment scripts
 - Pipeline: SSH into server → git fetch/reset → Docker Compose build → restart services → prune images
 - Stack: Docker (standalone output) + Caddy reverse proxy
 - Domain: pulse.shawnjsandy.com
+- **After every merge to main, run production smoke tests** to verify the deploy:
+  1. App loads — `curl -sf https://pulse.shawnjsandy.com/` returns 200
+  2. API health — curl any API endpoints touched by the feature and verify expected JSON shape
+  3. UI spot-check — open the app and manually verify the feature works end-to-end on prod
