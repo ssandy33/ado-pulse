@@ -139,7 +139,7 @@ export function Dashboard({ creds, onDisconnect }: DashboardProps) {
     fetchData();
   }, [fetchData]);
 
-  useEffect(() => {
+  const loadMemberProfiles = useCallback(() => {
     fetch("/api/settings/members")
       .then((res) => res.json())
       .then((data: { profiles: MemberProfile[] }) => {
@@ -147,6 +147,13 @@ export function Dashboard({ creds, onDisconnect }: DashboardProps) {
       })
       .catch(() => {}); // Non-critical — table renders without badges
   }, []);
+
+  // Fetch on mount and re-fetch when returning to Team tab (picks up settings edits)
+  useEffect(() => {
+    if (activeTab === "team") {
+      loadMemberProfiles();
+    }
+  }, [activeTab, loadMemberProfiles]);
 
   const handleTeamChange = (team: string) => {
     setSelectedTeam(team);

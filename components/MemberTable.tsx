@@ -291,15 +291,21 @@ function AgencyGroupedRows({
     groups.set(agency, list);
   }
 
+  // Precompute agency -> employmentType for O(1) lookups in sort
+  const agencyType = new Map<string, string>();
+  for (const p of agencyLookup.values()) {
+    if (!agencyType.has(p.agency)) {
+      agencyType.set(p.agency, p.employmentType);
+    }
+  }
+
   // Sort: FTE agencies first, then contractor agencies alphabetically, then Unlabelled last
   const sortedEntries = [...groups.entries()].sort(([aName], [bName]) => {
     if (aName === "Unlabelled") return 1;
     if (bName === "Unlabelled") return -1;
 
-    const aProfile = [...agencyLookup.values()].find((p) => p.agency === aName);
-    const bProfile = [...agencyLookup.values()].find((p) => p.agency === bName);
-    const aIsFte = aProfile?.employmentType === "fte";
-    const bIsFte = bProfile?.employmentType === "fte";
+    const aIsFte = agencyType.get(aName) === "fte";
+    const bIsFte = agencyType.get(bName) === "fte";
 
     if (aIsFte && !bIsFte) return -1;
     if (!aIsFte && bIsFte) return 1;

@@ -49,7 +49,8 @@ describe("getMemberProfiles", () => {
   });
 
   it("returns [] when settings file does not exist", async () => {
-    mockReadFile.mockRejectedValue(new Error("ENOENT"));
+    const err = Object.assign(new Error("ENOENT: no such file or directory"), { code: "ENOENT" });
+    mockReadFile.mockRejectedValue(err);
     const profiles = await getMemberProfiles();
     expect(profiles).toEqual([]);
   });
