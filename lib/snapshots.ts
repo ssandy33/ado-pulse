@@ -1,6 +1,110 @@
 import { getDb } from "@/lib/db";
 import { today } from "@/lib/dateUtils";
 
+// ── Row types returned by read helpers ────────────────────────────────
+
+export interface TeamSnapshotRow {
+  snapshotDate: string;
+  teamSlug: string;
+  org: string;
+  project: string;
+  createdAt: string;
+  metrics: unknown;
+}
+
+export interface TimeSnapshotRow {
+  snapshotDate: string;
+  memberId: string;
+  memberName: string;
+  org: string;
+  totalHours: number;
+  createdAt: string;
+  hours: unknown;
+}
+
+// ── Read helpers ──────────────────────────────────────────────────────
+
+export function getTeamSnapshots(
+  org: string,
+  project: string,
+  team: string | null,
+  days: number
+): TeamSnapshotRow[] {
+  const db = getDb();
+  const cutoff = dateDaysAgo(days);
+
+  let sql = `SELECT snapshot_date, team_slug, org, project, created_at, metrics_json
+     FROM team_pr_snapshots
+     WHERE snapshot_date >= ? AND org = ? AND project = ?`;
+  const params: unknown[] = [cutoff, org, project];
+
+  if (team) {
+    sql += " AND team_slug = ?";
+    params.push(team);
+  }
+
+  sql += " ORDER BY snapshot_date DESC LIMIT 100";
+
+  const rows = db.prepare(sql).all(...params) as Array<{
+    snapshot_date: string;
+    team_slug: string;
+    org: string;
+    project: string;
+    created_at: string;
+    metrics_json: string;
+  }>;
+
+  return rows.map((r) => ({
+    snapshotDate: r.snapshot_date,
+    teamSlug: r.team_slug,
+    org: r.org,
+    project: r.project,
+    createdAt: r.created_at,
+    metrics: JSON.parse(r.metrics_json),
+  }));
+}
+
+export function getTimeSnapshots(
+  org: string,
+  days: number
+): TimeSnapshotRow[] {
+  const db = getDb();
+  const cutoff = dateDaysAgo(days);
+
+  const rows = db
+    .prepare(
+      `SELECT snapshot_date, member_id, member_name, org, total_hours, created_at, hours_json
+       FROM time_tracking_snapshots
+       WHERE snapshot_date >= ? AND org = ?
+       ORDER BY snapshot_date DESC LIMIT 100`
+    )
+    .all(cutoff, org) as Array<{
+    snapshot_date: string;
+    member_id: string;
+    member_name: string;
+    org: string;
+    total_hours: number;
+    created_at: string;
+    hours_json: string;
+  }>;
+
+  return rows.map((r) => ({
+    snapshotDate: r.snapshot_date,
+    memberId: r.member_id,
+    memberName: r.member_name,
+    org: r.org,
+    totalHours: r.total_hours,
+    createdAt: r.created_at,
+    hours: JSON.parse(r.hours_json),
+  }));
+}
+
+function dateDaysAgo(days: number): string {
+  const d = new Date(today());
+  d.setDate(d.getDate() - days);
+  return d.toISOString().slice(0, 10);
+}
+
 export function saveTeamSnapshot(params: {
   teamSlug: string;
   org: string;
