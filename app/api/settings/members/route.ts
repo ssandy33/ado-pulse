@@ -16,19 +16,34 @@ export async function GET() {
   }
 }
 
+const VALID_EMPLOYMENT_TYPES = ["fte", "contractor"] as const;
+
 export async function POST(request: NextRequest) {
   const start = Date.now();
   logger.info("Request start", { route: "settings/members", method: "POST" });
+
+  let body: MemberProfile;
   try {
-    const body = (await request.json()) as MemberProfile;
+    body = (await request.json()) as MemberProfile;
+  } catch {
+    return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
+  }
 
-    if (!body.adoId || !body.agency || !body.employmentType) {
-      return NextResponse.json(
-        { error: "adoId, agency, employmentType required" },
-        { status: 400 },
-      );
-    }
+  if (!body.adoId || !body.agency || !body.employmentType) {
+    return NextResponse.json(
+      { error: "adoId, agency, employmentType required" },
+      { status: 400 },
+    );
+  }
 
+  if (!VALID_EMPLOYMENT_TYPES.includes(body.employmentType)) {
+    return NextResponse.json(
+      { error: `employmentType must be one of: ${VALID_EMPLOYMENT_TYPES.join(", ")}` },
+      { status: 400 },
+    );
+  }
+
+  try {
     await upsertMemberProfile({
       adoId: body.adoId,
       displayName: body.displayName || "",
@@ -41,6 +56,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ ok: true });
   } catch (error) {
     logger.error("Request error", { route: "settings/members", method: "POST", durationMs: Date.now() - start, stack_trace: error instanceof Error ? error.stack : undefined });
-    return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
+    return NextResponse.json({ error: "Failed to save member profile" }, { status: 500 });
   }
 }

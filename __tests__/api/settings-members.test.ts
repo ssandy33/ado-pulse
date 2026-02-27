@@ -134,6 +134,37 @@ describe("POST /api/settings/members", () => {
     expect(body.error).toMatch(/employmentType/);
   });
 
+  it("returns 400 when employmentType is an invalid value", async () => {
+    const res = await POST(
+      makePostRequest({
+        adoId: "abc123",
+        displayName: "Bad Type",
+        email: "bad@type.com",
+        employmentType: "intern",
+        agency: "arrivia",
+      }),
+    );
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.error).toMatch(/employmentType/);
+  });
+
+  it("returns 500 when storage write fails", async () => {
+    mockUpsertMemberProfile.mockRejectedValue(new Error("disk error"));
+    const res = await POST(
+      makePostRequest({
+        adoId: "abc123",
+        displayName: "Shawn Sandy",
+        email: "shawn@arrivia.com",
+        employmentType: "fte",
+        agency: "arrivia",
+      }),
+    );
+    expect(res.status).toBe(500);
+    const body = await res.json();
+    expect(body.error).toBeDefined();
+  });
+
   it("returns 400 when body is invalid JSON", async () => {
     const req = new NextRequest("http://localhost:3000/api/settings/members", {
       method: "POST",

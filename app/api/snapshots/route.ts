@@ -10,7 +10,6 @@ export async function GET(request: NextRequest) {
     const params = request.nextUrl.searchParams;
     const org = params.get("org") || request.headers.get("x-ado-org");
     const project = params.get("project") || request.headers.get("x-ado-project");
-    const _pat = request.headers.get("x-ado-pat");
     const type = params.get("type") || "pr";
     const team = params.get("team");
     const rawDays = parseInt(params.get("days") ?? "30", 10);

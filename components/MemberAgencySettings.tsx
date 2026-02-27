@@ -38,12 +38,21 @@ export function MemberAgencySettings({
   const [rowFeedback, setRowFeedback] = useState<Map<string, "success" | "error">>(new Map());
   const feedbackTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
 
+  // Clean up feedback timers on unmount
+  useEffect(() => {
+    const timers = feedbackTimers.current;
+    return () => {
+      for (const id of timers.values()) clearTimeout(id);
+      timers.clear();
+    };
+  }, []);
+
   // Load teams list
   useEffect(() => {
     fetch("/api/teams?pinnedOnly=true", { headers: adoHeaders })
       .then((res) => res.json())
       .then((data: TeamsApiResponse) => setTeams(data.teams))
-      .catch(() => {});
+      .catch((err) => console.error("Failed to load teams", err));
   }, [adoHeaders]);
 
   // Load saved profiles
@@ -53,7 +62,7 @@ export function MemberAgencySettings({
       .then((data: { profiles: MemberProfile[] }) => {
         setSavedProfiles(data.profiles ?? []);
       })
-      .catch(() => {});
+      .catch((err) => console.error("Failed to load member profiles", err));
   }, []);
 
   // Build row edits from saved profiles whenever profiles or members change

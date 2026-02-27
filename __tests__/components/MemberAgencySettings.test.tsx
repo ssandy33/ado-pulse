@@ -97,8 +97,8 @@ const savedProfilesWithContractor = {
   ],
 };
 
-function setupFetchMock(savedProfiles = savedProfilesEmpty) {
-  mockFetch.mockImplementation((url: string, opts?: RequestInit) => {
+function baseFetchHandler(savedProfiles = savedProfilesEmpty) {
+  return (url: string, opts?: RequestInit) => {
     if (typeof url === "string" && url.includes("/api/teams")) {
       return Promise.resolve({
         ok: true,
@@ -127,6 +127,27 @@ function setupFetchMock(savedProfiles = savedProfilesEmpty) {
       ok: false,
       json: () => Promise.resolve({}),
     });
+  };
+}
+
+function setupFetchMock(savedProfiles = savedProfilesEmpty) {
+  mockFetch.mockImplementation(baseFetchHandler(savedProfiles));
+}
+
+function setupFetchMockWithPostError(savedProfiles = savedProfilesEmpty) {
+  const base = baseFetchHandler(savedProfiles);
+  mockFetch.mockImplementation((url: string, opts?: RequestInit) => {
+    if (
+      typeof url === "string" &&
+      url.includes("/api/settings/members") &&
+      opts?.method === "POST"
+    ) {
+      return Promise.resolve({
+        ok: false,
+        json: () => Promise.resolve({ error: "fail" }),
+      });
+    }
+    return base(url, opts);
   });
 }
 
@@ -282,23 +303,7 @@ describe("MemberAgencySettings", () => {
   });
 
   it("shows error feedback when POST fails", async () => {
-    setupFetchMock();
-    // Override mock to fail on POST
-    const originalImpl = mockFetch.getMockImplementation()!;
-    mockFetch.mockImplementation((url: string, opts?: RequestInit) => {
-      if (
-        typeof url === "string" &&
-        url.includes("/api/settings/members") &&
-        opts?.method === "POST"
-      ) {
-        return Promise.resolve({
-          ok: false,
-          json: () => Promise.resolve({ error: "fail" }),
-        });
-      }
-      return originalImpl(url, opts);
-    });
-
+    setupFetchMockWithPostError();
     await act(async () => {
       render(
         <MemberAgencySettings
