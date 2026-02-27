@@ -1,6 +1,6 @@
 import fs from "fs/promises";
 import path from "path";
-import type { SettingsData, MemberRoleExclusion } from "@/lib/ado/types";
+import type { SettingsData, MemberRoleExclusion, MemberProfile } from "@/lib/ado/types";
 
 const SETTINGS_PATH = path.join(process.cwd(), "data", "settings.json");
 
@@ -22,4 +22,28 @@ export async function writeSettings(data: SettingsData): Promise<void> {
 export async function getExclusions(): Promise<MemberRoleExclusion[]> {
   const settings = await readSettings();
   return settings.memberRoles?.exclusions ?? [];
+}
+
+export async function getMemberProfiles(): Promise<MemberProfile[]> {
+  const settings = await readSettings();
+  return settings.memberProfiles?.profiles ?? [];
+}
+
+export async function upsertMemberProfile(profile: MemberProfile): Promise<void> {
+  const settings = await readSettings();
+  const profiles = settings.memberProfiles?.profiles ?? [];
+  const idx = profiles.findIndex(p => p.adoId === profile.adoId);
+  if (idx >= 0) {
+    profiles[idx] = profile;
+  } else {
+    profiles.push(profile);
+  }
+  await writeSettings({
+    ...settings,
+    memberProfiles: { profiles },
+  });
+}
+
+export function buildAgencyLookup(profiles: MemberProfile[]): Map<string, MemberProfile> {
+  return new Map(profiles.map(p => [p.adoId, p]));
 }

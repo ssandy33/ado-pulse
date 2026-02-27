@@ -2,6 +2,7 @@
 
 import type { TimeRange } from "@/lib/dateRange";
 import { MemberRolesSettings } from "./MemberRolesSettings";
+import { MemberAgencySettings } from "./MemberAgencySettings";
 import { TeamVisibilitySettings } from "./TeamVisibilitySettings";
 import { IntegrationsSettings } from "./IntegrationsSettings";
 
@@ -26,6 +27,14 @@ export function SettingsPage({
       </div>
 
       <MemberRolesSettings
+        adoHeaders={adoHeaders}
+        selectedTeam={selectedTeam}
+        range={range}
+      />
+
+      <div className="my-8" />
+
+      <MemberAgencySettings
         adoHeaders={adoHeaders}
         selectedTeam={selectedTeam}
         range={range}
