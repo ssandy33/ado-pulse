@@ -59,6 +59,16 @@ function initSchema(conn: Database.Database): void {
     `);
 
     conn.exec(`
+      CREATE INDEX IF NOT EXISTS idx_team_pr_snapshots_org_project_date
+        ON team_pr_snapshots(org, project, snapshot_date)
+    `);
+
+    conn.exec(`
+      CREATE INDEX IF NOT EXISTS idx_time_tracking_snapshots_org_date
+        ON time_tracking_snapshots(org, snapshot_date)
+    `);
+
+    conn.exec(`
       CREATE TABLE IF NOT EXISTS scheduler_log (
         id         INTEGER PRIMARY KEY AUTOINCREMENT,
         run_date   TEXT    NOT NULL,

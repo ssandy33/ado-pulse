@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse, after } from "next/server";
 import { getTeamMembers } from "@/lib/ado/teams";
 import { getPullRequests, getReviewsGivenByMember } from "@/lib/ado/pullRequests";
 import { batchAsync } from "@/lib/ado/client";
@@ -263,8 +263,8 @@ export async function GET(request: NextRequest) {
       confidence: diagnostics.confidence,
     });
 
-    // Persist daily snapshot after response is ready (fire-and-forget, deferred off request path)
-    setImmediate(() => {
+    // Persist daily snapshot after response is sent
+    after(() => {
       try {
         saveTeamSnapshot({
           teamSlug: teamName,
@@ -273,14 +273,10 @@ export async function GET(request: NextRequest) {
           metrics: response,
         });
       } catch (err) {
-        try {
-          logger.error("[snapshot] Failed to save team PR snapshot", {
-            team: teamName,
-            error: err instanceof Error ? err.message : String(err),
-          });
-        } catch {
-          // Deferred writes are best-effort; silently ignore if context is unavailable
-        }
+        logger.error("[snapshot] Failed to save team PR snapshot", {
+          team: teamName,
+          error: err instanceof Error ? err.message : String(err),
+        });
       }
     });
 

@@ -14,6 +14,8 @@ import { getDb, closeDb } from "@/lib/db";
 import {
   saveTeamSnapshot,
   saveTimeSnapshot,
+  getTeamSnapshots,
+  getTimeSnapshots,
 } from "@/lib/snapshots";
 
 beforeAll(() => {
@@ -209,5 +211,93 @@ describe("time tracking snapshots", () => {
       .prepare("SELECT * FROM time_tracking_snapshots")
       .all();
     expect(rows).toHaveLength(2);
+  });
+});
+
+// ── Read helpers: getTeamSnapshots ────────────────────────────────────
+
+describe("getTeamSnapshots", () => {
+  it("returns rows filtered by org and project with parsed metrics", () => {
+    saveTeamSnapshot({ teamSlug: "alpha", org: "myorg", project: "proj", metrics: { totalPRs: 5 } });
+    saveTeamSnapshot({ teamSlug: "beta", org: "myorg", project: "proj", metrics: { totalPRs: 3 } });
+
+    const rows = getTeamSnapshots("myorg", "proj", null, 30);
+    expect(rows).toHaveLength(2);
+
+    const alpha = rows.find((r) => r.teamSlug === "alpha")!;
+    expect(alpha.snapshotDate).toBe("2026-02-25");
+    expect(alpha.org).toBe("myorg");
+    expect(alpha.project).toBe("proj");
+    expect(alpha.metrics).toEqual({ totalPRs: 5 });
+
+    const beta = rows.find((r) => r.teamSlug === "beta")!;
+    expect(beta.metrics).toEqual({ totalPRs: 3 });
+  });
+
+  it("filters by team when provided", () => {
+    saveTeamSnapshot({ teamSlug: "alpha", org: "myorg", project: "proj", metrics: {} });
+    saveTeamSnapshot({ teamSlug: "beta", org: "myorg", project: "proj", metrics: {} });
+
+    const rows = getTeamSnapshots("myorg", "proj", "alpha", 30);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].teamSlug).toBe("alpha");
+  });
+
+  it("excludes rows from different org", () => {
+    saveTeamSnapshot({ teamSlug: "alpha", org: "org-a", project: "proj", metrics: {} });
+    saveTeamSnapshot({ teamSlug: "alpha", org: "org-b", project: "proj", metrics: {} });
+
+    const rows = getTeamSnapshots("org-a", "proj", null, 30);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].org).toBe("org-a");
+  });
+
+  it("returns empty array when no rows match", () => {
+    const rows = getTeamSnapshots("nonexistent", "proj", null, 30);
+    expect(rows).toEqual([]);
+  });
+
+  it("respects days lookback (0-day window includes today's row)", () => {
+    saveTeamSnapshot({ teamSlug: "alpha", org: "myorg", project: "proj", metrics: {} });
+
+    // days=0 → cutoff equals today, so snapshot_date >= today includes today's row
+    const rows = getTeamSnapshots("myorg", "proj", null, 0);
+    expect(rows).toHaveLength(1);
+  });
+});
+
+// ── Read helpers: getTimeSnapshots ────────────────────────────────────
+
+describe("getTimeSnapshots", () => {
+  it("returns rows filtered by org with parsed hours", () => {
+    saveTimeSnapshot({
+      memberId: "alice@example.com",
+      memberName: "Alice",
+      org: "myorg",
+      hours: { features: ["A"] },
+      totalHours: 6.5,
+    });
+
+    const rows = getTimeSnapshots("myorg", 30);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].snapshotDate).toBe("2026-02-25");
+    expect(rows[0].memberId).toBe("alice@example.com");
+    expect(rows[0].memberName).toBe("Alice");
+    expect(rows[0].totalHours).toBe(6.5);
+    expect(rows[0].hours).toEqual({ features: ["A"] });
+  });
+
+  it("excludes rows from different org", () => {
+    saveTimeSnapshot({ memberId: "a@b.com", memberName: "A", org: "org-a", hours: {}, totalHours: 1 });
+    saveTimeSnapshot({ memberId: "a@b.com", memberName: "A", org: "org-b", hours: {}, totalHours: 2 });
+
+    const rows = getTimeSnapshots("org-a", 30);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].org).toBe("org-a");
+  });
+
+  it("returns empty array when no rows match", () => {
+    const rows = getTimeSnapshots("nonexistent", 30);
+    expect(rows).toEqual([]);
   });
 });
