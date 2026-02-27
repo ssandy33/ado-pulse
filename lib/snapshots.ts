@@ -1,5 +1,6 @@
 import { getDb } from "@/lib/db";
 import { today } from "@/lib/dateUtils";
+import { logger } from "@/lib/logger";
 
 // ── Row types returned by read helpers ────────────────────────────────
 
@@ -60,7 +61,11 @@ export function getTeamSnapshots(
     org: r.org,
     project: r.project,
     createdAt: r.created_at,
-    metrics: JSON.parse(r.metrics_json),
+    metrics: safeJsonParse(r.metrics_json, {
+      teamSlug: r.team_slug,
+      org: r.org,
+      project: r.project,
+    }),
   }));
 }
 
@@ -95,8 +100,20 @@ export function getTimeSnapshots(
     org: r.org,
     totalHours: r.total_hours,
     createdAt: r.created_at,
-    hours: JSON.parse(r.hours_json),
+    hours: safeJsonParse(r.hours_json, {
+      memberId: r.member_id,
+      org: r.org,
+    }),
   }));
+}
+
+function safeJsonParse(json: string, context: Record<string, unknown>): unknown {
+  try {
+    return JSON.parse(json);
+  } catch {
+    logger.warn("[snapshot] Corrupt JSON in snapshot row", context);
+    return null;
+  }
 }
 
 function dateDaysAgo(days: number): string {

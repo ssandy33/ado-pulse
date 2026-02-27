@@ -257,10 +257,10 @@ describe("getTeamSnapshots", () => {
     expect(rows).toEqual([]);
   });
 
-  it("respects days lookback (0-day window excludes today's row)", () => {
+  it("respects days lookback (0-day window includes today's row)", () => {
     saveTeamSnapshot({ teamSlug: "alpha", org: "myorg", project: "proj", metrics: {} });
 
-    // days=0 → cutoff is today, so snapshot_date >= today still matches
+    // days=0 → cutoff equals today, so snapshot_date >= today includes today's row
     const rows = getTeamSnapshots("myorg", "proj", null, 0);
     expect(rows).toHaveLength(1);
   });

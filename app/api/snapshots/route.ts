@@ -8,8 +8,9 @@ export async function GET(request: NextRequest) {
 
   try {
     const params = request.nextUrl.searchParams;
-    const org = params.get("org");
-    const project = params.get("project");
+    const org = params.get("org") || request.headers.get("x-ado-org");
+    const project = params.get("project") || request.headers.get("x-ado-project");
+    const _pat = request.headers.get("x-ado-pat");
     const type = params.get("type") || "pr";
     const team = params.get("team");
     const rawDays = parseInt(params.get("days") ?? "30", 10);
@@ -17,7 +18,7 @@ export async function GET(request: NextRequest) {
 
     if (!org || !project) {
       return NextResponse.json(
-        { error: "Missing required query params: org, project" },
+        { error: "Missing required params: org, project (query string or x-ado-* headers)" },
         { status: 400 }
       );
     }
@@ -44,8 +45,10 @@ export async function GET(request: NextRequest) {
     });
     return NextResponse.json({ type: "pr", count: snapshots.length, snapshots });
   } catch (err) {
-    const message = err instanceof Error ? err.message : "Unknown error";
-    logger.error("Snapshot read failed", { route: "snapshots", error: message });
-    return NextResponse.json({ error: message }, { status: 500 });
+    logger.error("Snapshot read failed", {
+      route: "snapshots",
+      error: err instanceof Error ? err.message : String(err),
+    });
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }
