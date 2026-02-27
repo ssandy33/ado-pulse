@@ -15,6 +15,7 @@ import {
   getMemberProfiles,
   upsertMemberProfile,
   buildAgencyLookup,
+  buildAgencyLookupByEmail,
 } from "@/lib/settings";
 
 const fteProfile: MemberProfile = {
@@ -144,5 +145,35 @@ describe("buildAgencyLookup", () => {
   it("returns undefined for unknown adoIds (defensive join)", () => {
     const lookup = buildAgencyLookup([fteProfile]);
     expect(lookup.get("unknown-id")).toBeUndefined();
+  });
+});
+
+// ── buildAgencyLookupByEmail ─────────────────────────────────
+
+describe("buildAgencyLookupByEmail", () => {
+  it("returns an empty Map for empty profiles", () => {
+    const lookup = buildAgencyLookupByEmail([]);
+    expect(lookup.size).toBe(0);
+  });
+
+  it("creates a Map keyed by lowercased email", () => {
+    const lookup = buildAgencyLookupByEmail([fteProfile, contractorProfile]);
+    expect(lookup.size).toBe(2);
+    expect(lookup.get("shawn@arrivia.com")).toEqual(fteProfile);
+    expect(lookup.get("name@vendor.com")).toEqual(contractorProfile);
+  });
+
+  it("matches case-insensitively", () => {
+    const mixedCaseProfile: MemberProfile = {
+      ...fteProfile,
+      email: "Shawn@Arrivia.COM",
+    };
+    const lookup = buildAgencyLookupByEmail([mixedCaseProfile]);
+    expect(lookup.get("shawn@arrivia.com")).toEqual(mixedCaseProfile);
+  });
+
+  it("returns undefined for unknown emails", () => {
+    const lookup = buildAgencyLookupByEmail([fteProfile]);
+    expect(lookup.get("unknown@example.com")).toBeUndefined();
   });
 });

@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, Fragment } from "react";
 import type { TimeRange } from "@/lib/dateRange";
-import type { TeamTimeData, MemberTimeEntry, WrongLevelEntry, TimeTrackingDiagnostics, ExpenseType } from "@/lib/ado/types";
+import type { TeamTimeData, MemberTimeEntry, WrongLevelEntry, TimeTrackingDiagnostics, ExpenseType, MemberProfile } from "@/lib/ado/types";
 import { KPICard } from "./KPICard";
 import { SkeletonKPIRow, SkeletonTable } from "./SkeletonLoader";
 import { EmailTooltip } from "./EmailTooltip";
@@ -132,12 +132,13 @@ function WrongLevelBanner({ entries, org, project }: { entries: WrongLevelEntry[
   );
 }
 
-function MemberRow({ member, isExpanded, onToggle, org, project }: {
+function MemberRow({ member, isExpanded, onToggle, org, project, profile }: {
   member: MemberTimeEntry;
   isExpanded: boolean;
   onToggle: () => void;
   org: string;
   project: string;
+  profile?: MemberProfile;
 }) {
   const hasFeatures = member.features.length > 0;
   const status: "logged" | "not-logging" | "excluded" = member.isExcluded
@@ -173,6 +174,18 @@ function MemberRow({ member, isExpanded, onToggle, org, project }: {
               {member.isExcluded && member.role && (
                 <span className="ml-2 text-[10px] font-medium text-pulse-muted bg-pulse-bg px-1.5 py-0.5 rounded">
                   {member.role}
+                </span>
+              )}
+              {profile && (
+                <span
+                  data-testid="agency-badge"
+                  className={`ml-2 inline-flex px-1.5 py-0.5 rounded text-[10px] font-medium ring-1 ${
+                    profile.employmentType === "fte"
+                      ? "bg-blue-50 text-blue-600 ring-blue-200"
+                      : "bg-amber-50 text-amber-600 ring-amber-200"
+                  }`}
+                >
+                  {profile.agency}
                 </span>
               )}
             </div>
@@ -420,6 +433,136 @@ function FeatureBreakdownRow({ row, isExpanded, onToggle, org, project }: {
   );
 }
 
+// ── Agency Grouping ──────────────────────────────────────────────
+
+interface AgencyGroup {
+  label: string;
+  employmentType: "fte" | "contractor" | null;
+  members: MemberTimeEntry[];
+  totalHours: number;
+  capExHours: number;
+  opExHours: number;
+  unclassifiedHours: number;
+  notLoggingCount: number;
+}
+
+function buildAgencyGroups(
+  members: MemberTimeEntry[],
+  agencyLookup: Map<string, MemberProfile>
+): AgencyGroup[] {
+  const map = new Map<string, AgencyGroup>();
+
+  for (const member of members) {
+    const profile = agencyLookup.get(member.uniqueName.toLowerCase());
+    const key = profile?.agency ?? "Unlabelled";
+
+    if (!map.has(key)) {
+      map.set(key, {
+        label: key,
+        employmentType: profile?.employmentType ?? null,
+        members: [],
+        totalHours: 0,
+        capExHours: 0,
+        opExHours: 0,
+        unclassifiedHours: 0,
+        notLoggingCount: 0,
+      });
+    }
+
+    const group = map.get(key)!;
+    group.members.push(member);
+    if (!member.isExcluded) {
+      group.totalHours += member.totalHours;
+      group.capExHours += member.capExHours;
+      group.opExHours += member.opExHours;
+      group.unclassifiedHours += member.unclassifiedHours;
+      if (member.totalHours === 0) group.notLoggingCount++;
+    }
+  }
+
+  // Precompute agency -> employmentType for sort
+  const agencyType = new Map<string, string>();
+  for (const p of agencyLookup.values()) {
+    if (!agencyType.has(p.agency)) agencyType.set(p.agency, p.employmentType);
+  }
+
+  return [...map.values()].sort((a, b) => {
+    if (a.label === "Unlabelled") return 1;
+    if (b.label === "Unlabelled") return -1;
+    const aIsFte = agencyType.get(a.label) === "fte";
+    const bIsFte = agencyType.get(b.label) === "fte";
+    if (aIsFte && !bIsFte) return -1;
+    if (!aIsFte && bIsFte) return 1;
+    return a.label.localeCompare(b.label);
+  });
+}
+
+function AgencyGroupedMemberRows({
+  members,
+  agencyLookup,
+  expandedRow,
+  onToggle,
+  org,
+  project,
+}: {
+  members: MemberTimeEntry[];
+  agencyLookup: Map<string, MemberProfile>;
+  expandedRow: string | null;
+  onToggle: (key: string) => void;
+  org: string;
+  project: string;
+}) {
+  const groups = buildAgencyGroups(members, agencyLookup);
+
+  return (
+    <>
+      {groups.map((group) => (
+        <Fragment key={group.label}>
+          <tr className="bg-pulse-bg/60 border-t border-pulse-border" data-testid={`agency-group-${group.label}`}>
+            <td className="px-4 py-2">
+              <span className="text-[11px] font-semibold text-pulse-muted uppercase tracking-wide">
+                {group.label}
+              </span>
+              <span className="ml-2 text-[11px] text-pulse-dim">
+                {group.members.length} {group.members.length === 1 ? "member" : "members"}
+              </span>
+              {group.notLoggingCount > 0 && (
+                <span className="ml-2 text-[11px] font-medium text-red-600">
+                  {group.notLoggingCount} not logging
+                </span>
+              )}
+            </td>
+            <td className="px-4 py-2 text-right text-[12px] font-semibold text-pulse-text tabular-nums">
+              {group.totalHours.toFixed(1)}
+            </td>
+            <td className="px-4 py-2 text-right text-[12px] text-pulse-muted tabular-nums">
+              {group.capExHours.toFixed(1)}
+            </td>
+            <td className="px-4 py-2 text-right text-[12px] text-pulse-muted tabular-nums">
+              {group.opExHours.toFixed(1)}
+            </td>
+            <td className="px-4 py-2 text-right text-[12px] text-pulse-muted tabular-nums">
+              {group.unclassifiedHours.toFixed(1)}
+            </td>
+            <td className="px-4 py-2" />
+          </tr>
+          {group.members.map((member) => (
+            <MemberRow
+              key={member.uniqueName}
+              member={member}
+              isExpanded={expandedRow === member.uniqueName}
+              onToggle={() => onToggle(member.uniqueName)}
+              org={org}
+              project={project}
+              profile={agencyLookup.get(member.uniqueName.toLowerCase())}
+            />
+          ))}
+        </Fragment>
+      ))}
+    </>
+  );
+}
+
 export function TimeTrackingTab({
   adoHeaders,
   selectedTeam,
@@ -432,6 +575,18 @@ export function TimeTrackingTab({
   const [error, setError] = useState<string | null>(null);
   const [expandedRow, setExpandedRow] = useState<string | null>(null);
   const [breakdownView, setBreakdownView] = useState<"member" | "feature">("member");
+  const [agencyLookup, setAgencyLookup] = useState<Map<string, MemberProfile>>(new Map());
+  const [groupByAgency, setGroupByAgency] = useState(false);
+
+  // Fetch member profiles on mount
+  useEffect(() => {
+    fetch("/api/settings/members")
+      .then((res) => res.json())
+      .then((d: { profiles: MemberProfile[] }) => {
+        setAgencyLookup(new Map(d.profiles.map((p) => [p.email.toLowerCase(), p])));
+      })
+      .catch(() => {}); // Non-critical
+  }, []);
 
   const featureRows = useMemo(() => {
     if (!data) return [];
@@ -445,6 +600,7 @@ export function TimeTrackingTab({
     setError(null);
     setData(null);
     setExpandedRow(null);
+    setGroupByAgency(false);
 
     fetch(
       `/api/timetracking/team-summary?team=${encodeURIComponent(selectedTeam)}&range=${range}`,
@@ -468,6 +624,25 @@ export function TimeTrackingTab({
   useEffect(() => {
     fetchData();
   }, [fetchData]);
+
+  const hasAnyProfiles = agencyLookup.size > 0;
+
+  // Derive not-logging agency breakdown for KPI subtitle
+  const notLoggingByAgency: string | null = useMemo(() => {
+    if (!data || agencyLookup.size === 0) return null;
+    const notLogging = data.members.filter((m) => !m.isExcluded && m.totalHours === 0);
+    if (notLogging.length < 2) return null;
+    const counts = new Map<string, number>();
+    for (const m of notLogging) {
+      const profile = agencyLookup.get(m.uniqueName.toLowerCase());
+      const label = profile?.agency ?? "Unlabelled";
+      counts.set(label, (counts.get(label) ?? 0) + 1);
+    }
+    return [...counts.entries()]
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([agency, count]) => `${agency} (${count})`)
+      .join(", ");
+  }, [data, agencyLookup]);
 
   // Empty state: no team selected
   if (!selectedTeam) {
@@ -600,6 +775,11 @@ export function TimeTrackingTab({
                 data.summary.membersNotLogging > 0 ? (
                   <span className="text-red-600">
                     {data.summary.membersNotLogging} of {data.team.totalMembers} members
+                    {notLoggingByAgency && (
+                      <span className="block text-[10px] text-red-500 mt-0.5" data-testid="not-logging-agencies">
+                        {notLoggingByAgency}
+                      </span>
+                    )}
                   </span>
                 ) : (
                   <span className="text-emerald-600">all members logging</span>
@@ -640,13 +820,32 @@ export function TimeTrackingTab({
           {/* Member Table */}
           {breakdownView === "member" && (
           <div className="bg-pulse-card border border-pulse-border rounded-lg overflow-hidden mb-6">
-            <div className="px-4 py-3 border-b border-pulse-border">
-              <h3 className="text-[13px] font-semibold text-pulse-text">
-                Member Time Breakdown
-              </h3>
-              <p className="text-[11px] text-pulse-muted mt-0.5">
-                Click a row to expand feature-level breakdown. Hours from 7pace Timetracker.
-              </p>
+            <div className="px-4 py-3 border-b border-pulse-border flex items-center justify-between">
+              <div>
+                <h3 className="text-[13px] font-semibold text-pulse-text">
+                  Member Time Breakdown
+                </h3>
+                <p className="text-[11px] text-pulse-muted mt-0.5">
+                  Click a row to expand feature-level breakdown. Hours from 7pace Timetracker.
+                </p>
+              </div>
+              {hasAnyProfiles && (
+                <button
+                  type="button"
+                  onClick={() => setGroupByAgency((prev) => !prev)}
+                  className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded text-[11px] font-medium border transition-colors cursor-pointer ${
+                    groupByAgency
+                      ? "bg-pulse-accent/10 text-pulse-accent border-pulse-accent/30"
+                      : "bg-transparent text-pulse-muted border-pulse-border hover:text-pulse-text"
+                  }`}
+                  aria-pressed={groupByAgency}
+                >
+                  <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
+                  </svg>
+                  Agency
+                </button>
+              )}
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-[12px]">
@@ -661,20 +860,34 @@ export function TimeTrackingTab({
                   </tr>
                 </thead>
                 <tbody>
-                  {data.members.map((member) => (
-                    <MemberRow
-                      key={member.uniqueName}
-                      member={member}
-                      isExpanded={expandedRow === member.uniqueName}
-                      onToggle={() =>
-                        setExpandedRow((prev) =>
-                          prev === member.uniqueName ? null : member.uniqueName
-                        )
+                  {groupByAgency && hasAnyProfiles ? (
+                    <AgencyGroupedMemberRows
+                      members={data.members}
+                      agencyLookup={agencyLookup}
+                      expandedRow={expandedRow}
+                      onToggle={(key) =>
+                        setExpandedRow((prev) => (prev === key ? null : key))
                       }
                       org={org}
                       project={project}
                     />
-                  ))}
+                  ) : (
+                    data.members.map((member) => (
+                      <MemberRow
+                        key={member.uniqueName}
+                        member={member}
+                        isExpanded={expandedRow === member.uniqueName}
+                        onToggle={() =>
+                          setExpandedRow((prev) =>
+                            prev === member.uniqueName ? null : member.uniqueName
+                          )
+                        }
+                        org={org}
+                        project={project}
+                        profile={agencyLookup.get(member.uniqueName.toLowerCase())}
+                      />
+                    ))
+                  )}
                 </tbody>
               </table>
             </div>
