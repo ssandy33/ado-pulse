@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import type { MemberSummary, AlignmentApiResponse, MemberAlignmentDetail, ValidatorMemberPR } from "@/lib/ado/types";
+import { useState, useEffect } from "react";
+import type { MemberSummary, AlignmentApiResponse, MemberAlignmentDetail, ValidatorMemberPR, MemberProfile } from "@/lib/ado/types";
 import {
   StatusDot,
   StatusBadge,
@@ -16,6 +16,7 @@ interface MemberTableProps {
   members: MemberSummary[];
   teamName: string;
   alignmentData?: AlignmentApiResponse | null;
+  agencyLookup?: Map<string, MemberProfile>;
 }
 
 type StatusKind = "active" | "low-reviews" | "reviewing" | "inactive" | "non-contributor";
@@ -172,8 +173,14 @@ function PRListExpandedRow({ prs }: { prs: ValidatorMemberPR[] }) {
   );
 }
 
-export function MemberTable({ members, teamName, alignmentData }: MemberTableProps) {
+export function MemberTable({ members, teamName, alignmentData, agencyLookup }: MemberTableProps) {
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [groupByAgency, setGroupByAgency] = useState(false);
+
+  // Reset grouping when team changes
+  useEffect(() => {
+    setGroupByAgency(false);
+  }, [members]);
 
   // Build alignment lookup by uniqueName (case-insensitive)
   const alignmentMap = new Map<string, MemberAlignmentDetail>();
@@ -189,11 +196,53 @@ export function MemberTable({ members, teamName, alignmentData }: MemberTablePro
     return 0; // preserve server sort within groups
   });
 
+  const hasAnyProfiles = agencyLookup && agencyLookup.size > 0;
+
+  function renderMemberRow(member: MemberSummary) {
+    const status = getStatus(member);
+    const memberAlignment = alignmentMap.get(member.uniqueName.toLowerCase());
+    const hasAlignment = memberAlignment && memberAlignment.total > 0;
+    const isExpanded = expandedId === member.id;
+
+    return (
+      <MemberRow
+        key={member.id}
+        member={member}
+        status={status}
+        alignment={hasAlignment ? memberAlignment : undefined}
+        profile={agencyLookup?.get(member.id)}
+        isExpanded={isExpanded}
+        onToggle={() =>
+          setExpandedId((prev) => (prev === member.id ? null : member.id))
+        }
+      />
+    );
+  }
+
   return (
     <SectionCard
       title="Developer Breakdown"
       headerRight={
-        <span className="text-[12px] text-pulse-dim">{teamName}</span>
+        <div className="flex items-center gap-3">
+          {hasAnyProfiles && (
+            <button
+              type="button"
+              onClick={() => setGroupByAgency((prev) => !prev)}
+              className={`inline-flex items-center gap-1.5 px-2 py-1 text-[11px] font-medium rounded border transition-colors cursor-pointer ${
+                groupByAgency
+                  ? "bg-pulse-accent/10 text-pulse-accent border-pulse-accent/30"
+                  : "bg-pulse-bg text-pulse-dim border-pulse-border hover:text-pulse-muted"
+              }`}
+              aria-pressed={groupByAgency}
+            >
+              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M3 7h4m0 0V3m0 4L3 3m18 4h-4m0 0V3m0 4l4-4M3 17h4m0 0v4m0-4L3 21m18-4h-4m0 0v4m0-4l4 4" />
+              </svg>
+              Group by agency
+            </button>
+          )}
+          <span className="text-[12px] text-pulse-dim">{teamName}</span>
+        </div>
       }
       footer={
         <div className="flex items-center gap-4">
@@ -209,27 +258,98 @@ export function MemberTable({ members, teamName, alignmentData }: MemberTablePro
       }
     >
       <DataTable columns={COLUMNS}>
-        {sortedMembers.map((member) => {
-          const status = getStatus(member);
-          const memberAlignment = alignmentMap.get(member.uniqueName.toLowerCase());
-          const hasAlignment = memberAlignment && memberAlignment.total > 0;
-          const isExpanded = expandedId === member.id;
-
-          return (
-            <MemberRow
-              key={member.id}
-              member={member}
-              status={status}
-              alignment={hasAlignment ? memberAlignment : undefined}
-              isExpanded={isExpanded}
-              onToggle={() =>
-                setExpandedId((prev) => (prev === member.id ? null : member.id))
-              }
-            />
-          );
-        })}
+        {groupByAgency && hasAnyProfiles ? (
+          <AgencyGroupedRows
+            members={sortedMembers}
+            agencyLookup={agencyLookup}
+            renderRow={renderMemberRow}
+          />
+        ) : (
+          sortedMembers.map(renderMemberRow)
+        )}
       </DataTable>
     </SectionCard>
+  );
+}
+
+function AgencyGroupedRows({
+  members,
+  agencyLookup,
+  renderRow,
+}: {
+  members: MemberSummary[];
+  agencyLookup: Map<string, MemberProfile>;
+  renderRow: (member: MemberSummary) => React.ReactNode;
+}) {
+  // Group members by agency
+  const groups = new Map<string, MemberSummary[]>();
+  for (const member of members) {
+    const profile = agencyLookup.get(member.id);
+    const agency = profile?.agency ?? "Unlabelled";
+    const list = groups.get(agency) || [];
+    list.push(member);
+    groups.set(agency, list);
+  }
+
+  // Precompute agency -> employmentType for O(1) lookups in sort
+  const agencyType = new Map<string, string>();
+  for (const p of agencyLookup.values()) {
+    if (!agencyType.has(p.agency)) {
+      agencyType.set(p.agency, p.employmentType);
+    }
+  }
+
+  // Sort: FTE agencies first, then contractor agencies alphabetically, then Unlabelled last
+  const sortedEntries = [...groups.entries()].sort(([aName], [bName]) => {
+    if (aName === "Unlabelled") return 1;
+    if (bName === "Unlabelled") return -1;
+
+    const aIsFte = agencyType.get(aName) === "fte";
+    const bIsFte = agencyType.get(bName) === "fte";
+
+    if (aIsFte && !bIsFte) return -1;
+    if (!aIsFte && bIsFte) return 1;
+    return aName.localeCompare(bName);
+  });
+
+  return (
+    <>
+      {sortedEntries.map(([agency, groupMembers]) => (
+        <AgencyGroup
+          key={agency}
+          agency={agency}
+          members={groupMembers}
+          renderRow={renderRow}
+        />
+      ))}
+    </>
+  );
+}
+
+function AgencyGroup({
+  agency,
+  members,
+  renderRow,
+}: {
+  agency: string;
+  members: MemberSummary[];
+  renderRow: (member: MemberSummary) => React.ReactNode;
+}) {
+  return (
+    <>
+      <tr className="bg-pulse-bg/70" data-testid={`agency-group-${agency}`}>
+        <td
+          colSpan={COLUMNS.length}
+          className="px-5 py-2 text-[12px] font-semibold text-pulse-muted"
+        >
+          {agency}
+          <span className="ml-2 text-[11px] font-normal text-pulse-dim">
+            ({members.length} {members.length === 1 ? "member" : "members"})
+          </span>
+        </td>
+      </tr>
+      {members.map(renderRow)}
+    </>
   );
 }
 
@@ -237,12 +357,14 @@ function MemberRow({
   member,
   status,
   alignment,
+  profile,
   isExpanded,
   onToggle,
 }: {
   member: MemberSummary;
   status: StatusKind;
   alignment?: MemberAlignmentDetail;
+  profile?: MemberProfile;
   isExpanded: boolean;
   onToggle: () => void;
 }) {
@@ -290,6 +412,18 @@ function MemberRow({
               {member.role && (
                 <span className="ml-2 inline-flex px-1.5 py-0.5 rounded text-[10px] font-medium bg-gray-100 text-gray-500 ring-1 ring-gray-200">
                   {member.role}
+                </span>
+              )}
+              {profile && (
+                <span
+                  data-testid="agency-badge"
+                  className={`ml-2 inline-flex px-1.5 py-0.5 rounded text-[10px] font-medium ring-1 ${
+                    profile.employmentType === "fte"
+                      ? "bg-blue-50 text-blue-600 ring-blue-200"
+                      : "bg-amber-50 text-amber-600 ring-amber-200"
+                  }`}
+                >
+                  {profile.agency}
                 </span>
               )}
             </div>

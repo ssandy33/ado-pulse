@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import type { TimeRange } from "@/lib/dateRange";
-import type { TeamSummaryApiResponse, StalePRResponse, AlignmentApiResponse } from "@/lib/ado/types";
+import type { TeamSummaryApiResponse, StalePRResponse, AlignmentApiResponse, MemberProfile } from "@/lib/ado/types";
 import { TeamSelector } from "./TeamSelector";
 import { TimeRangeSelector } from "./TimeRangeSelector";
 import { TabBar, type TabKey } from "./TabBar";
@@ -37,6 +37,7 @@ export function Dashboard({ creds, onDisconnect }: DashboardProps) {
   const [alignmentLoading, setAlignmentLoading] = useState(false);
   const [alignmentError, setAlignmentError] = useState<string | null>(null);
   const [validatorTeam, setValidatorTeam] = useState("");
+  const [agencyLookup, setAgencyLookup] = useState<Map<string, MemberProfile>>(new Map());
 
   const adoHeaders = useMemo(
     () => ({
@@ -137,6 +138,22 @@ export function Dashboard({ creds, onDisconnect }: DashboardProps) {
   useEffect(() => {
     fetchData();
   }, [fetchData]);
+
+  const loadMemberProfiles = useCallback(() => {
+    fetch("/api/settings/members")
+      .then((res) => res.json())
+      .then((data: { profiles: MemberProfile[] }) => {
+        setAgencyLookup(new Map(data.profiles.map((p) => [p.adoId, p])));
+      })
+      .catch(() => {}); // Non-critical — table renders without badges
+  }, []);
+
+  // Fetch on mount and re-fetch when returning to Team tab (picks up settings edits)
+  useEffect(() => {
+    if (activeTab === "team") {
+      loadMemberProfiles();
+    }
+  }, [activeTab, loadMemberProfiles]);
 
   const handleTeamChange = (team: string) => {
     setSelectedTeam(team);
@@ -349,6 +366,7 @@ export function Dashboard({ creds, onDisconnect }: DashboardProps) {
                   members={data.members}
                   teamName={data.team.name}
                   alignmentData={alignmentData}
+                  agencyLookup={agencyLookup}
                 />
               </div>
             )}

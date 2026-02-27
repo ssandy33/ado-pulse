@@ -16,6 +16,8 @@ interface MemberAgencySettingsProps {
   range: TimeRange;
 }
 
+const DEFAULT_AGENCY = "arrivia";
+
 interface RowState {
   employmentType: "fte" | "contractor";
   agency: string;
@@ -77,7 +79,7 @@ export function MemberAgencySettings({
           agency: saved.agency,
         });
       } else {
-        map.set(m.id, { employmentType: "fte", agency: "arrivia" });
+        map.set(m.id, { employmentType: "fte", agency: DEFAULT_AGENCY });
       }
     }
     setRowEdits(map);
@@ -138,7 +140,7 @@ export function MemberAgencySettings({
       const next = new Map(prev);
       next.set(adoId, {
         employmentType: type,
-        agency: type === "fte" ? "arrivia" : "",
+        agency: type === "fte" ? DEFAULT_AGENCY : "",
       });
       return next;
     });
@@ -147,7 +149,7 @@ export function MemberAgencySettings({
   const updateAgency = (adoId: string, agency: string) => {
     setRowEdits((prev) => {
       const next = new Map(prev);
-      const current = next.get(adoId) ?? { employmentType: "fte", agency: "arrivia" };
+      const current = next.get(adoId) ?? { employmentType: "fte", agency: DEFAULT_AGENCY };
       next.set(adoId, { ...current, agency });
       return next;
     });
@@ -248,7 +250,7 @@ export function MemberAgencySettings({
             </thead>
             <tbody className="divide-y divide-pulse-border">
               {members.map((m) => {
-                const row = rowEdits.get(m.id) ?? { employmentType: "fte" as const, agency: "arrivia" };
+                const row = rowEdits.get(m.id) ?? { employmentType: "fte" as const, agency: DEFAULT_AGENCY };
                 const feedback = rowFeedback.get(m.id);
                 const isSaving = savingRow === m.id;
                 return (
