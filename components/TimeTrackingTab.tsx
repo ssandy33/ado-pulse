@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import type { TimeRange } from "@/lib/dateRange";
 import type { TeamTimeData, MemberTimeEntry, WrongLevelEntry, TimeTrackingDiagnostics, ExpenseType, MemberProfile } from "@/lib/ado/types";
+import { computeFilteredTimeKPIs, computeFilteredGovernance } from "@/lib/agencyFilterUtils";
 import { KPICard } from "./KPICard";
 import { SkeletonKPIRow, SkeletonTable } from "./SkeletonLoader";
 import { EmailTooltip } from "./EmailTooltip";
@@ -460,11 +461,6 @@ export function TimeTrackingTab({
       .catch(() => {}); // Non-critical
   }, []);
 
-  const featureRows = useMemo(() => {
-    if (!data) return [];
-    return buildFeatureRows(data.members);
-  }, [data]);
-
   const availableAgencies = useMemo(() => {
     if (!data) return [];
     const map = new Map<string, { employmentType: "fte" | "contractor" | null; count: number }>();
@@ -493,6 +489,24 @@ export function TimeTrackingTab({
       return agencyFilter.has(profile.agency);
     });
   }, [data, agencyLookup, agencyFilter]);
+
+  const featureRows = useMemo(() => {
+    if (!data) return [];
+    const members = agencyFilter.size > 0 ? filteredMembers : data.members;
+    return buildFeatureRows(members);
+  }, [data, agencyFilter, filteredMembers]);
+
+  const filteredKPIs = useMemo(() => {
+    if (!data || agencyFilter.size === 0) return null;
+    return computeFilteredTimeKPIs(filteredMembers);
+  }, [data, agencyFilter, filteredMembers]);
+
+  const filteredGovernance = useMemo(() => {
+    if (!data?.governance || agencyFilter.size === 0) return null;
+    const nonExcluded = filteredMembers.filter((m) => !m.isExcluded);
+    const totalHours = nonExcluded.reduce((s, m) => s + m.totalHours, 0);
+    return computeFilteredGovernance(data.governance, totalHours, nonExcluded.length);
+  }, [data, agencyFilter, filteredMembers]);
 
   const fetchData = useCallback(() => {
     if (!selectedTeam) return;
@@ -531,7 +545,8 @@ export function TimeTrackingTab({
   // Derive not-logging agency breakdown for KPI subtitle
   const notLoggingByAgency: string | null = useMemo(() => {
     if (!data || agencyLookup.size === 0) return null;
-    const notLogging = data.members.filter((m) => !m.isExcluded && m.totalHours === 0);
+    const source = agencyFilter.size > 0 ? filteredMembers : data.members;
+    const notLogging = source.filter((m) => !m.isExcluded && m.totalHours === 0);
     if (notLogging.length < 2) return null;
     const counts = new Map<string, number>();
     for (const m of notLogging) {
@@ -543,7 +558,7 @@ export function TimeTrackingTab({
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([agency, count]) => `${agency} (${count})`)
       .join(", ");
-  }, [data, agencyLookup]);
+  }, [data, agencyLookup, agencyFilter, filteredMembers]);
 
   // Empty state: no team selected
   if (!selectedTeam) {
@@ -631,63 +646,72 @@ export function TimeTrackingTab({
       {data && data.sevenPaceConnected && (
         <>
           {/* KPI Row */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-            <KPICard
-              title="Total Hours"
-              value={data.summary.totalHours.toFixed(1)}
-              subtitle={
-                data.governance ? (
-                  <span>
-                    <span className={data.governance.isCompliant ? "text-emerald-600" : "text-amber-600"}>
-                      {data.governance.compliancePct.toFixed(1)}%
-                    </span>
-                    {" "}of {data.governance.expectedHours.toFixed(0)}h expected
-                    <span className="text-pulse-muted ml-1">
-                      ({data.governance.businessDays}d &times; {data.governance.activeMembers} members)
-                    </span>
-                  </span>
-                ) : (
-                  data.period.label
-                )
-              }
-            />
-            <KPICard
-              title="CapEx Hours"
-              value={data.summary.capExHours.toFixed(1)}
-              subtitle={
-                <span className="text-blue-600">
-                  {pct(data.summary.capExHours, data.summary.totalHours)}
-                </span>
-              }
-            />
-            <KPICard
-              title="OpEx Hours"
-              value={data.summary.opExHours.toFixed(1)}
-              subtitle={
-                <span className="text-purple-600">
-                  {pct(data.summary.opExHours, data.summary.totalHours)}
-                </span>
-              }
-            />
-            <KPICard
-              title="Not Logging"
-              value={data.summary.membersNotLogging}
-              subtitle={
-                data.summary.membersNotLogging > 0 ? (
-                  <span className="text-red-600">
-                    {data.summary.membersNotLogging} of {data.team.totalMembers} members
-                    {notLoggingByAgency && (
-                      <span className="block text-[10px] text-red-500 mt-0.5" data-testid="not-logging-agencies">
-                        {notLoggingByAgency}
+          {(() => {
+            const kpi = filteredKPIs ?? data.summary;
+            const gov = filteredGovernance ?? data.governance;
+            const totalMembers = filteredKPIs
+              ? filteredMembers.filter((m) => !m.isExcluded).length
+              : data.team.totalMembers;
+            return (
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+                <KPICard
+                  title="Total Hours"
+                  value={kpi.totalHours.toFixed(1)}
+                  subtitle={
+                    gov ? (
+                      <span>
+                        <span className={gov.isCompliant ? "text-emerald-600" : "text-amber-600"}>
+                          {gov.compliancePct.toFixed(1)}%
+                        </span>
+                        {" "}of {gov.expectedHours.toFixed(0)}h expected
+                        <span className="text-pulse-muted ml-1">
+                          ({gov.businessDays}d &times; {gov.activeMembers} members)
+                        </span>
                       </span>
-                    )}
-                  </span>
-                ) : (
-                  <span className="text-emerald-600">all members logging</span>
-                )
-              }
-            />
-          </div>
+                    ) : (
+                      data.period.label
+                    )
+                  }
+                />
+                <KPICard
+                  title="CapEx Hours"
+                  value={kpi.capExHours.toFixed(1)}
+                  subtitle={
+                    <span className="text-blue-600">
+                      {pct(kpi.capExHours, kpi.totalHours)}
+                    </span>
+                  }
+                />
+                <KPICard
+                  title="OpEx Hours"
+                  value={kpi.opExHours.toFixed(1)}
+                  subtitle={
+                    <span className="text-purple-600">
+                      {pct(kpi.opExHours, kpi.totalHours)}
+                    </span>
+                  }
+                />
+                <KPICard
+                  title="Not Logging"
+                  value={kpi.membersNotLogging}
+                  subtitle={
+                    kpi.membersNotLogging > 0 ? (
+                      <span className="text-red-600">
+                        {kpi.membersNotLogging} of {totalMembers} members
+                        {notLoggingByAgency && (
+                          <span className="block text-[10px] text-red-500 mt-0.5" data-testid="not-logging-agencies">
+                            {notLoggingByAgency}
+                          </span>
+                        )}
+                      </span>
+                    ) : (
+                      <span className="text-emerald-600">all members logging</span>
+                    )
+                  }
+                />
+              </div>
+            );
+          })()}
 
           {/* Wrong-Level Banner */}
           <WrongLevelBanner entries={data.wrongLevelEntries} org={org} project={project} />

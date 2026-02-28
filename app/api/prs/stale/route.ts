@@ -51,6 +51,7 @@ export async function GET(request: NextRequest) {
         id: pr.pullRequestId,
         title: pr.title,
         author: pr.createdBy.displayName,
+        authorUniqueName: pr.createdBy.uniqueName,
         repoName: pr.repository.name,
         createdDate: pr.creationDate,
         ageInDays,

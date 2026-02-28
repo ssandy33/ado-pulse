@@ -126,6 +126,7 @@ export interface OpenPR {
   id: number;
   title: string;
   author: string;
+  authorUniqueName: string;
   repoName: string;
   createdDate: string;
   ageInDays: number;
