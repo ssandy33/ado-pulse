@@ -123,87 +123,130 @@ describe("MemberTable", () => {
     });
   });
 
-  describe("group-by-agency toggle", () => {
-    it("shows toggle button when profiles exist", () => {
+  describe("agency filter dropdown", () => {
+    it("shows Agency button when profiles exist", () => {
       const lookup = buildLookup(aliceProfile, bobProfile);
       render(<MemberTable {...defaultProps} agencyLookup={lookup} />);
-      expect(screen.getByRole("button", { name: /group by agency/i })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: /agency/i })).toBeInTheDocument();
     });
 
-    it("does not show toggle button when no profiles", () => {
+    it("disables Agency button when no profiles loaded", () => {
       render(<MemberTable {...defaultProps} agencyLookup={new Map()} />);
+      expect(screen.getByRole("button", { name: /agency/i })).toBeDisabled();
+    });
+
+    it("does not show the old 'Group by agency' toggle", () => {
+      const lookup = buildLookup(aliceProfile, bobProfile);
+      render(<MemberTable {...defaultProps} agencyLookup={lookup} />);
       expect(screen.queryByRole("button", { name: /group by agency/i })).not.toBeInTheDocument();
     });
 
-    it("does not show toggle button when agencyLookup is undefined", () => {
-      render(<MemberTable {...defaultProps} />);
-      expect(screen.queryByRole("button", { name: /group by agency/i })).not.toBeInTheDocument();
+    it("lists available agencies in dropdown with counts", () => {
+      const lookup = buildLookup(aliceProfile, bobProfile);
+      render(<MemberTable {...defaultProps} agencyLookup={lookup} />);
+      fireEvent.click(screen.getByRole("button", { name: /agency/i }));
+      // "arrivia" also appears as a badge — use getAllByText
+      expect(screen.getAllByText("arrivia").length).toBeGreaterThanOrEqual(2);
+      // Acme Consulting appears in badge + dropdown
+      expect(screen.getAllByText("Acme Consulting").length).toBeGreaterThanOrEqual(2);
     });
 
-    it("groups members under agency headers when toggled on", () => {
+    it("sorts FTE first, then contractors alphabetically", () => {
+      const lookup = buildLookup(aliceProfile, bobProfile);
+      render(<MemberTable {...defaultProps} agencyLookup={lookup} />);
+      fireEvent.click(screen.getByRole("button", { name: /agency/i }));
+      const fteLabel = screen.getByText("FTE");
+      const contractorLabel = screen.getByText("Contractor");
+      // FTE should appear before Contractor in the DOM
+      expect(fteLabel.compareDocumentPosition(contractorLabel)).toBe(
+        Node.DOCUMENT_POSITION_FOLLOWING
+      );
+    });
+
+    it("filters table to only matching members when agency selected", () => {
       const lookup = buildLookup(aliceProfile, bobProfile);
       render(<MemberTable {...defaultProps} agencyLookup={lookup} />);
 
-      fireEvent.click(screen.getByRole("button", { name: /group by agency/i }));
+      // All visible initially
+      expect(screen.getByText("Alice")).toBeInTheDocument();
+      expect(screen.getByText("Bob")).toBeInTheDocument();
+      expect(screen.getByText("Charlie")).toBeInTheDocument();
 
-      // Agency group headers should appear
-      expect(screen.getByTestId("agency-group-arrivia")).toBeInTheDocument();
-      expect(screen.getByTestId("agency-group-Acme Consulting")).toBeInTheDocument();
-      expect(screen.getByTestId("agency-group-Unlabelled")).toBeInTheDocument();
+      // Select arrivia (FTE) — click the dropdown item (text-[12px] span inside the dropdown)
+      fireEvent.click(screen.getByRole("button", { name: /agency/i }));
+      const arriviaItems = screen.getAllByText("arrivia");
+      // The dropdown item is the one inside the dropdown panel (has class text-[12px])
+      const dropdownItem = arriviaItems.find((el) => el.className.includes("text-[12px]"));
+      fireEvent.click(dropdownItem!.closest("button")!);
+
+      // Only Alice should remain visible
+      expect(screen.getByText("Alice")).toBeInTheDocument();
+      expect(screen.queryByText("Bob")).not.toBeInTheDocument();
+      // Charlie (unlabelled) hidden when filter active
+      expect(screen.queryByText("Charlie")).not.toBeInTheDocument();
     });
 
-    it("shows member count in group headers", () => {
+    it("hides unlabelled members when any agency filter is active", () => {
+      const lookup = buildLookup(aliceProfile); // only Alice has a profile
+      render(<MemberTable {...defaultProps} agencyLookup={lookup} />);
+
+      fireEvent.click(screen.getByRole("button", { name: /agency/i }));
+      const items = screen.getAllByText("arrivia");
+      const dropdownItem = items.find((el) => el.className.includes("text-[12px]"));
+      fireEvent.click(dropdownItem!.closest("button")!);
+
+      // Charlie and Bob have no profile → hidden
+      expect(screen.queryByText("Bob")).not.toBeInTheDocument();
+      expect(screen.queryByText("Charlie")).not.toBeInTheDocument();
+    });
+
+    it("shows count badge on button when filters active", () => {
       const lookup = buildLookup(aliceProfile, bobProfile);
       render(<MemberTable {...defaultProps} agencyLookup={lookup} />);
 
-      fireEvent.click(screen.getByRole("button", { name: /group by agency/i }));
+      fireEvent.click(screen.getByRole("button", { name: /agency/i }));
+      const items = screen.getAllByText("arrivia");
+      const dropdownItem = items.find((el) => el.className.includes("text-[12px]"));
+      fireEvent.click(dropdownItem!.closest("button")!);
 
-      // Each group has 1 member: arrivia (Alice), Acme (Bob), Unlabelled (Charlie)
-      const arriviaHeader = screen.getByTestId("agency-group-arrivia");
-      expect(arriviaHeader).toHaveTextContent("arrivia");
-      expect(arriviaHeader).toHaveTextContent("1 member");
-
-      const unlabelledHeader = screen.getByTestId("agency-group-Unlabelled");
-      expect(unlabelledHeader).toHaveTextContent("Unlabelled");
-      expect(unlabelledHeader).toHaveTextContent("1 member");
+      const button = screen.getByRole("button", { name: /agency/i });
+      expect(button).toHaveTextContent("1");
     });
 
-    it("sorts FTE groups before contractor groups, Unlabelled last", () => {
+    it("restores full list when all filters cleared", () => {
       const lookup = buildLookup(aliceProfile, bobProfile);
       render(<MemberTable {...defaultProps} agencyLookup={lookup} />);
 
-      fireEvent.click(screen.getByRole("button", { name: /group by agency/i }));
+      // Select arrivia
+      fireEvent.click(screen.getByRole("button", { name: /agency/i }));
+      const items = screen.getAllByText("arrivia");
+      const dropdownItem = items.find((el) => el.className.includes("text-[12px]"));
+      fireEvent.click(dropdownItem!.closest("button")!);
+      expect(screen.queryByText("Bob")).not.toBeInTheDocument();
 
-      const groupHeaders = screen.getAllByTestId(/^agency-group-/);
-      expect(groupHeaders).toHaveLength(3);
-      expect(groupHeaders[0]).toHaveAttribute("data-testid", "agency-group-arrivia");
-      expect(groupHeaders[1]).toHaveAttribute("data-testid", "agency-group-Acme Consulting");
-      expect(groupHeaders[2]).toHaveAttribute("data-testid", "agency-group-Unlabelled");
+      // Dropdown is still open after selection — click Clear filter directly
+      fireEvent.click(screen.getByText("Clear filter"));
+
+      // All visible again
+      expect(screen.getByText("Alice")).toBeInTheDocument();
+      expect(screen.getByText("Bob")).toBeInTheDocument();
+      expect(screen.getByText("Charlie")).toBeInTheDocument();
     });
 
-    it("returns to flat view when toggled off", () => {
-      const lookup = buildLookup(aliceProfile, bobProfile);
-      render(<MemberTable {...defaultProps} agencyLookup={lookup} />);
-
-      const toggleBtn = screen.getByRole("button", { name: /group by agency/i });
-      fireEvent.click(toggleBtn); // on
-      expect(screen.queryAllByTestId(/^agency-group-/).length).toBeGreaterThan(0);
-
-      fireEvent.click(toggleBtn); // off
-      expect(screen.queryAllByTestId(/^agency-group-/)).toHaveLength(0);
-    });
-
-    it("resets toggle when members prop changes", () => {
+    it("resets filter when members prop changes (team change)", () => {
       const lookup = buildLookup(aliceProfile, bobProfile);
       const { rerender } = render(
         <MemberTable {...defaultProps} agencyLookup={lookup} />
       );
 
-      // Toggle on
-      fireEvent.click(screen.getByRole("button", { name: /group by agency/i }));
-      expect(screen.queryAllByTestId(/^agency-group-/).length).toBeGreaterThan(0);
+      // Apply filter
+      fireEvent.click(screen.getByRole("button", { name: /agency/i }));
+      const items = screen.getAllByText("arrivia");
+      const dropdownItem = items.find((el) => el.className.includes("text-[12px]"));
+      fireEvent.click(dropdownItem!.closest("button")!);
+      expect(screen.queryByText("Bob")).not.toBeInTheDocument();
 
-      // Rerender with new members (simulating team change)
+      // Rerender with new members (team change)
       const newMembers = [makeMember({ id: "dave-id", displayName: "Dave" })];
       rerender(
         <MemberTable
@@ -213,8 +256,8 @@ describe("MemberTable", () => {
         />
       );
 
-      // Grouped view should be reset
-      expect(screen.queryAllByTestId(/^agency-group-/)).toHaveLength(0);
+      // Dave should be visible (filter reset)
+      expect(screen.getByText("Dave")).toBeInTheDocument();
     });
   });
 
@@ -243,8 +286,8 @@ describe("MemberTable", () => {
     });
   });
 
-  describe("expand/collapse in grouped view", () => {
-    it("expands member row on click within a group", () => {
+  describe("expand/collapse in filtered view", () => {
+    it("expands member row in filtered state", () => {
       const memberWithPRs = makeMember({
         id: "alice-id",
         displayName: "Alice",
@@ -261,14 +304,17 @@ describe("MemberTable", () => {
       const lookup = buildLookup(aliceProfile);
       render(
         <MemberTable
-          members={[memberWithPRs]}
+          members={[memberWithPRs, bob]}
           teamName="Team"
           agencyLookup={lookup}
         />
       );
 
-      // Toggle grouping on
-      fireEvent.click(screen.getByRole("button", { name: /group by agency/i }));
+      // Apply filter
+      fireEvent.click(screen.getByRole("button", { name: /agency/i }));
+      const items = screen.getAllByText("arrivia");
+      const dropdownItem = items.find((el) => el.className.includes("text-[12px]"));
+      fireEvent.click(dropdownItem!.closest("button")!);
 
       // Expand Alice's row
       const expandBtn = screen.getByRole("button", { name: /expand/i });

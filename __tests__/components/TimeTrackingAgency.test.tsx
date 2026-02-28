@@ -127,6 +127,13 @@ async function renderAndWait(profiles: MemberProfile[], members: MemberTimeEntry
   return result;
 }
 
+/** Click the dropdown item for a given agency label */
+function clickDropdownAgency(label: string) {
+  const items = screen.getAllByText(label);
+  const dropdownItem = items.find((el) => el.className.includes("text-[12px]"));
+  fireEvent.click(dropdownItem!.closest("button")!);
+}
+
 afterEach(() => jest.clearAllMocks());
 
 // ---------------------------------------------------------------------------
@@ -162,64 +169,153 @@ describe("TimeTrackingTab — agency badge", () => {
   });
 });
 
-describe("TimeTrackingTab — agency toggle", () => {
-  it("shows Agency toggle button when profiles exist", async () => {
+describe("TimeTrackingTab — agency filter dropdown", () => {
+  it("shows Agency button when profiles exist", async () => {
     await renderAndWait([aliceProfile], [alice]);
     expect(screen.getByRole("button", { name: /agency/i })).toBeInTheDocument();
   });
 
-  it("hides Agency toggle when no profiles", async () => {
+  it("disables Agency button when no profiles loaded", async () => {
     await renderAndWait([], [alice]);
-    expect(screen.queryByRole("button", { name: /agency/i })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /agency/i })).toBeDisabled();
   });
 
-  it("groups members under agency headers when toggled on", async () => {
+  it("does not show the old 'Group by agency' toggle", async () => {
+    await renderAndWait([aliceProfile], [alice]);
+    expect(screen.queryByRole("button", { name: /group by agency/i })).not.toBeInTheDocument();
+  });
+
+  it("lists agencies in dropdown with FTE/Contractor badge and counts", async () => {
     await renderAndWait([aliceProfile, bobProfile], [alice, bob, charlie]);
     fireEvent.click(screen.getByRole("button", { name: /agency/i }));
 
-    expect(screen.getByTestId("agency-group-arrivia")).toBeInTheDocument();
-    expect(screen.getByTestId("agency-group-Acme Consulting")).toBeInTheDocument();
-    expect(screen.getByTestId("agency-group-Unlabelled")).toBeInTheDocument();
+    expect(screen.getByText("FTE")).toBeInTheDocument();
+    expect(screen.getByText("Contractor")).toBeInTheDocument();
   });
 
-  it("shows hour subtotals in group headers", async () => {
+  it("sorts FTE first in dropdown", async () => {
     await renderAndWait([aliceProfile, bobProfile], [alice, bob]);
     fireEvent.click(screen.getByRole("button", { name: /agency/i }));
 
-    const arriviaHeader = screen.getByTestId("agency-group-arrivia");
-    // Alice: 10.0h total
-    expect(arriviaHeader).toHaveTextContent("10.0");
-
-    const acmeHeader = screen.getByTestId("agency-group-Acme Consulting");
-    // Bob: 8.0h total
-    expect(acmeHeader).toHaveTextContent("8.0");
+    const fteLabel = screen.getByText("FTE");
+    const contractorLabel = screen.getByText("Contractor");
+    expect(fteLabel.compareDocumentPosition(contractorLabel)).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING
+    );
   });
 
-  it("sorts FTE groups before contractor groups, Unlabelled last", async () => {
+  it("filters table to only matching members when agency selected", async () => {
     await renderAndWait([aliceProfile, bobProfile], [alice, bob, charlie]);
-    fireEvent.click(screen.getByRole("button", { name: /agency/i }));
 
-    const groupHeaders = screen.getAllByTestId(/^agency-group-/);
-    expect(groupHeaders[0]).toHaveAttribute("data-testid", "agency-group-arrivia");
-    expect(groupHeaders[1]).toHaveAttribute("data-testid", "agency-group-Acme Consulting");
-    expect(groupHeaders[2]).toHaveAttribute("data-testid", "agency-group-Unlabelled");
+    // All visible initially
+    expect(screen.getByText("Alice")).toBeInTheDocument();
+    expect(screen.getByText("Bob")).toBeInTheDocument();
+    expect(screen.getByText("Charlie")).toBeInTheDocument();
+
+    // Select arrivia
+    fireEvent.click(screen.getByRole("button", { name: /agency/i }));
+    clickDropdownAgency("arrivia");
+
+    expect(screen.getByText("Alice")).toBeInTheDocument();
+    expect(screen.queryByText("Bob")).not.toBeInTheDocument();
+    expect(screen.queryByText("Charlie")).not.toBeInTheDocument();
   });
 
-  it("returns to flat view when toggled off", async () => {
+  it("hides unlabelled members when any filter is active", async () => {
+    await renderAndWait([aliceProfile], [alice, charlie]);
+
+    fireEvent.click(screen.getByRole("button", { name: /agency/i }));
+    clickDropdownAgency("arrivia");
+
+    expect(screen.queryByText("Charlie")).not.toBeInTheDocument();
+  });
+
+  it("shows count badge on button when filters active", async () => {
+    await renderAndWait([aliceProfile, bobProfile], [alice, bob]);
+
+    fireEvent.click(screen.getByRole("button", { name: /agency/i }));
+    clickDropdownAgency("arrivia");
+
+    const button = screen.getByRole("button", { name: /agency/i });
+    expect(button).toHaveTextContent("1");
+  });
+
+  it("restores full list when Clear filter clicked", async () => {
+    await renderAndWait([aliceProfile, bobProfile], [alice, bob, charlie]);
+
+    fireEvent.click(screen.getByRole("button", { name: /agency/i }));
+    clickDropdownAgency("arrivia");
+    expect(screen.queryByText("Bob")).not.toBeInTheDocument();
+
+    // Dropdown still open — click Clear filter
+    fireEvent.click(screen.getByText("Clear filter"));
+
+    expect(screen.getByText("Alice")).toBeInTheDocument();
+    expect(screen.getByText("Bob")).toBeInTheDocument();
+    expect(screen.getByText("Charlie")).toBeInTheDocument();
+  });
+
+  it("does not show dropdown on Feature View", async () => {
     await renderAndWait([aliceProfile], [alice]);
-    const toggleBtn = screen.getByRole("button", { name: /agency/i });
-    fireEvent.click(toggleBtn); // on
-    expect(screen.queryAllByTestId(/^agency-group-/).length).toBeGreaterThan(0);
-    fireEvent.click(toggleBtn); // off
-    expect(screen.queryAllByTestId(/^agency-group-/)).toHaveLength(0);
+
+    // Switch to Feature View
+    fireEvent.click(screen.getByText("Feature View"));
+
+    // Feature Breakdown header should be visible, but no Agency button in it
+    expect(screen.getByText("Feature Breakdown")).toBeInTheDocument();
+    // The Agency button is in Member View only — it should not be rendered now
+    expect(screen.queryByRole("button", { name: /agency/i })).not.toBeInTheDocument();
   });
+});
 
-  it("shows not-logging count in group header when members have 0 hours", async () => {
-    await renderAndWait([aliceProfile, bobProfile, daveProfile], [alice, bob, dave]);
+describe("TimeTrackingTab — expand/collapse in filtered view", () => {
+  it("expands member row in filtered state", async () => {
+    const aliceWithFeatures = makeMember({
+      uniqueName: "alice@arrivia.com",
+      displayName: "Alice",
+      features: [{
+        featureId: 1,
+        featureTitle: "Login Feature",
+        expenseType: "CapEx",
+        hours: 10,
+        loggedAtWrongLevel: false,
+      }],
+    });
+    await renderAndWait([aliceProfile, bobProfile], [aliceWithFeatures, bob]);
+
+    // Apply filter
     fireEvent.click(screen.getByRole("button", { name: /agency/i }));
+    clickDropdownAgency("arrivia");
 
-    const acmeHeader = screen.getByTestId("agency-group-Acme Consulting");
-    expect(acmeHeader).toHaveTextContent("1 not logging");
+    // Click Alice's row to expand
+    fireEvent.click(screen.getByText("Alice"));
+    expect(screen.getByText(/Login Feature/)).toBeInTheDocument();
+  });
+});
+
+describe("TimeTrackingTab — filter resets on team change", () => {
+  it("resets filter when team changes", async () => {
+    setupFetchMock([aliceProfile, bobProfile], [alice, bob]);
+    const { rerender } = render(
+      <TimeTrackingTab adoHeaders={defaultHeaders} selectedTeam="Partner" range="7" />
+    );
+    await waitFor(() => expect(screen.getByText("Member Time Breakdown")).toBeInTheDocument());
+
+    // Apply filter
+    fireEvent.click(screen.getByRole("button", { name: /agency/i }));
+    clickDropdownAgency("arrivia");
+    expect(screen.queryByText("Bob")).not.toBeInTheDocument();
+
+    // Change team
+    setupFetchMock([aliceProfile, bobProfile], [alice, bob]);
+    rerender(
+      <TimeTrackingTab adoHeaders={defaultHeaders} selectedTeam="OtherTeam" range="7" />
+    );
+    await waitFor(() => expect(screen.getByText("Member Time Breakdown")).toBeInTheDocument());
+
+    // Filter should be reset — both visible
+    expect(screen.getByText("Alice")).toBeInTheDocument();
+    expect(screen.getByText("Bob")).toBeInTheDocument();
   });
 });
 
@@ -243,50 +339,5 @@ describe("TimeTrackingTab — Not Logging KPI agency breakdown", () => {
     await renderAndWait([], [alice, charlie, dave]);
     // 2 not logging but no profiles
     expect(screen.queryByTestId("not-logging-agencies")).not.toBeInTheDocument();
-  });
-});
-
-describe("TimeTrackingTab — expand/collapse in grouped view", () => {
-  it("expands member row within a group", async () => {
-    const aliceWithFeatures = makeMember({
-      uniqueName: "alice@arrivia.com",
-      displayName: "Alice",
-      features: [{
-        featureId: 1,
-        featureTitle: "Login Feature",
-        expenseType: "CapEx",
-        hours: 10,
-        loggedAtWrongLevel: false,
-      }],
-    });
-    await renderAndWait([aliceProfile], [aliceWithFeatures]);
-    fireEvent.click(screen.getByRole("button", { name: /agency/i }));
-
-    // Click Alice's row to expand
-    fireEvent.click(screen.getByText("Alice"));
-    expect(screen.getByText(/Login Feature/)).toBeInTheDocument();
-  });
-});
-
-describe("TimeTrackingTab — toggle resets on team change", () => {
-  it("resets grouped view when team changes", async () => {
-    setupFetchMock([aliceProfile], [alice]);
-    const { rerender } = render(
-      <TimeTrackingTab adoHeaders={defaultHeaders} selectedTeam="Partner" range="7" />
-    );
-    await waitFor(() => expect(screen.getByText("Member Time Breakdown")).toBeInTheDocument());
-
-    fireEvent.click(screen.getByRole("button", { name: /agency/i }));
-    expect(screen.queryAllByTestId(/^agency-group-/).length).toBeGreaterThan(0);
-
-    // Change team triggers fetchData which resets groupByAgency
-    setupFetchMock([aliceProfile], [alice]);
-    rerender(
-      <TimeTrackingTab adoHeaders={defaultHeaders} selectedTeam="OtherTeam" range="7" />
-    );
-    await waitFor(() => expect(screen.getByText("Member Time Breakdown")).toBeInTheDocument());
-
-    // Grouped view should be reset
-    expect(screen.queryAllByTestId(/^agency-group-/)).toHaveLength(0);
   });
 });
