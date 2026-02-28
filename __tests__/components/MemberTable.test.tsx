@@ -261,6 +261,94 @@ describe("MemberTable", () => {
     });
   });
 
+  describe("prop-driven filter interface", () => {
+    it("calls onAgencyFilterChange when agency is selected", () => {
+      const onFilterChange = jest.fn();
+      const lookup = buildLookup(aliceProfile, bobProfile);
+      render(
+        <MemberTable
+          {...defaultProps}
+          agencyLookup={lookup}
+          agencyFilter={new Set()}
+          onAgencyFilterChange={onFilterChange}
+        />
+      );
+
+      fireEvent.click(screen.getByRole("button", { name: /agency/i }));
+      const items = screen.getAllByText("arrivia");
+      const dropdownItem = items.find((el) => el.className.includes("text-[12px]"));
+      fireEvent.click(dropdownItem!.closest("button")!);
+
+      expect(onFilterChange).toHaveBeenCalledTimes(1);
+      const newFilter = onFilterChange.mock.calls[0][0];
+      expect(newFilter).toBeInstanceOf(Set);
+      expect(newFilter.has("arrivia")).toBe(true);
+    });
+
+    it("calls onAgencyFilterChange with empty Set when filter cleared", () => {
+      const onFilterChange = jest.fn();
+      const lookup = buildLookup(aliceProfile, bobProfile);
+      // Start with arrivia selected
+      render(
+        <MemberTable
+          {...defaultProps}
+          agencyLookup={lookup}
+          agencyFilter={new Set(["arrivia"])}
+          onAgencyFilterChange={onFilterChange}
+        />
+      );
+
+      // Only Alice visible (filter active)
+      expect(screen.getByText("Alice")).toBeInTheDocument();
+      expect(screen.queryByText("Bob")).not.toBeInTheDocument();
+
+      // Open dropdown and click Clear filter
+      fireEvent.click(screen.getByRole("button", { name: /agency/i }));
+      fireEvent.click(screen.getByText("Clear filter"));
+
+      // Should call back with empty Set
+      const clearCall = onFilterChange.mock.calls.find(
+        (call: [Set<string>]) => call[0].size === 0
+      );
+      expect(clearCall).toBeDefined();
+      expect(clearCall![0]).toEqual(new Set());
+    });
+
+    it("shows all members when agencyFilter prop is empty Set", () => {
+      const lookup = buildLookup(aliceProfile, bobProfile);
+      render(
+        <MemberTable
+          {...defaultProps}
+          agencyLookup={lookup}
+          agencyFilter={new Set()}
+          onAgencyFilterChange={() => {}}
+        />
+      );
+
+      // All members visible with empty filter
+      expect(screen.getByText("Alice")).toBeInTheDocument();
+      expect(screen.getByText("Bob")).toBeInTheDocument();
+      expect(screen.getByText("Charlie")).toBeInTheDocument();
+    });
+
+    it("uses agencyFilter prop for filtering when provided", () => {
+      const lookup = buildLookup(aliceProfile, bobProfile);
+      render(
+        <MemberTable
+          {...defaultProps}
+          agencyLookup={lookup}
+          agencyFilter={new Set(["arrivia"])}
+          onAgencyFilterChange={() => {}}
+        />
+      );
+
+      // Only Alice should be visible since the filter is set to arrivia
+      expect(screen.getByText("Alice")).toBeInTheDocument();
+      expect(screen.queryByText("Bob")).not.toBeInTheDocument();
+      expect(screen.queryByText("Charlie")).not.toBeInTheDocument();
+    });
+  });
+
   describe("expand/collapse in flat view", () => {
     it("expands member row on click when member has PRs", () => {
       const memberWithPRs = makeMember({

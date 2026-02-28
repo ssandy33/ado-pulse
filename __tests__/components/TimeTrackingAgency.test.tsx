@@ -134,6 +134,15 @@ function clickDropdownAgency(label: string) {
   fireEvent.click(dropdownItem!.closest("button")!);
 }
 
+/** Get the displayed value for a KPI card by its title */
+function getKPIValue(title: string): string {
+  const titleEl = screen.getByText(title);
+  const card = titleEl.closest(".bg-pulse-card")!;
+  // The value is a <p> with title attribute and font-mono class
+  const valueParagraph = card.querySelector("p[title]") ?? card.querySelectorAll("p")[1];
+  return valueParagraph?.textContent ?? "";
+}
+
 afterEach(() => jest.clearAllMocks());
 
 // ---------------------------------------------------------------------------
@@ -316,6 +325,53 @@ describe("TimeTrackingTab — filter resets on team change", () => {
     // Filter should be reset — both visible
     expect(screen.getByText("Alice")).toBeInTheDocument();
     expect(screen.getByText("Bob")).toBeInTheDocument();
+  });
+});
+
+describe("TimeTrackingTab — KPI filtering by agency", () => {
+  it("shows filtered hours when agency selected", async () => {
+    await renderAndWait([aliceProfile, bobProfile], [alice, bob, charlie]);
+
+    // Before filter: total = 10 + 8 + 0 = 18
+    expect(getKPIValue("Total Hours")).toBe("18.0");
+
+    // Select arrivia (Alice only)
+    fireEvent.click(screen.getByRole("button", { name: /agency/i }));
+    clickDropdownAgency("arrivia");
+
+    // After filter: total = 10 (Alice only)
+    expect(getKPIValue("Total Hours")).toBe("10.0");
+  });
+
+  it("restores full-team KPIs when filter cleared", async () => {
+    await renderAndWait([aliceProfile, bobProfile], [alice, bob]);
+
+    // Select arrivia
+    fireEvent.click(screen.getByRole("button", { name: /agency/i }));
+    clickDropdownAgency("arrivia");
+    expect(getKPIValue("Total Hours")).toBe("10.0");
+
+    // Clear filter
+    fireEvent.click(screen.getByText("Clear filter"));
+
+    // Full team values restored: 10 + 8 = 18
+    expect(getKPIValue("Total Hours")).toBe("18.0");
+  });
+
+  it("shows filtered CapEx/OpEx when agency selected", async () => {
+    await renderAndWait([aliceProfile, bobProfile], [alice, bob]);
+
+    // Before filter: capEx = 6 + 5 = 11, opEx = 3 + 2 = 5
+    expect(getKPIValue("CapEx Hours")).toBe("11.0");
+    expect(getKPIValue("OpEx Hours")).toBe("5.0");
+
+    // Select Acme (Bob only)
+    fireEvent.click(screen.getByRole("button", { name: /agency/i }));
+    clickDropdownAgency("Acme Consulting");
+
+    // After filter: capEx = 5, opEx = 2
+    expect(getKPIValue("CapEx Hours")).toBe("5.0");
+    expect(getKPIValue("OpEx Hours")).toBe("2.0");
   });
 });
 

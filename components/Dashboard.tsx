@@ -3,6 +3,13 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import type { TimeRange } from "@/lib/dateRange";
 import type { TeamSummaryApiResponse, StalePRResponse, AlignmentApiResponse, MemberProfile } from "@/lib/ado/types";
+import {
+  filterMembersByAgency,
+  computeFilteredTeamKPIs,
+  filterAlignmentData,
+  filterDiagnostics,
+  filterStalePRData,
+} from "@/lib/agencyFilterUtils";
 import { TeamSelector } from "./TeamSelector";
 import { TimeRangeSelector } from "./TimeRangeSelector";
 import { TabBar, type TabKey } from "./TabBar";
@@ -38,6 +45,7 @@ export function Dashboard({ creds, onDisconnect }: DashboardProps) {
   const [alignmentError, setAlignmentError] = useState<string | null>(null);
   const [validatorTeam, setValidatorTeam] = useState("");
   const [agencyLookup, setAgencyLookup] = useState<Map<string, MemberProfile>>(new Map());
+  const [agencyFilter, setAgencyFilter] = useState<Set<string>>(new Set());
 
   const adoHeaders = useMemo(
     () => ({
@@ -62,6 +70,7 @@ export function Dashboard({ creds, onDisconnect }: DashboardProps) {
     setStalePRData(null);
     setAlignmentData(null);
     setAlignmentError(null);
+    setAgencyFilter(new Set());
 
     const fetchOpts = { headers: adoHeaders, cache: "no-store" as RequestCache };
 
@@ -163,8 +172,48 @@ export function Dashboard({ creds, onDisconnect }: DashboardProps) {
     setRange(r);
   };
 
-  const mostActiveRepo =
-    data && data.byRepo.length > 0 ? data.byRepo[0] : null;
+  // ── Filtered data derivations ──────────────────────────────────
+  const filteredTeamMembers = useMemo(() => {
+    if (!data) return [];
+    return filterMembersByAgency(
+      data.members,
+      agencyFilter,
+      agencyLookup,
+      (m) => m.id
+    );
+  }, [data, agencyFilter, agencyLookup]);
+
+  const filteredKPIs = useMemo(() => {
+    if (!data) return null;
+    if (agencyFilter.size === 0) return null; // use original data
+    return computeFilteredTeamKPIs(filteredTeamMembers);
+  }, [data, agencyFilter, filteredTeamMembers]);
+
+  const filteredUniqueNames = useMemo(() => {
+    if (agencyFilter.size === 0) return new Set<string>();
+    return new Set(filteredTeamMembers.map((m) => m.uniqueName.toLowerCase()));
+  }, [agencyFilter, filteredTeamMembers]);
+
+  const filteredAlignmentData = useMemo(() => {
+    if (!alignmentData) return null;
+    return filterAlignmentData(alignmentData, filteredUniqueNames);
+  }, [alignmentData, filteredUniqueNames]);
+
+  const filteredDiagnosticsData = useMemo(() => {
+    if (!data?.diagnostics) return null;
+    return filterDiagnostics(data.diagnostics, filteredUniqueNames);
+  }, [data, filteredUniqueNames]);
+
+  const filteredStalePRs = useMemo(() => {
+    if (!stalePRData) return null;
+    return filterStalePRData(stalePRData, filteredUniqueNames);
+  }, [stalePRData, filteredUniqueNames]);
+
+  const mostActiveRepo = useMemo(() => {
+    if (!data) return null;
+    if (filteredKPIs) return filteredKPIs.mostActiveRepo;
+    return data.byRepo.length > 0 ? data.byRepo[0] : null;
+  }, [data, filteredKPIs]);
 
   return (
     <div className="min-h-screen bg-pulse-bg">
@@ -296,12 +345,12 @@ export function Dashboard({ creds, onDisconnect }: DashboardProps) {
               >
                 <KPICard
                   title="PRs Merged"
-                  value={data.team.totalPRs}
+                  value={filteredKPIs ? filteredKPIs.totalPRs : data.team.totalPRs}
                   subtitle={data.period.label}
                 />
                 <KPICard
                   title="Active Contributors"
-                  value={`${data.team.activeContributors} / ${data.team.totalMembers}`}
+                  value={`${filteredKPIs ? filteredKPIs.activeContributors : data.team.activeContributors} / ${filteredKPIs ? filteredKPIs.totalMembers : data.team.totalMembers}`}
                   subtitle="team members"
                 />
                 <KPICard
@@ -313,13 +362,13 @@ export function Dashboard({ creds, onDisconnect }: DashboardProps) {
                       : "no data"
                   }
                 />
-                {stalePRData && (
+                {filteredStalePRs && (
                   <KPICard
                     title="Open PRs"
-                    value={stalePRData.summary.total}
+                    value={filteredStalePRs.summary.total}
                     subtitle={
-                      stalePRData.summary.stale > 0 ? (
-                        <span className="text-red-600">{stalePRData.summary.stale} stale</span>
+                      filteredStalePRs.summary.stale > 0 ? (
+                        <span className="text-red-600">{filteredStalePRs.summary.stale} stale</span>
                       ) : (
                         <span className="text-emerald-600">all fresh</span>
                       )
@@ -336,7 +385,7 @@ export function Dashboard({ creds, onDisconnect }: DashboardProps) {
                 <div className="h-7 w-32 bg-pulse-bg rounded" />
               </div>
             )}
-            {alignmentData && <AlignmentKPITile data={alignmentData} />}
+            {filteredAlignmentData && <AlignmentKPITile data={filteredAlignmentData} />}
             {alignmentError && !alignmentLoading && (
               <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-6">
                 <p className="text-[13px] text-amber-800">{alignmentError}</p>
@@ -344,9 +393,9 @@ export function Dashboard({ creds, onDisconnect }: DashboardProps) {
             )}
 
             {/* Data Confidence Panel */}
-            {data && data.diagnostics && (
+            {data && filteredDiagnosticsData && (
               <DataConfidencePanel
-                diagnostics={data.diagnostics}
+                diagnostics={filteredDiagnosticsData}
                 onInvestigate={() => {
                   setValidatorTeam(data.team.name);
                   setActiveTab("organization");
@@ -367,6 +416,8 @@ export function Dashboard({ creds, onDisconnect }: DashboardProps) {
                   teamName={data.team.name}
                   alignmentData={alignmentData}
                   agencyLookup={agencyLookup}
+                  agencyFilter={agencyFilter}
+                  onAgencyFilterChange={setAgencyFilter}
                 />
               </div>
             )}
@@ -381,9 +432,9 @@ export function Dashboard({ creds, onDisconnect }: DashboardProps) {
 
             {/* Stale PRs */}
             {stalePRLoading && <SkeletonTable rows={4} />}
-            {stalePRData && (
+            {filteredStalePRs && (
               <div className="mb-6">
-                <StalePRTable data={stalePRData} />
+                <StalePRTable data={filteredStalePRs} />
               </div>
             )}
 

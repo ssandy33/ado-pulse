@@ -18,6 +18,8 @@ interface MemberTableProps {
   teamName: string;
   alignmentData?: AlignmentApiResponse | null;
   agencyLookup?: Map<string, MemberProfile>;
+  agencyFilter?: Set<string>;
+  onAgencyFilterChange?: (filter: Set<string>) => void;
 }
 
 type StatusKind = "active" | "low-reviews" | "reviewing" | "inactive" | "non-contributor";
@@ -174,14 +176,20 @@ function PRListExpandedRow({ prs }: { prs: ValidatorMemberPR[] }) {
   );
 }
 
-export function MemberTable({ members, teamName, alignmentData, agencyLookup }: MemberTableProps) {
+export function MemberTable({ members, teamName, alignmentData, agencyLookup, agencyFilter: agencyFilterProp, onAgencyFilterChange }: MemberTableProps) {
   const [expandedId, setExpandedId] = useState<string | null>(null);
-  const [agencyFilter, setAgencyFilter] = useState<Set<string>>(new Set());
+  const [localAgencyFilter, setLocalAgencyFilter] = useState<Set<string>>(new Set());
 
-  // Reset filter when team changes
+  // Use prop-driven filter when available, fall back to local state
+  const agencyFilter = agencyFilterProp ?? localAgencyFilter;
+  const setAgencyFilter = onAgencyFilterChange ?? setLocalAgencyFilter;
+
+  // Reset local filter when team changes (only for uncontrolled mode)
   useEffect(() => {
-    setAgencyFilter(new Set());
-  }, [members]);
+    if (!onAgencyFilterChange) {
+      setLocalAgencyFilter(new Set());
+    }
+  }, [teamName, onAgencyFilterChange]);
 
   // Build alignment lookup by uniqueName (case-insensitive)
   const alignmentMap = new Map<string, MemberAlignmentDetail>();

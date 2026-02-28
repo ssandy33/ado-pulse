@@ -63,6 +63,7 @@ function toAlignmentPR(
     pullRequestId: pr.PullRequestId,
     title: pr.Title,
     author,
+    authorUniqueName: pr.CreatedBy.UserName,
     repoName,
     mergedDate: pr.CompletedDate,
     workItem,
