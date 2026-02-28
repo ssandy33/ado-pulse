@@ -68,15 +68,33 @@ SQLite is single-writer and can't handle concurrent multi-tenant access. Neon se
 - `member_role_exclusions` — replaces settings.json memberRoles
 - `member_profiles` — replaces settings.json memberProfiles
 - `team_visibility` — replaces settings.json teamVisibility
+- `credential_access_log` — tenant_id, user_id, api_route, timestamp (audit trail for PAT decryption)
 - `scheduler_log` — existing columns + tenant_id
 
 ### 1C. Settings Migration
 
 `lib/settings.ts` currently reads/writes a single `data/settings.json` file. Rewrite every function to query PostgreSQL scoped by `tenantId`. Functions like `getMemberProfiles()`, `getExclusions()`, `upsertMemberProfile()` all gain a `tenantId` parameter.
 
-### 1D. PAT Encryption
+### 1D. Credential Security
+
+PATs stored in the database are an inherent risk — a DB breach exposes every tenant's ADO access. The design uses a layered approach to minimize exposure:
+
+**Phase 1 (MVP) — Encrypted PATs with strict controls:**
 
 **New file:** `lib/crypto.ts` — AES-256-GCM encrypt/decrypt using `ENCRYPTION_KEY` env var. PATs encrypted before DB write, decrypted in `extractConfig()`.
+
+- `ENCRYPTION_KEY` stored in environment, **never** in the database
+- Key rotation: `lib/crypto.ts` supports versioned keys (`ENCRYPTION_KEY_V1`, `ENCRYPTION_KEY_V2`); a `scripts/rotate-keys.ts` script re-encrypts all tenant credentials during rotation
+- Credential access audit: every `extractConfig()` decrypt is logged to `credential_access_log` table (tenant_id, user_id, timestamp, api_route) for security review
+- PATs are decrypted only in-memory, never written to logs or error reports
+
+**Phase 1+ (post-launch) — Migrate to OAuth:**
+
+Azure DevOps supports OAuth 2.0 — tenants authorize via OAuth flow instead of pasting a PAT. Benefits: scoped permissions, automatic token refresh, revocable without tenant action. The `tenants` table fields transition from `ado_pat_encrypted` to `ado_oauth_token_encrypted` + `ado_refresh_token_encrypted` + `ado_token_expires_at`.
+
+**Phase 3+ — Secrets manager:**
+
+When infrastructure moves to Railway/AWS (Phase 3), migrate credential storage to a dedicated secrets manager (e.g., AWS Secrets Manager, Vault) instead of the application database.
 
 ### 1E. Tenant-Aware Cache
 
@@ -198,7 +216,7 @@ Alert channels on stale PRs, low time tracking compliance, etc.
 
 | Action | Count | Files |
 |--------|-------|-------|
-| **Create** | 14 | `auth.ts`, `middleware.ts`, `lib/auth.ts`, `lib/crypto.ts`, `lib/db/schema.ts`, `lib/db/index.ts`, `drizzle.config.ts`, `app/api/auth/[...nextauth]/route.ts`, `app/auth/signin/page.tsx`, `app/auth/signup/page.tsx`, `app/onboarding/page.tsx`, `app/onboarding/connect/page.tsx`, `scripts/migrate-v1.ts`, `.env.example` update |
+| **Create** | 15 | `auth.ts`, `middleware.ts`, `lib/auth.ts`, `lib/crypto.ts`, `lib/db/schema.ts`, `lib/db/index.ts`, `drizzle.config.ts`, `app/api/auth/[...nextauth]/route.ts`, `app/auth/signin/page.tsx`, `app/auth/signup/page.tsx`, `app/onboarding/page.tsx`, `app/onboarding/connect/page.tsx`, `scripts/migrate-v1.ts`, `scripts/rotate-keys.ts`, `.env.example` update |
 | **Rewrite** | 4 | `app/page.tsx`, `lib/ado/helpers.ts`, `lib/settings.ts`, `lib/db.ts` -> `lib/db/index.ts` |
 | **Modify** | 14 | `lib/ado/types.ts`, `lib/ado/client.ts`, `lib/sevenPace.ts`, `lib/snapshots.ts`, `components/Dashboard.tsx`, `components/TeamSelector.tsx`, `components/OrgHealthView.tsx`, `components/IdentityDebug.tsx`, `components/SettingsPage.tsx`, `components/TimeTrackingTab.tsx`, `components/MemberRolesSettings.tsx`, `components/MemberAgencySettings.tsx`, `components/TeamVisibilitySettings.tsx`, `next.config.ts` |
 | **Remove** | 2 | `lib/db.ts` (replaced), `components/ConnectionForm.tsx` (replaced by onboarding) |
