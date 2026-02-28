@@ -478,8 +478,8 @@ export function TimeTrackingTab({
     return [...map.entries()]
       .map(([label, { employmentType, count }]) => ({ label, employmentType, count }))
       .sort((a, b) => {
-        if (a.employmentType === "fte") return -1;
-        if (b.employmentType === "fte") return 1;
+        if (a.employmentType === "fte" && b.employmentType !== "fte") return -1;
+        if (b.employmentType === "fte" && a.employmentType !== "fte") return 1;
         return a.label.localeCompare(b.label);
       });
   }, [data, agencyLookup]);

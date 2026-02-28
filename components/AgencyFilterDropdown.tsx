@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 
 interface AgencyFilterDropdownProps {
   agencies: { label: string; employmentType: "fte" | "contractor" | null; count: number }[];
@@ -16,7 +16,9 @@ export function AgencyFilterDropdown({
   disabled,
 }: AgencyFilterDropdownProps) {
   const [open, setOpen] = useState(false);
+  const [focusIndex, setFocusIndex] = useState(-1);
   const containerRef = useRef<HTMLDivElement>(null);
+  const itemRefs = useRef<(HTMLButtonElement | null)[]>([]);
 
   // Close on outside click
   useEffect(() => {
@@ -29,11 +31,47 @@ export function AgencyFilterDropdown({
     return () => document.removeEventListener("mousedown", handler);
   }, []);
 
+  // Reset focus index when dropdown opens/closes
+  useEffect(() => {
+    if (!open) setFocusIndex(-1);
+  }, [open]);
+
+  // Focus the active item when focusIndex changes
+  useEffect(() => {
+    if (focusIndex >= 0 && itemRefs.current[focusIndex]) {
+      itemRefs.current[focusIndex]!.focus();
+    }
+  }, [focusIndex]);
+
+  // Total interactive items: "Clear filter" (if shown) + agencies
+  const hasClear = selected.size > 0;
+  const itemCount = (hasClear ? 1 : 0) + agencies.length;
+
+  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if (!open) return;
+    switch (e.key) {
+      case "Escape":
+        e.preventDefault();
+        setOpen(false);
+        break;
+      case "ArrowDown":
+        e.preventDefault();
+        setFocusIndex((prev) => (prev + 1) % itemCount);
+        break;
+      case "ArrowUp":
+        e.preventDefault();
+        setFocusIndex((prev) => (prev - 1 + itemCount) % itemCount);
+        break;
+    }
+  }, [open, itemCount]);
+
   return (
     <div ref={containerRef} className="relative">
       <button
         onClick={() => setOpen((o) => !o)}
         disabled={disabled || agencies.length === 0}
+        aria-expanded={open}
+        aria-haspopup="menu"
         className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded text-[11px] font-medium border transition-colors ${
           selected.size > 0
             ? "bg-pulse-accent/10 text-pulse-accent border-pulse-accent/30"
@@ -51,20 +89,32 @@ export function AgencyFilterDropdown({
         )}
       </button>
       {open && (
-        <div className="absolute right-0 top-full mt-1 w-52 bg-pulse-card border border-pulse-border rounded-lg shadow-lg z-50 overflow-hidden">
+        <div
+          role="menu"
+          onKeyDown={handleKeyDown}
+          className="absolute right-0 top-full mt-1 w-52 bg-pulse-card border border-pulse-border rounded-lg shadow-lg z-50 overflow-hidden"
+        >
           {selected.size > 0 && (
             <button
+              ref={(el) => { itemRefs.current[0] = el; }}
+              role="menuitem"
+              tabIndex={focusIndex === 0 ? 0 : -1}
               onClick={() => { onChange(new Set()); setOpen(false); }}
               className="w-full px-3 py-2 text-left text-[11px] text-pulse-dim hover:text-pulse-red border-b border-pulse-border transition-colors"
             >
               Clear filter
             </button>
           )}
-          {agencies.map((agency) => {
+          {agencies.map((agency, i) => {
             const isSelected = selected.has(agency.label);
+            const refIndex = (hasClear ? 1 : 0) + i;
             return (
               <button
                 key={agency.label}
+                ref={(el) => { itemRefs.current[refIndex] = el; }}
+                role="menuitemcheckbox"
+                aria-checked={isSelected}
+                tabIndex={focusIndex === refIndex ? 0 : -1}
                 onClick={() => {
                   const next = new Set(selected);
                   if (isSelected) next.delete(agency.label);

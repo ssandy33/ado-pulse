@@ -197,4 +197,73 @@ describe("AgencyFilterDropdown", () => {
     fireEvent.click(screen.getByText("Acme Consulting"));
     expect(onChange).toHaveBeenCalledWith(new Set(["arrivia", "Acme Consulting"]));
   });
+
+  describe("keyboard navigation", () => {
+    it("sets aria-expanded on trigger button", () => {
+      render(
+        <AgencyFilterDropdown
+          agencies={agencies}
+          selected={new Set()}
+          onChange={() => {}}
+        />
+      );
+      const button = screen.getByRole("button", { name: /agency/i });
+      expect(button).toHaveAttribute("aria-expanded", "false");
+      fireEvent.click(button);
+      expect(button).toHaveAttribute("aria-expanded", "true");
+    });
+
+    it("closes dropdown on Escape", () => {
+      render(
+        <AgencyFilterDropdown
+          agencies={agencies}
+          selected={new Set()}
+          onChange={() => {}}
+        />
+      );
+      fireEvent.click(screen.getByRole("button", { name: /agency/i }));
+      expect(screen.getByRole("menu")).toBeInTheDocument();
+
+      fireEvent.keyDown(screen.getByRole("menu"), { key: "Escape" });
+      expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+    });
+
+    it("renders items with menuitemcheckbox role and aria-checked", () => {
+      render(
+        <AgencyFilterDropdown
+          agencies={agencies}
+          selected={new Set(["arrivia"])}
+          onChange={() => {}}
+        />
+      );
+      fireEvent.click(screen.getByRole("button", { name: /agency/i }));
+
+      const items = screen.getAllByRole("menuitemcheckbox");
+      expect(items).toHaveLength(3);
+      expect(items[0]).toHaveAttribute("aria-checked", "true"); // arrivia selected
+      expect(items[1]).toHaveAttribute("aria-checked", "false");
+    });
+
+    it("moves focus with ArrowDown/ArrowUp", () => {
+      render(
+        <AgencyFilterDropdown
+          agencies={agencies}
+          selected={new Set()}
+          onChange={() => {}}
+        />
+      );
+      fireEvent.click(screen.getByRole("button", { name: /agency/i }));
+      const menu = screen.getByRole("menu");
+      const items = screen.getAllByRole("menuitemcheckbox");
+
+      fireEvent.keyDown(menu, { key: "ArrowDown" });
+      expect(document.activeElement).toBe(items[0]);
+
+      fireEvent.keyDown(menu, { key: "ArrowDown" });
+      expect(document.activeElement).toBe(items[1]);
+
+      fireEvent.keyDown(menu, { key: "ArrowUp" });
+      expect(document.activeElement).toBe(items[0]);
+    });
+  });
 });
