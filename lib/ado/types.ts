@@ -263,6 +263,7 @@ export interface AlignmentPR {
   pullRequestId: number;
   title: string;
   author: string;
+  authorUniqueName: string;
   repoName: string;
   mergedDate: string;
   workItem: { id: number; title: string; areaPath: string } | null;

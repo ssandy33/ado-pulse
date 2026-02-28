@@ -379,6 +379,7 @@ describe("GET /api/prs/team-alignment", () => {
     expect(alignedPR.pullRequestId).toBe(1);
     expect(alignedPR.title).toBe("Aligned PR");
     expect(alignedPR.author).toBe("Alice");
+    expect(alignedPR.authorUniqueName).toBe("alice@test.com");
     expect(alignedPR.repoName).toBe("my-repo");
     expect(alignedPR.mergedDate).toBe("2025-01-10");
     expect(alignedPR.workItem).toEqual({
@@ -395,6 +396,7 @@ describe("GET /api/prs/team-alignment", () => {
     expect(outOfScopePR.pullRequestId).toBe(2);
     expect(outOfScopePR.title).toBe("Out of scope PR");
     expect(outOfScopePR.author).toBe("Bob");
+    expect(outOfScopePR.authorUniqueName).toBe("bob@test.com");
     expect(outOfScopePR.repoName).toBe("other-repo");
     expect(outOfScopePR.workItem).toEqual({
       id: 200,
@@ -410,6 +412,7 @@ describe("GET /api/prs/team-alignment", () => {
     expect(unlinkedPR.pullRequestId).toBe(3);
     expect(unlinkedPR.title).toBe("Unlinked PR");
     expect(unlinkedPR.author).toBe("Alice");
+    expect(unlinkedPR.authorUniqueName).toBe("alice@test.com");
     expect(unlinkedPR.repoName).toBe("unlinked-repo");
     expect(unlinkedPR.workItem).toBeNull();
     expect(unlinkedPR.url).toBe(

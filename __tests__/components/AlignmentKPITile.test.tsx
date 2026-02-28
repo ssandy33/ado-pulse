@@ -15,6 +15,7 @@ function makePR(
 ): AlignmentPR {
   return {
     author: "Alice",
+    authorUniqueName: "alice@ex.com",
     repoName: "my-repo",
     mergedDate: "2025-01-10T00:00:00Z",
     workItem: null,

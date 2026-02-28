@@ -199,14 +199,14 @@ describe("filterAlignmentData", () => {
     ],
     categorizedPRs: {
       aligned: [
-        { pullRequestId: 1, title: "PR1", author: "Alice", repoName: "r", mergedDate: "2025-01-10", workItem: null, url: "" },
-        { pullRequestId: 2, title: "PR2", author: "Bob", repoName: "r", mergedDate: "2025-01-11", workItem: null, url: "" },
+        { pullRequestId: 1, title: "PR1", author: "Alice", authorUniqueName: "alice@ex.com", repoName: "r", mergedDate: "2025-01-10", workItem: null, url: "" },
+        { pullRequestId: 2, title: "PR2", author: "Bob", authorUniqueName: "bob@ex.com", repoName: "r", mergedDate: "2025-01-11", workItem: null, url: "" },
       ],
       outOfScope: [
-        { pullRequestId: 3, title: "PR3", author: "Bob", repoName: "r", mergedDate: "2025-01-12", workItem: { id: 1, title: "WI1", areaPath: "Other" }, url: "" },
+        { pullRequestId: 3, title: "PR3", author: "Bob", authorUniqueName: "bob@ex.com", repoName: "r", mergedDate: "2025-01-12", workItem: { id: 1, title: "WI1", areaPath: "Other" }, url: "" },
       ],
       unlinked: [
-        { pullRequestId: 4, title: "PR4", author: "Bob", repoName: "r", mergedDate: "2025-01-13", workItem: null, url: "" },
+        { pullRequestId: 4, title: "PR4", author: "Bob", authorUniqueName: "bob@ex.com", repoName: "r", mergedDate: "2025-01-13", workItem: null, url: "" },
       ],
     },
   };

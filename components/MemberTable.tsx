@@ -189,7 +189,7 @@ export function MemberTable({ members, teamName, alignmentData, agencyLookup, ag
     if (!onAgencyFilterChange) {
       setLocalAgencyFilter(new Set());
     }
-  }, [members, onAgencyFilterChange]);
+  }, [teamName, onAgencyFilterChange]);
 
   // Build alignment lookup by uniqueName (case-insensitive)
   const alignmentMap = new Map<string, MemberAlignmentDetail>();

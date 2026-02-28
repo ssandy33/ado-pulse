@@ -77,19 +77,14 @@ export function filterAlignmentData(
     filteredUniqueNames.has(m.uniqueName.toLowerCase())
   );
 
-  // Build display name set from filtered members for categorizedPR filtering
-  const displayNames = new Set(
-    filteredMembers.map((m) => m.displayName.toLowerCase())
-  );
-
   const filteredAligned = data.categorizedPRs.aligned.filter((pr) =>
-    displayNames.has(pr.author.toLowerCase())
+    filteredUniqueNames.has(pr.authorUniqueName.toLowerCase())
   );
   const filteredOutOfScope = data.categorizedPRs.outOfScope.filter((pr) =>
-    displayNames.has(pr.author.toLowerCase())
+    filteredUniqueNames.has(pr.authorUniqueName.toLowerCase())
   );
   const filteredUnlinked = data.categorizedPRs.unlinked.filter((pr) =>
-    displayNames.has(pr.author.toLowerCase())
+    filteredUniqueNames.has(pr.authorUniqueName.toLowerCase())
   );
 
   const aligned = filteredAligned.length;
