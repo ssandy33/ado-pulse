@@ -47,3 +47,7 @@ export async function upsertMemberProfile(profile: MemberProfile): Promise<void>
 export function buildAgencyLookup(profiles: MemberProfile[]): Map<string, MemberProfile> {
   return new Map(profiles.map(p => [p.adoId, p]));
 }
+
+export function buildAgencyLookupByEmail(profiles: MemberProfile[]): Map<string, MemberProfile> {
+  return new Map(profiles.map(p => [p.email.toLowerCase(), p]));
+}

@@ -2,10 +2,11 @@
 
 import { useState, useEffect, useCallback, useMemo } from "react";
 import type { TimeRange } from "@/lib/dateRange";
-import type { TeamTimeData, MemberTimeEntry, WrongLevelEntry, TimeTrackingDiagnostics, ExpenseType } from "@/lib/ado/types";
+import type { TeamTimeData, MemberTimeEntry, WrongLevelEntry, TimeTrackingDiagnostics, ExpenseType, MemberProfile } from "@/lib/ado/types";
 import { KPICard } from "./KPICard";
 import { SkeletonKPIRow, SkeletonTable } from "./SkeletonLoader";
 import { EmailTooltip } from "./EmailTooltip";
+import { AgencyFilterDropdown } from "./AgencyFilterDropdown";
 
 interface TimeTrackingTabProps {
   adoHeaders: Record<string, string>;
@@ -132,12 +133,13 @@ function WrongLevelBanner({ entries, org, project }: { entries: WrongLevelEntry[
   );
 }
 
-function MemberRow({ member, isExpanded, onToggle, org, project }: {
+function MemberRow({ member, isExpanded, onToggle, org, project, profile }: {
   member: MemberTimeEntry;
   isExpanded: boolean;
   onToggle: () => void;
   org: string;
   project: string;
+  profile?: MemberProfile;
 }) {
   const hasFeatures = member.features.length > 0;
   const status: "logged" | "not-logging" | "excluded" = member.isExcluded
@@ -173,6 +175,18 @@ function MemberRow({ member, isExpanded, onToggle, org, project }: {
               {member.isExcluded && member.role && (
                 <span className="ml-2 text-[10px] font-medium text-pulse-muted bg-pulse-bg px-1.5 py-0.5 rounded">
                   {member.role}
+                </span>
+              )}
+              {profile && (
+                <span
+                  data-testid="agency-badge"
+                  className={`ml-2 inline-flex px-1.5 py-0.5 rounded text-[10px] font-medium ring-1 ${
+                    profile.employmentType === "fte"
+                      ? "bg-blue-50 text-blue-600 ring-blue-200"
+                      : "bg-amber-50 text-amber-600 ring-amber-200"
+                  }`}
+                >
+                  {profile.agency}
                 </span>
               )}
             </div>
@@ -420,6 +434,7 @@ function FeatureBreakdownRow({ row, isExpanded, onToggle, org, project }: {
   );
 }
 
+
 export function TimeTrackingTab({
   adoHeaders,
   selectedTeam,
@@ -432,11 +447,52 @@ export function TimeTrackingTab({
   const [error, setError] = useState<string | null>(null);
   const [expandedRow, setExpandedRow] = useState<string | null>(null);
   const [breakdownView, setBreakdownView] = useState<"member" | "feature">("member");
+  const [agencyLookup, setAgencyLookup] = useState<Map<string, MemberProfile>>(new Map());
+  const [agencyFilter, setAgencyFilter] = useState<Set<string>>(new Set());
+
+  // Fetch member profiles on mount
+  useEffect(() => {
+    fetch("/api/settings/members")
+      .then((res) => res.json())
+      .then((d: { profiles: MemberProfile[] }) => {
+        setAgencyLookup(new Map(d.profiles.map((p) => [p.email.toLowerCase(), p])));
+      })
+      .catch(() => {}); // Non-critical
+  }, []);
 
   const featureRows = useMemo(() => {
     if (!data) return [];
     return buildFeatureRows(data.members);
   }, [data]);
+
+  const availableAgencies = useMemo(() => {
+    if (!data) return [];
+    const map = new Map<string, { employmentType: "fte" | "contractor" | null; count: number }>();
+    for (const member of data.members) {
+      const profile = agencyLookup.get(member.uniqueName.toLowerCase());
+      if (!profile) continue;
+      const existing = map.get(profile.agency);
+      if (existing) existing.count++;
+      else map.set(profile.agency, { employmentType: profile.employmentType, count: 1 });
+    }
+    return [...map.entries()]
+      .map(([label, { employmentType, count }]) => ({ label, employmentType, count }))
+      .sort((a, b) => {
+        if (a.employmentType === "fte" && b.employmentType !== "fte") return -1;
+        if (b.employmentType === "fte" && a.employmentType !== "fte") return 1;
+        return a.label.localeCompare(b.label);
+      });
+  }, [data, agencyLookup]);
+
+  const filteredMembers = useMemo(() => {
+    if (!data) return [];
+    if (agencyFilter.size === 0) return data.members;
+    return data.members.filter((member) => {
+      const profile = agencyLookup.get(member.uniqueName.toLowerCase());
+      if (!profile) return false;
+      return agencyFilter.has(profile.agency);
+    });
+  }, [data, agencyLookup, agencyFilter]);
 
   const fetchData = useCallback(() => {
     if (!selectedTeam) return;
@@ -445,6 +501,7 @@ export function TimeTrackingTab({
     setError(null);
     setData(null);
     setExpandedRow(null);
+    setAgencyFilter(new Set());
 
     fetch(
       `/api/timetracking/team-summary?team=${encodeURIComponent(selectedTeam)}&range=${range}`,
@@ -468,6 +525,25 @@ export function TimeTrackingTab({
   useEffect(() => {
     fetchData();
   }, [fetchData]);
+
+  const hasAnyProfiles = agencyLookup.size > 0;
+
+  // Derive not-logging agency breakdown for KPI subtitle
+  const notLoggingByAgency: string | null = useMemo(() => {
+    if (!data || agencyLookup.size === 0) return null;
+    const notLogging = data.members.filter((m) => !m.isExcluded && m.totalHours === 0);
+    if (notLogging.length < 2) return null;
+    const counts = new Map<string, number>();
+    for (const m of notLogging) {
+      const profile = agencyLookup.get(m.uniqueName.toLowerCase());
+      const label = profile?.agency ?? "Unlabelled";
+      counts.set(label, (counts.get(label) ?? 0) + 1);
+    }
+    return [...counts.entries()]
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([agency, count]) => `${agency} (${count})`)
+      .join(", ");
+  }, [data, agencyLookup]);
 
   // Empty state: no team selected
   if (!selectedTeam) {
@@ -600,6 +676,11 @@ export function TimeTrackingTab({
                 data.summary.membersNotLogging > 0 ? (
                   <span className="text-red-600">
                     {data.summary.membersNotLogging} of {data.team.totalMembers} members
+                    {notLoggingByAgency && (
+                      <span className="block text-[10px] text-red-500 mt-0.5" data-testid="not-logging-agencies">
+                        {notLoggingByAgency}
+                      </span>
+                    )}
                   </span>
                 ) : (
                   <span className="text-emerald-600">all members logging</span>
@@ -640,13 +721,21 @@ export function TimeTrackingTab({
           {/* Member Table */}
           {breakdownView === "member" && (
           <div className="bg-pulse-card border border-pulse-border rounded-lg overflow-hidden mb-6">
-            <div className="px-4 py-3 border-b border-pulse-border">
-              <h3 className="text-[13px] font-semibold text-pulse-text">
-                Member Time Breakdown
-              </h3>
-              <p className="text-[11px] text-pulse-muted mt-0.5">
-                Click a row to expand feature-level breakdown. Hours from 7pace Timetracker.
-              </p>
+            <div className="px-4 py-3 border-b border-pulse-border flex items-center justify-between">
+              <div>
+                <h3 className="text-[13px] font-semibold text-pulse-text">Member Time Breakdown</h3>
+                <p className="text-[11px] text-pulse-muted mt-0.5">
+                  Click a row to expand feature-level breakdown. Hours from 7pace Timetracker.
+                </p>
+              </div>
+              <div className="relative">
+                <AgencyFilterDropdown
+                  agencies={availableAgencies}
+                  selected={agencyFilter}
+                  onChange={setAgencyFilter}
+                  disabled={!hasAnyProfiles}
+                />
+              </div>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-[12px]">
@@ -661,7 +750,7 @@ export function TimeTrackingTab({
                   </tr>
                 </thead>
                 <tbody>
-                  {data.members.map((member) => (
+                  {filteredMembers.map((member) => (
                     <MemberRow
                       key={member.uniqueName}
                       member={member}
@@ -673,6 +762,7 @@ export function TimeTrackingTab({
                       }
                       org={org}
                       project={project}
+                      profile={agencyLookup.get(member.uniqueName.toLowerCase())}
                     />
                   ))}
                 </tbody>

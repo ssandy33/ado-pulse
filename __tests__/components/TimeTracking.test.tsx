@@ -41,8 +41,26 @@ const mockTimeData = (range: string) => ({
   }),
 });
 
+// TimeTrackingTab also fetches /api/settings/members on mount for agency data.
+// Discriminate by URL so the profiles fetch doesn't interfere with time data assertions.
+function setupMock(range = "7") {
+  mockFetch.mockImplementation((url: string) => {
+    if (url.includes("/api/settings/members")) {
+      return Promise.resolve({ ok: true, json: async () => ({ profiles: [] }) });
+    }
+    return Promise.resolve(mockTimeData(range));
+  });
+}
+
+/** Return only the time-tracking fetch calls (exclude profiles fetch). */
+function timeDataCalls() {
+  return mockFetch.mock.calls.filter(
+    ([url]: [string]) => !url.includes("/api/settings/members"),
+  );
+}
+
 beforeEach(() => {
-  mockFetch.mockResolvedValue(mockTimeData("7"));
+  setupMock("7");
 });
 
 afterEach(() => jest.clearAllMocks());
@@ -57,9 +75,9 @@ describe("TimeTrackingTab — re-fetches on range change", () => {
       />
     );
 
-    await waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(timeDataCalls()).toHaveLength(1));
 
-    const calledUrl = mockFetch.mock.calls[0][0] as string;
+    const calledUrl = timeDataCalls()[0][0] as string;
     expect(calledUrl).toContain("range=7");
     expect(calledUrl).toContain("team=Partner");
   });
@@ -73,9 +91,9 @@ describe("TimeTrackingTab — re-fetches on range change", () => {
       />
     );
 
-    await waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(timeDataCalls()).toHaveLength(1));
 
-    mockFetch.mockResolvedValue(mockTimeData("14"));
+    setupMock("14");
     rerender(
       <TimeTrackingTab
         adoHeaders={defaultHeaders}
@@ -84,9 +102,9 @@ describe("TimeTrackingTab — re-fetches on range change", () => {
       />
     );
 
-    await waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(timeDataCalls()).toHaveLength(2));
 
-    const secondUrl = mockFetch.mock.calls[1][0] as string;
+    const secondUrl = timeDataCalls()[1][0] as string;
     expect(secondUrl).toContain("range=14");
   });
 
@@ -99,9 +117,9 @@ describe("TimeTrackingTab — re-fetches on range change", () => {
       />
     );
 
-    await waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(timeDataCalls()).toHaveLength(1));
 
-    mockFetch.mockResolvedValue(mockTimeData("mtd"));
+    setupMock("mtd");
     rerender(
       <TimeTrackingTab
         adoHeaders={defaultHeaders}
@@ -110,9 +128,9 @@ describe("TimeTrackingTab — re-fetches on range change", () => {
       />
     );
 
-    await waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(timeDataCalls()).toHaveLength(2));
 
-    const secondUrl = mockFetch.mock.calls[1][0] as string;
+    const secondUrl = timeDataCalls()[1][0] as string;
     expect(secondUrl).toContain("range=mtd");
   });
 
@@ -125,7 +143,7 @@ describe("TimeTrackingTab — re-fetches on range change", () => {
       />
     );
 
-    await waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(timeDataCalls()).toHaveLength(1));
 
     // Re-render with same props
     rerender(
@@ -137,10 +155,10 @@ describe("TimeTrackingTab — re-fetches on range change", () => {
     );
 
     // Should still be 1 — no unnecessary re-fetch
-    await waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(timeDataCalls()).toHaveLength(1));
   });
 
-  it("does not fetch when no team is selected", () => {
+  it("does not fetch time data when no team is selected", () => {
     render(
       <TimeTrackingTab
         adoHeaders={defaultHeaders}
@@ -149,10 +167,12 @@ describe("TimeTrackingTab — re-fetches on range change", () => {
       />
     );
 
-    expect(mockFetch).not.toHaveBeenCalled();
+    // Profiles fetch still happens, but no time data fetch
+    expect(timeDataCalls()).toHaveLength(0);
   });
 
   it("includes range in fetch URL — never omits it", async () => {
+    setupMock("14");
     render(
       <TimeTrackingTab
         adoHeaders={defaultHeaders}
@@ -161,9 +181,9 @@ describe("TimeTrackingTab — re-fetches on range change", () => {
       />
     );
 
-    await waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(timeDataCalls()).toHaveLength(1));
 
-    const calledUrl = mockFetch.mock.calls[0][0] as string;
+    const calledUrl = timeDataCalls()[0][0] as string;
     const params = new URL(calledUrl, "http://localhost").searchParams;
     expect(params.has("range")).toBe(true);
     expect(params.get("range")).toBe("14");
