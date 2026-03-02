@@ -7,10 +7,13 @@ PR hygiene & team productivity dashboard for Azure DevOps. Surfaces PR metrics, 
 - Next.js 16 (App Router), React 19, TypeScript
 - Tailwind CSS 4
 - Jest 30 + ts-jest, Testing Library
-- Playwright for UI testing *(planned — PRD complete, not yet implemented)*
+- Playwright for E2E testing (chromium + firefox)
 
 ## CI/CD & tooling
 
+- **Jest CI** — unit, integration, and component tests on every PR and before deploy (`jest.yml`)
+- **Playwright CI** — E2E tests on every PR and before deploy (`playwright.yml`)
+- **Deploy pipeline** — requires both Jest and Playwright to pass (`deploy.yml`)
 - CodeRabbit for automated PR review (Context7 MCP integration enabled)
 - Dependabot enabled for npm and GitHub Actions (weekly schedule)
 - UptimeRobot for uptime monitoring on Hetzner
@@ -23,7 +26,9 @@ npm run dev       # Dev server at http://localhost:3000
 npm run build     # Production build (standalone output)
 npm start         # Start production server
 npm run lint      # ESLint
-npm test          # Jest tests
+npm test          # Jest tests (local)
+npm run test:ci   # Jest tests (CI mode — serial, forceExit)
+npm run test:e2e  # Playwright E2E tests
 ```
 
 ## Project structure
@@ -56,6 +61,47 @@ deploy/           # Deployment scripts
 - Run `npm test` before committing
 - **Every feature must include tests covering all acceptance criteria before committing.** Write unit tests for lib/helper functions, API route tests for endpoints, and component tests for UI — matching the acceptance criteria 1:1.
 
+### Test layers
+
+| Layer | Tool | Location | CI workflow |
+|---|---|---|---|
+| Unit | Jest | `__tests__/lib/` | `jest.yml` |
+| Integration (API) | Jest | `__tests__/api/` | `jest.yml` |
+| Component | Jest + jsdom | `__tests__/components/` | `jest.yml` |
+| E2E | Playwright | `e2e/` | `playwright.yml` |
+
+- Component tests must use `@jest-environment jsdom` docblock or per-file config
+- CI runs both Jest and Playwright in parallel — deploy is blocked until both pass
+
+## Definition of Done (DoD)
+
+Every issue/PR must satisfy ALL of the following before merge:
+
+### Code quality
+- [ ] Code follows existing conventions (see Conventions section)
+- [ ] `npm run lint` passes with no new errors
+- [ ] No untyped `any` unless justified in a comment
+
+### Testing
+- [ ] Unit tests for new/changed lib functions (`__tests__/lib/`)
+- [ ] Integration tests for new/changed API routes (`__tests__/api/`)
+- [ ] Component tests for new/changed UI (`__tests__/components/`)
+- [ ] E2E tests for new/changed user flows (`e2e/`)
+- [ ] All acceptance criteria have a corresponding test
+- [ ] `npm test` passes locally
+- [ ] Jest CI check passes (green)
+- [ ] Playwright CI check passes (green)
+
+### Review & merge
+- [ ] PR has a clear title and description
+- [ ] CodeRabbit review addressed or acknowledged
+- [ ] No merge conflicts with main
+
+### Post-deploy (after merge to main)
+- [ ] App loads — `curl -sf https://pulse.shawnjsandy.com/` returns 200
+- [ ] API health — endpoints return expected JSON shape
+- [ ] UI spot-check — feature works end-to-end on prod
+
 ## Environment variables
 
 - `.env.example` has the template: `DOMAIN`, `BASIC_AUTH_USER`, `BASIC_AUTH_PASS`
@@ -79,6 +125,7 @@ deploy/           # Deployment scripts
 - Never push directly to `main` — repo rules require pull requests
 - Commit style: imperative present tense, action-first (e.g. "Add feature X", "Fix bug in Y", "Remove unused Z")
 - Always run `npm run lint` and `npm test` before committing
+- **Branch protection**: `main` should require these status checks: `jest` and `e2e`
 
 ## Deployment
 

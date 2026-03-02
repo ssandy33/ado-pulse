@@ -6,12 +6,16 @@ on:
   workflow_dispatch:
 
 jobs:
-  test:
+  jest:
+    uses: ./.github/workflows/jest.yml
+    secrets: inherit
+
+  e2e:
     uses: ./.github/workflows/playwright.yml
     secrets: inherit
 
   deploy:
-    needs: test
+    needs: [jest, e2e]
     runs-on: ubuntu-latest
     steps:
       - name: Deploy via SSH
