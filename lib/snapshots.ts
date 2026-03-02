@@ -121,18 +121,20 @@ export function saveTeamSnapshot(params: {
   org: string;
   project: string;
   metrics: unknown;
+  source?: "on-fetch" | "scheduler";
 }): void {
   const db = getDb();
   db.prepare(
     `INSERT OR IGNORE INTO team_pr_snapshots
-       (snapshot_date, team_slug, org, project, metrics_json)
-     VALUES (?, ?, ?, ?, ?)`
+       (snapshot_date, team_slug, org, project, metrics_json, source)
+     VALUES (?, ?, ?, ?, ?, ?)`
   ).run(
     today(),
     params.teamSlug,
     params.org,
     params.project,
-    JSON.stringify(params.metrics)
+    JSON.stringify(params.metrics),
+    params.source ?? "on-fetch"
   );
 }
 
@@ -142,18 +144,53 @@ export function saveTimeSnapshot(params: {
   org: string;
   hours: unknown;
   totalHours: number;
+  source?: "on-fetch" | "scheduler";
 }): void {
   const db = getDb();
   db.prepare(
     `INSERT OR IGNORE INTO time_tracking_snapshots
-       (snapshot_date, member_id, member_name, org, hours_json, total_hours)
-     VALUES (?, ?, ?, ?, ?, ?)`
+       (snapshot_date, member_id, member_name, org, hours_json, total_hours, source)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`
   ).run(
     today(),
     params.memberId,
     params.memberName,
     params.org,
     JSON.stringify(params.hours),
-    params.totalHours
+    params.totalHours,
+    params.source ?? "on-fetch"
   );
+}
+
+// ── Dedup guards ─────────────────────────────────────────────────────
+
+export function hasTeamSnapshotToday(
+  org: string,
+  project: string,
+  teamSlug: string
+): boolean {
+  const db = getDb();
+  const row = db
+    .prepare(
+      `SELECT 1 FROM team_pr_snapshots
+       WHERE snapshot_date = ? AND org = ? AND project = ? AND team_slug = ?
+       LIMIT 1`
+    )
+    .get(today(), org, project, teamSlug);
+  return row !== undefined;
+}
+
+export function hasTimeSnapshotToday(
+  org: string,
+  memberId: string
+): boolean {
+  const db = getDb();
+  const row = db
+    .prepare(
+      `SELECT 1 FROM time_tracking_snapshots
+       WHERE snapshot_date = ? AND org = ? AND member_id = ?
+       LIMIT 1`
+    )
+    .get(today(), org, memberId);
+  return row !== undefined;
 }

@@ -19,6 +19,7 @@ export function getDb(): Database.Database {
   db.pragma("foreign_keys = ON");
 
   initSchema(db);
+  applyMigrations(db);
   return db;
 }
 
@@ -70,13 +71,57 @@ function initSchema(conn: Database.Database): void {
 
     conn.exec(`
       CREATE TABLE IF NOT EXISTS scheduler_log (
-        id         INTEGER PRIMARY KEY AUTOINCREMENT,
-        run_date   TEXT    NOT NULL,
-        run_type   TEXT    NOT NULL,
-        status     TEXT    NOT NULL,
-        detail     TEXT,
-        created_at TEXT    NOT NULL DEFAULT (datetime('now'))
+        id           INTEGER PRIMARY KEY AUTOINCREMENT,
+        snapshot_date TEXT    NOT NULL,
+        job_type      TEXT    NOT NULL,
+        status        TEXT    NOT NULL,
+        teams_saved   INTEGER,
+        error_msg     TEXT,
+        duration_ms   INTEGER,
+        created_at    TEXT    NOT NULL DEFAULT (datetime('now'))
       )
     `);
   })();
+}
+
+function applyMigrations(conn: Database.Database): void {
+  // Add source column to team_pr_snapshots
+  try {
+    conn.exec(
+      `ALTER TABLE team_pr_snapshots ADD COLUMN source TEXT NOT NULL DEFAULT 'on-fetch'`
+    );
+  } catch {
+    // Column already exists — ignore
+  }
+
+  // Add source column to time_tracking_snapshots
+  try {
+    conn.exec(
+      `ALTER TABLE time_tracking_snapshots ADD COLUMN source TEXT NOT NULL DEFAULT 'on-fetch'`
+    );
+  } catch {
+    // Column already exists — ignore
+  }
+
+  // Migrate scheduler_log from old schema (run_date/run_type/detail) to new
+  const cols = conn
+    .prepare(`SELECT name FROM pragma_table_info('scheduler_log')`)
+    .all() as Array<{ name: string }>;
+  const colNames = new Set(cols.map((c) => c.name));
+
+  if (colNames.has("run_date") && !colNames.has("snapshot_date")) {
+    conn.exec(`DROP TABLE scheduler_log`);
+    conn.exec(`
+      CREATE TABLE scheduler_log (
+        id           INTEGER PRIMARY KEY AUTOINCREMENT,
+        snapshot_date TEXT    NOT NULL,
+        job_type      TEXT    NOT NULL,
+        status        TEXT    NOT NULL,
+        teams_saved   INTEGER,
+        error_msg     TEXT,
+        duration_ms   INTEGER,
+        created_at    TEXT    NOT NULL DEFAULT (datetime('now'))
+      )
+    `);
+  }
 }

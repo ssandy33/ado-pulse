@@ -24,7 +24,7 @@ services:
     build: .
     # No ports exposed — only accessible via Caddy through Docker network
     volumes:
-      - ./data:/app/data
+      - ado_pulse_data:/app/data
     environment:
       - NODE_OPTIONS=--max-old-space-size=768
       - AXIOM_API_TOKEN=${AXIOM_API_TOKEN:-}
@@ -39,5 +39,6 @@ services:
     mem_limit: 1g
 
 volumes:
+  ado_pulse_data:
   caddy_data:
   caddy_config:

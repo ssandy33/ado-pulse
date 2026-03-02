@@ -3,7 +3,7 @@ import { getTeamMembers } from "@/lib/ado/teams";
 import { extractConfig, jsonWithCache, handleApiError } from "@/lib/ado/helpers";
 import { logger } from "@/lib/logger";
 import { batchAsync } from "@/lib/ado/client";
-import { saveTimeSnapshot } from "@/lib/snapshots";
+import { saveTimeSnapshot, hasTimeSnapshotToday } from "@/lib/snapshots";
 import { getExclusions } from "@/lib/settings";
 import { parseRange, resolveRange, countBusinessDays } from "@/lib/dateRange";
 import {
@@ -335,6 +335,7 @@ export async function GET(request: NextRequest) {
       try {
         for (const member of memberEntries) {
           try {
+            if (hasTimeSnapshotToday(configOrError.org, member.uniqueName)) continue;
             saveTimeSnapshot({
               memberId: member.uniqueName,
               memberName: member.displayName,
