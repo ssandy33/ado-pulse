@@ -1,4 +1,4 @@
-export type TimeRange = "7" | "14" | "mtd";
+export type TimeRange = "7" | "14" | "mtd" | "pm";
 
 export interface ResolvedRange {
   from: Date;
@@ -9,6 +9,13 @@ export interface ResolvedRange {
 
 export function resolveRange(range: TimeRange): ResolvedRange {
   const to = new Date();
+
+  if (range === "pm") {
+    const from = new Date(to.getFullYear(), to.getMonth() - 1, 1);
+    const lastDay = new Date(to.getFullYear(), to.getMonth(), 0);
+    const days = lastDay.getDate();
+    return { from, to: lastDay, label: "previous month", days };
+  }
 
   if (range === "mtd") {
     const from = new Date(to.getFullYear(), to.getMonth(), 1);
@@ -36,6 +43,6 @@ export function countBusinessDays(from: Date, to: Date): number {
 }
 
 export function parseRange(param: string | null): TimeRange {
-  if (param === "7" || param === "14" || param === "mtd") return param;
+  if (param === "7" || param === "14" || param === "mtd" || param === "pm") return param;
   return "14";
 }

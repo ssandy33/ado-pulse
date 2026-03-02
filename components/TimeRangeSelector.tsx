@@ -11,6 +11,7 @@ const OPTIONS: { value: TimeRange; label: string }[] = [
   { value: "7", label: "7d" },
   { value: "14", label: "14d" },
   { value: "mtd", label: "MTD" },
+  { value: "pm", label: "PM" },
 ];
 
 export function TimeRangeSelector({
