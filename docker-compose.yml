@@ -6,4 +6,7 @@ services:
     env_file:
       - .env.local
     volumes:
-      - ./data:/app/data
+      - ado_pulse_data:/app/data
+
+volumes:
+  ado_pulse_data:

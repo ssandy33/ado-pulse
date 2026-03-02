@@ -5,7 +5,7 @@ import { batchAsync } from "@/lib/ado/client";
 import { extractConfig, jsonWithCache, handleApiError } from "@/lib/ado/helpers";
 import { logger } from "@/lib/logger";
 import { getExclusions } from "@/lib/settings";
-import { saveTeamSnapshot } from "@/lib/snapshots";
+import { saveTeamSnapshot, hasTeamSnapshotToday } from "@/lib/snapshots";
 import { parseRange, resolveRange } from "@/lib/dateRange";
 import type {
   MemberSummary,
@@ -263,9 +263,10 @@ export async function GET(request: NextRequest) {
       confidence: diagnostics.confidence,
     });
 
-    // Persist daily snapshot after response is sent
+    // Persist daily snapshot after response is sent (once per day)
     after(() => {
       try {
+        if (hasTeamSnapshotToday(configOrError.org, configOrError.project, teamName)) return;
         saveTeamSnapshot({
           teamSlug: teamName,
           org: configOrError.org,

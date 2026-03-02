@@ -71,4 +71,41 @@ describe("getDb", () => {
     expect(db2).toBeDefined();
     expect(db2).not.toBe(db1);
   });
+
+  it("adds source column to team_pr_snapshots with default 'on-fetch'", () => {
+    const db = getDb();
+    const cols = db
+      .prepare("SELECT name, dflt_value FROM pragma_table_info('team_pr_snapshots')")
+      .all() as Array<{ name: string; dflt_value: string | null }>;
+    const sourceCol = cols.find((c) => c.name === "source");
+    expect(sourceCol).toBeDefined();
+    expect(sourceCol!.dflt_value).toBe("'on-fetch'");
+  });
+
+  it("adds source column to time_tracking_snapshots with default 'on-fetch'", () => {
+    const db = getDb();
+    const cols = db
+      .prepare("SELECT name, dflt_value FROM pragma_table_info('time_tracking_snapshots')")
+      .all() as Array<{ name: string; dflt_value: string | null }>;
+    const sourceCol = cols.find((c) => c.name === "source");
+    expect(sourceCol).toBeDefined();
+    expect(sourceCol!.dflt_value).toBe("'on-fetch'");
+  });
+
+  it("scheduler_log has correct columns (snapshot_date, job_type, teams_saved, error_msg, duration_ms)", () => {
+    const db = getDb();
+    const cols = db
+      .prepare("SELECT name FROM pragma_table_info('scheduler_log')")
+      .all() as Array<{ name: string }>;
+    const colNames = cols.map((c) => c.name);
+    expect(colNames).toContain("snapshot_date");
+    expect(colNames).toContain("job_type");
+    expect(colNames).toContain("teams_saved");
+    expect(colNames).toContain("error_msg");
+    expect(colNames).toContain("duration_ms");
+    // Old column names should not be present
+    expect(colNames).not.toContain("run_date");
+    expect(colNames).not.toContain("run_type");
+    expect(colNames).not.toContain("detail");
+  });
 });

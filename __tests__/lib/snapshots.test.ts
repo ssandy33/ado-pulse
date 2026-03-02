@@ -16,6 +16,8 @@ import {
   saveTimeSnapshot,
   getTeamSnapshots,
   getTimeSnapshots,
+  hasTeamSnapshotToday,
+  hasTimeSnapshotToday,
 } from "@/lib/snapshots";
 
 beforeAll(() => {
@@ -299,5 +301,93 @@ describe("getTimeSnapshots", () => {
   it("returns empty array when no rows match", () => {
     const rows = getTimeSnapshots("nonexistent", 30);
     expect(rows).toEqual([]);
+  });
+});
+
+// ── Source parameter ──────────────────────────────────────────────────
+
+describe("source parameter", () => {
+  it("saveTeamSnapshot defaults source to 'on-fetch'", () => {
+    saveTeamSnapshot({ teamSlug: "alpha", org: "myorg", project: "proj", metrics: {} });
+
+    const db = getDb();
+    const row = db
+      .prepare("SELECT source FROM team_pr_snapshots WHERE team_slug = 'alpha'")
+      .get() as { source: string };
+    expect(row.source).toBe("on-fetch");
+  });
+
+  it("saveTeamSnapshot stores explicit source value", () => {
+    saveTeamSnapshot({ teamSlug: "beta", org: "myorg", project: "proj", metrics: {}, source: "scheduler" });
+
+    const db = getDb();
+    const row = db
+      .prepare("SELECT source FROM team_pr_snapshots WHERE team_slug = 'beta'")
+      .get() as { source: string };
+    expect(row.source).toBe("scheduler");
+  });
+
+  it("saveTimeSnapshot defaults source to 'on-fetch'", () => {
+    saveTimeSnapshot({ memberId: "alice@example.com", memberName: "Alice", org: "myorg", hours: {}, totalHours: 5 });
+
+    const db = getDb();
+    const row = db
+      .prepare("SELECT source FROM time_tracking_snapshots WHERE member_id = 'alice@example.com'")
+      .get() as { source: string };
+    expect(row.source).toBe("on-fetch");
+  });
+
+  it("saveTimeSnapshot stores explicit source value", () => {
+    saveTimeSnapshot({ memberId: "bob@example.com", memberName: "Bob", org: "myorg", hours: {}, totalHours: 8, source: "scheduler" });
+
+    const db = getDb();
+    const row = db
+      .prepare("SELECT source FROM time_tracking_snapshots WHERE member_id = 'bob@example.com'")
+      .get() as { source: string };
+    expect(row.source).toBe("scheduler");
+  });
+});
+
+// ── has*Today() guards ───────────────────────────────────────────────
+
+describe("hasTeamSnapshotToday", () => {
+  it("returns false when no snapshot exists", () => {
+    expect(hasTeamSnapshotToday("myorg", "proj", "alpha")).toBe(false);
+  });
+
+  it("returns true after a snapshot is saved for today", () => {
+    saveTeamSnapshot({ teamSlug: "alpha", org: "myorg", project: "proj", metrics: {} });
+    expect(hasTeamSnapshotToday("myorg", "proj", "alpha")).toBe(true);
+  });
+
+  it("returns false for a different team", () => {
+    saveTeamSnapshot({ teamSlug: "alpha", org: "myorg", project: "proj", metrics: {} });
+    expect(hasTeamSnapshotToday("myorg", "proj", "beta")).toBe(false);
+  });
+
+  it("returns false for a different org", () => {
+    saveTeamSnapshot({ teamSlug: "alpha", org: "org-a", project: "proj", metrics: {} });
+    expect(hasTeamSnapshotToday("org-b", "proj", "alpha")).toBe(false);
+  });
+});
+
+describe("hasTimeSnapshotToday", () => {
+  it("returns false when no snapshot exists", () => {
+    expect(hasTimeSnapshotToday("myorg", "alice@example.com")).toBe(false);
+  });
+
+  it("returns true after a snapshot is saved for today", () => {
+    saveTimeSnapshot({ memberId: "alice@example.com", memberName: "Alice", org: "myorg", hours: {}, totalHours: 5 });
+    expect(hasTimeSnapshotToday("myorg", "alice@example.com")).toBe(true);
+  });
+
+  it("returns false for a different member", () => {
+    saveTimeSnapshot({ memberId: "alice@example.com", memberName: "Alice", org: "myorg", hours: {}, totalHours: 5 });
+    expect(hasTimeSnapshotToday("myorg", "bob@example.com")).toBe(false);
+  });
+
+  it("returns false for a different org", () => {
+    saveTimeSnapshot({ memberId: "alice@example.com", memberName: "Alice", org: "org-a", hours: {}, totalHours: 5 });
+    expect(hasTimeSnapshotToday("org-b", "alice@example.com")).toBe(false);
   });
 });
