@@ -90,8 +90,8 @@ function applyMigrations(conn: Database.Database): void {
     conn.exec(
       `ALTER TABLE team_pr_snapshots ADD COLUMN source TEXT NOT NULL DEFAULT 'on-fetch'`
     );
-  } catch {
-    // Column already exists — ignore
+  } catch (e: unknown) {
+    if (!(e instanceof Error && e.message.includes("duplicate column"))) throw e;
   }
 
   // Add source column to time_tracking_snapshots
@@ -99,8 +99,8 @@ function applyMigrations(conn: Database.Database): void {
     conn.exec(
       `ALTER TABLE time_tracking_snapshots ADD COLUMN source TEXT NOT NULL DEFAULT 'on-fetch'`
     );
-  } catch {
-    // Column already exists — ignore
+  } catch (e: unknown) {
+    if (!(e instanceof Error && e.message.includes("duplicate column"))) throw e;
   }
 
   // Migrate scheduler_log from old schema (run_date/run_type/detail) to new

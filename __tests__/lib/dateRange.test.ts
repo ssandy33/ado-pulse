@@ -27,11 +27,11 @@ describe("resolveRange", () => {
     });
 
     it("returns correct days for a 30-day month", () => {
-      jest.setSystemTime(new Date(2026, 5, 5)); // June 5
+      jest.setSystemTime(new Date(2026, 4, 5)); // May 5
       const result = resolveRange("pm");
-      expect(result.from).toEqual(new Date(2026, 4, 1)); // May 1
-      expect(result.to).toEqual(new Date(2026, 4, 31)); // May 31 (31 days)
-      expect(result.days).toBe(31);
+      expect(result.from).toEqual(new Date(2026, 3, 1)); // Apr 1
+      expect(result.to).toEqual(new Date(2026, 3, 30)); // Apr 30
+      expect(result.days).toBe(30);
     });
 
     it("returns correct days for February (28 days)", () => {
