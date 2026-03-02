@@ -230,4 +230,27 @@ describe("GET /api/timetracking/team-summary — cache behavior", () => {
     expect(body.data_source.origin).toBe("live");
     expect(body.data_source.cachedAt).toBeNull();
   });
+
+  it("falls through to live fetch when cached range does not match requested range", async () => {
+    // Cached snapshot was built for range=7
+    mockGetTimeSnapshot.mockReturnValue({
+      hours: {
+        team: { name: "Partner", totalMembers: 1 },
+        period: { days: 7, from: "2026-02-18", to: "2026-02-25", label: "7d" },
+        summary: { totalHours: 40, capExHours: 30, opExHours: 10, unclassifiedHours: 0, membersLogging: 1, membersNotLogging: 0, wrongLevelCount: 0 },
+        members: [],
+        wrongLevelEntries: [],
+        sevenPaceConnected: true,
+      },
+      createdAt: "2026-02-25T10:00:00Z",
+    });
+
+    // Request with range=14 — should NOT use cache
+    const res = await GET(makeRequest({ range: "14", team: "Partner" }));
+    const body = await res.json();
+
+    expect(body.data_source.origin).toBe("live");
+    expect(body.data_source.cachedAt).toBeNull();
+    expect(mockGetWorklogsForUser).toHaveBeenCalled();
+  });
 });

@@ -531,23 +531,75 @@ describe("getTimeSnapshotRange", () => {
 // ── checkTeamCoverage ─────────────────────────────────────────────────
 
 describe("checkTeamCoverage", () => {
-  it("returns dates with snapshots for the team", () => {
+  it("returns coverage object with covered dates, total, and complete flag", () => {
     saveTeamSnapshot({ teamSlug: "alpha", org: "myorg", project: "proj", metrics: {} });
 
-    const dates = checkTeamCoverage("myorg", "proj", "alpha", 30);
-    expect(dates).toEqual(["2026-02-25"]);
+    const result = checkTeamCoverage("myorg", "proj", "alpha", 30);
+    expect(result.covered).toEqual(["2026-02-25"]);
+    expect(result.total).toBe(30);
+    expect(result.complete).toBe(false);
   });
 
-  it("returns empty array when no snapshots exist", () => {
-    const dates = checkTeamCoverage("myorg", "proj", "alpha", 30);
-    expect(dates).toEqual([]);
+  it("returns empty covered array when no snapshots exist", () => {
+    const result = checkTeamCoverage("myorg", "proj", "alpha", 30);
+    expect(result.covered).toEqual([]);
+    expect(result.total).toBe(30);
+    expect(result.complete).toBe(false);
   });
 
   it("excludes snapshots from different teams", () => {
     saveTeamSnapshot({ teamSlug: "alpha", org: "myorg", project: "proj", metrics: {} });
     saveTeamSnapshot({ teamSlug: "beta", org: "myorg", project: "proj", metrics: {} });
 
-    const dates = checkTeamCoverage("myorg", "proj", "alpha", 30);
-    expect(dates).toEqual(["2026-02-25"]);
+    const result = checkTeamCoverage("myorg", "proj", "alpha", 30);
+    expect(result.covered).toEqual(["2026-02-25"]);
+  });
+
+  it("reports complete when covered >= total", () => {
+    saveTeamSnapshot({ teamSlug: "alpha", org: "myorg", project: "proj", metrics: {} });
+
+    // days=1, 1 snapshot today → complete
+    const result = checkTeamCoverage("myorg", "proj", "alpha", 1);
+    expect(result.complete).toBe(true);
+  });
+});
+
+// ── Malformed JSON handling ───────────────────────────────────────────
+
+describe("malformed JSON in snapshots", () => {
+  function insertCorruptTeamRow(teamSlug: string, org: string, project: string) {
+    const db = getDb();
+    db.prepare(
+      `INSERT INTO team_pr_snapshots (snapshot_date, team_slug, org, project, metrics_json, source)
+       VALUES (?, ?, ?, ?, ?, ?)`
+    ).run("2026-02-25", teamSlug, org, project, "NOT_VALID_JSON{{{", "on-fetch");
+  }
+
+  function insertCorruptTimeRow(memberId: string, org: string) {
+    const db = getDb();
+    db.prepare(
+      `INSERT INTO time_tracking_snapshots (snapshot_date, member_id, member_name, org, hours_json, total_hours, source)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`
+    ).run("2026-02-25", memberId, memberId, org, "CORRUPT!!!", 0, "on-fetch");
+  }
+
+  it("getTeamSnapshot returns null for corrupt metrics_json", () => {
+    insertCorruptTeamRow("alpha", "myorg", "proj");
+    expect(getTeamSnapshot("myorg", "proj", "alpha", "2026-02-25")).toBeNull();
+  });
+
+  it("getTeamSnapshotRange skips corrupt row and returns null when no valid rows", () => {
+    insertCorruptTeamRow("alpha", "myorg", "proj");
+    expect(getTeamSnapshotRange("myorg", "proj", "alpha", 7)).toBeNull();
+  });
+
+  it("getTimeSnapshot returns null for corrupt hours_json", () => {
+    insertCorruptTimeRow("_team_response_", "myorg");
+    expect(getTimeSnapshot("myorg", "2026-02-25")).toBeNull();
+  });
+
+  it("getTimeSnapshotRange skips corrupt row and returns null when no valid rows", () => {
+    insertCorruptTimeRow("_team_response_", "myorg");
+    expect(getTimeSnapshotRange("myorg", 7)).toBeNull();
   });
 });

@@ -54,7 +54,7 @@ export async function GET(request: NextRequest) {
     const cached = getTimeSnapshot(configOrError.org, today());
     if (cached) {
       const cachedResponse = cached.hours as TeamTimeData;
-      if (cachedResponse?.team?.name === teamName) {
+      if (cachedResponse?.team?.name === teamName && cachedResponse?.period?.days === days) {
         cachedResponse.data_source = {
           origin: "cache",
           cachedAt: cached.createdAt,

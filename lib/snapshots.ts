@@ -186,10 +186,9 @@ export function getTeamSnapshot(
     | undefined;
 
   if (!row) return null;
-  return {
-    metrics: safeJsonParse(row.metrics_json, { org, project, teamSlug, date }),
-    createdAt: row.created_at,
-  };
+  const metrics = safeJsonParse(row.metrics_json, { org, project, teamSlug, date });
+  if (metrics === null) return null;
+  return { metrics, createdAt: row.created_at };
 }
 
 /**
@@ -204,23 +203,26 @@ export function getTeamSnapshotRange(
 ): { metrics: unknown; snapshotDate: string; createdAt: string } | null {
   const db = getDb();
   const cutoff = dateDaysAgo(lookbackDays);
-  const row = db
+  const rows = db
     .prepare(
       `SELECT metrics_json, snapshot_date, created_at FROM team_pr_snapshots
        WHERE snapshot_date >= ? AND org = ? AND project = ? AND team_slug = ?
        ORDER BY snapshot_date DESC
-       LIMIT 1`
+       LIMIT 5`
     )
-    .get(cutoff, org, project, teamSlug) as
-    | { metrics_json: string; snapshot_date: string; created_at: string }
-    | undefined;
+    .all(cutoff, org, project, teamSlug) as Array<{
+    metrics_json: string;
+    snapshot_date: string;
+    created_at: string;
+  }>;
 
-  if (!row) return null;
-  return {
-    metrics: safeJsonParse(row.metrics_json, { org, project, teamSlug }),
-    snapshotDate: row.snapshot_date,
-    createdAt: row.created_at,
-  };
+  for (const row of rows) {
+    const metrics = safeJsonParse(row.metrics_json, { org, project, teamSlug });
+    if (metrics !== null) {
+      return { metrics, snapshotDate: row.snapshot_date, createdAt: row.created_at };
+    }
+  }
+  return null;
 }
 
 /**
@@ -243,10 +245,9 @@ export function getTimeSnapshot(
     | undefined;
 
   if (!row) return null;
-  return {
-    hours: safeJsonParse(row.hours_json, { org, date, memberId: "_team_response_" }),
-    createdAt: row.created_at,
-  };
+  const hours = safeJsonParse(row.hours_json, { org, date, memberId: "_team_response_" });
+  if (hours === null) return null;
+  return { hours, createdAt: row.created_at };
 }
 
 /**
@@ -259,35 +260,44 @@ export function getTimeSnapshotRange(
 ): { hours: unknown; snapshotDate: string; createdAt: string } | null {
   const db = getDb();
   const cutoff = dateDaysAgo(lookbackDays);
-  const row = db
+  const rows = db
     .prepare(
       `SELECT hours_json, snapshot_date, created_at FROM time_tracking_snapshots
        WHERE snapshot_date >= ? AND org = ? AND member_id = '_team_response_'
        ORDER BY snapshot_date DESC
-       LIMIT 1`
+       LIMIT 5`
     )
-    .get(cutoff, org) as
-    | { hours_json: string; snapshot_date: string; created_at: string }
-    | undefined;
+    .all(cutoff, org) as Array<{
+    hours_json: string;
+    snapshot_date: string;
+    created_at: string;
+  }>;
 
-  if (!row) return null;
-  return {
-    hours: safeJsonParse(row.hours_json, { org, memberId: "_team_response_" }),
-    snapshotDate: row.snapshot_date,
-    createdAt: row.created_at,
-  };
+  for (const row of rows) {
+    const hours = safeJsonParse(row.hours_json, { org, memberId: "_team_response_" });
+    if (hours !== null) {
+      return { hours, snapshotDate: row.snapshot_date, createdAt: row.created_at };
+    }
+  }
+  return null;
 }
 
 /**
  * List dates that have team PR snapshots within a range.
  * Useful for checking coverage / identifying gaps.
  */
+export interface TeamCoverage {
+  covered: string[];
+  total: number;
+  complete: boolean;
+}
+
 export function checkTeamCoverage(
   org: string,
   project: string,
   teamSlug: string,
   days: number
-): string[] {
+): TeamCoverage {
   const db = getDb();
   const cutoff = dateDaysAgo(days);
   const rows = db
@@ -298,7 +308,8 @@ export function checkTeamCoverage(
     )
     .all(cutoff, org, project, teamSlug) as Array<{ snapshot_date: string }>;
 
-  return rows.map((r) => r.snapshot_date);
+  const covered = rows.map((r) => r.snapshot_date);
+  return { covered, total: days, complete: covered.length >= days };
 }
 
 // ── Dedup guards ─────────────────────────────────────────────────────

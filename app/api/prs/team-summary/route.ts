@@ -49,18 +49,20 @@ export async function GET(request: NextRequest) {
     const cached = getTeamSnapshot(configOrError.org, configOrError.project, teamName, today());
     if (cached) {
       const cachedResponse = cached.metrics as TeamSummaryApiResponse;
-      cachedResponse.data_source = {
-        origin: "cache",
-        cachedAt: cached.createdAt,
-        snapshotDate: today(),
-      };
-      logger.info("Request complete (cache hit)", {
-        route: "prs/team-summary",
-        team: teamName,
-        durationMs: Date.now() - start,
-        dataSource: "cache",
-      });
-      return jsonWithCache(cachedResponse);
+      if (cachedResponse?.period?.days === days) {
+        cachedResponse.data_source = {
+          origin: "cache",
+          cachedAt: cached.createdAt,
+          snapshotDate: today(),
+        };
+        logger.info("Request complete (cache hit)", {
+          route: "prs/team-summary",
+          team: teamName,
+          durationMs: Date.now() - start,
+          dataSource: "cache",
+        });
+        return jsonWithCache(cachedResponse);
+      }
     }
 
     // Fetch members and PRs in parallel
