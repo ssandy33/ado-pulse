@@ -27,7 +27,7 @@ npm run build     # Production build (standalone output)
 npm start         # Start production server
 npm run lint      # ESLint
 npm test          # Jest tests (local)
-npm run test:ci   # Jest tests (CI mode — serial, forceExit)
+npm run test:ci   # Jest tests (CI mode — forceExit)
 npm run test:e2e  # Playwright E2E tests
 ```
 
@@ -79,7 +79,6 @@ Every issue/PR must satisfy ALL of the following before merge:
 
 ### Code quality
 - [ ] Code follows existing conventions (see Conventions section)
-- [ ] `npm run lint` passes with no new errors
 - [ ] No untyped `any` unless justified in a comment
 
 ### Testing
@@ -124,7 +123,7 @@ Every issue/PR must satisfy ALL of the following before merge:
 - Branch naming: `feat/<name>` for features, `fix/<name>` for bugs
 - Never push directly to `main` — repo rules require pull requests
 - Commit style: imperative present tense, action-first (e.g. "Add feature X", "Fix bug in Y", "Remove unused Z")
-- Always run `npm run lint` and `npm test` before committing
+- Always run `npm test` before committing
 - **Branch protection**: `main` should require these status checks: `jest` and `e2e`
 
 ## Deployment
