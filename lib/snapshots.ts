@@ -162,6 +162,156 @@ export function saveTimeSnapshot(params: {
   );
 }
 
+// ── Single-row cache reads ──────────────────────────────────────────
+
+/**
+ * Get a single team PR snapshot for a specific date.
+ * Returns the parsed metrics blob or null if not found.
+ */
+export function getTeamSnapshot(
+  org: string,
+  project: string,
+  teamSlug: string,
+  date: string
+): { metrics: unknown; createdAt: string } | null {
+  const db = getDb();
+  const row = db
+    .prepare(
+      `SELECT metrics_json, created_at FROM team_pr_snapshots
+       WHERE snapshot_date = ? AND org = ? AND project = ? AND team_slug = ?
+       LIMIT 1`
+    )
+    .get(date, org, project, teamSlug) as
+    | { metrics_json: string; created_at: string }
+    | undefined;
+
+  if (!row) return null;
+  const metrics = safeJsonParse(row.metrics_json, { org, project, teamSlug, date });
+  if (metrics === null) return null;
+  return { metrics, createdAt: row.created_at };
+}
+
+/**
+ * Get the most recent team PR snapshot within `lookbackDays`.
+ * Used for stale fallback when live fetch fails.
+ */
+export function getTeamSnapshotRange(
+  org: string,
+  project: string,
+  teamSlug: string,
+  lookbackDays: number
+): { metrics: unknown; snapshotDate: string; createdAt: string } | null {
+  const db = getDb();
+  const cutoff = dateDaysAgo(lookbackDays);
+  const rows = db
+    .prepare(
+      `SELECT metrics_json, snapshot_date, created_at FROM team_pr_snapshots
+       WHERE snapshot_date >= ? AND org = ? AND project = ? AND team_slug = ?
+       ORDER BY snapshot_date DESC
+       LIMIT 5`
+    )
+    .all(cutoff, org, project, teamSlug) as Array<{
+    metrics_json: string;
+    snapshot_date: string;
+    created_at: string;
+  }>;
+
+  for (const row of rows) {
+    const metrics = safeJsonParse(row.metrics_json, { org, project, teamSlug });
+    if (metrics !== null) {
+      return { metrics, snapshotDate: row.snapshot_date, createdAt: row.created_at };
+    }
+  }
+  return null;
+}
+
+/**
+ * Get the full _team_response_ time snapshot for a specific date.
+ * Returns the parsed TeamTimeData blob or null if not found.
+ */
+export function getTimeSnapshot(
+  org: string,
+  date: string
+): { hours: unknown; createdAt: string } | null {
+  const db = getDb();
+  const row = db
+    .prepare(
+      `SELECT hours_json, created_at FROM time_tracking_snapshots
+       WHERE snapshot_date = ? AND org = ? AND member_id = '_team_response_'
+       LIMIT 1`
+    )
+    .get(date, org) as
+    | { hours_json: string; created_at: string }
+    | undefined;
+
+  if (!row) return null;
+  const hours = safeJsonParse(row.hours_json, { org, date, memberId: "_team_response_" });
+  if (hours === null) return null;
+  return { hours, createdAt: row.created_at };
+}
+
+/**
+ * Get the most recent _team_response_ time snapshot within `lookbackDays`.
+ * Used for stale fallback when live fetch fails.
+ */
+export function getTimeSnapshotRange(
+  org: string,
+  lookbackDays: number
+): { hours: unknown; snapshotDate: string; createdAt: string } | null {
+  const db = getDb();
+  const cutoff = dateDaysAgo(lookbackDays);
+  const rows = db
+    .prepare(
+      `SELECT hours_json, snapshot_date, created_at FROM time_tracking_snapshots
+       WHERE snapshot_date >= ? AND org = ? AND member_id = '_team_response_'
+       ORDER BY snapshot_date DESC
+       LIMIT 5`
+    )
+    .all(cutoff, org) as Array<{
+    hours_json: string;
+    snapshot_date: string;
+    created_at: string;
+  }>;
+
+  for (const row of rows) {
+    const hours = safeJsonParse(row.hours_json, { org, memberId: "_team_response_" });
+    if (hours !== null) {
+      return { hours, snapshotDate: row.snapshot_date, createdAt: row.created_at };
+    }
+  }
+  return null;
+}
+
+/**
+ * List dates that have team PR snapshots within a range.
+ * Useful for checking coverage / identifying gaps.
+ */
+export interface TeamCoverage {
+  covered: string[];
+  total: number;
+  complete: boolean;
+}
+
+export function checkTeamCoverage(
+  org: string,
+  project: string,
+  teamSlug: string,
+  days: number
+): TeamCoverage {
+  const db = getDb();
+  const cutoff = dateDaysAgo(days);
+  const rows = db
+    .prepare(
+      `SELECT DISTINCT snapshot_date FROM team_pr_snapshots
+       WHERE snapshot_date >= ? AND org = ? AND project = ? AND team_slug = ?
+       ORDER BY snapshot_date DESC`
+    )
+    .all(cutoff, org, project, teamSlug) as Array<{ snapshot_date: string }>;
+
+  const covered = rows.map((r) => r.snapshot_date);
+  return { covered, total: days, complete: covered.length >= days };
+}
+
 // ── Dedup guards ─────────────────────────────────────────────────────
 
 export function hasTeamSnapshotToday(

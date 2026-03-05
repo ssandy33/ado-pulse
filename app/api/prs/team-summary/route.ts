@@ -5,8 +5,9 @@ import { batchAsync } from "@/lib/ado/client";
 import { extractConfig, jsonWithCache, handleApiError } from "@/lib/ado/helpers";
 import { logger } from "@/lib/logger";
 import { getExclusions } from "@/lib/settings";
-import { saveTeamSnapshot, hasTeamSnapshotToday } from "@/lib/snapshots";
+import { saveTeamSnapshot, hasTeamSnapshotToday, getTeamSnapshot, getTeamSnapshotRange } from "@/lib/snapshots";
 import { parseRange, resolveRange } from "@/lib/dateRange";
+import { today } from "@/lib/dateUtils";
 import type {
   MemberSummary,
   RepoSummary,
@@ -42,6 +43,26 @@ export async function GET(request: NextRequest) {
     if (!teamName) {
       logger.info("Request complete", { route: "prs/team-summary", durationMs: Date.now() - start, status: 400 });
       return jsonWithCache({ error: "No team specified" });
+    }
+
+    // ── Cache-first: check SQLite for today's snapshot ──────────
+    const cached = getTeamSnapshot(configOrError.org, configOrError.project, teamName, today());
+    if (cached) {
+      const cachedResponse = cached.metrics as TeamSummaryApiResponse;
+      if (cachedResponse?.period?.days === days) {
+        cachedResponse.data_source = {
+          origin: "cache",
+          cachedAt: cached.createdAt,
+          snapshotDate: today(),
+        };
+        logger.info("Request complete (cache hit)", {
+          route: "prs/team-summary",
+          team: teamName,
+          durationMs: Date.now() - start,
+          dataSource: "cache",
+        });
+        return jsonWithCache(cachedResponse);
+      }
     }
 
     // Fetch members and PRs in parallel
@@ -248,6 +269,11 @@ export async function GET(request: NextRequest) {
       members: memberSummaries,
       byRepo,
       diagnostics,
+      data_source: {
+        origin: "live",
+        cachedAt: null,
+        snapshotDate: null,
+      },
     };
 
     logger.info("Request complete", {
@@ -284,6 +310,33 @@ export async function GET(request: NextRequest) {
     return jsonWithCache(response);
   } catch (error) {
     logger.error("Request error", { route: "prs/team-summary", durationMs: Date.now() - start, stack_trace: error instanceof Error ? error.stack : undefined });
+
+    // ── Stale fallback: serve recent cache if available ──────────
+    const teamName = request.nextUrl.searchParams.get("team") || "";
+    if (teamName) {
+      try {
+        const stale = getTeamSnapshotRange(configOrError.org, configOrError.project, teamName, 7);
+        if (stale) {
+          const staleResponse = stale.metrics as TeamSummaryApiResponse;
+          staleResponse.data_source = {
+            origin: "cache-stale",
+            cachedAt: stale.createdAt,
+            snapshotDate: stale.snapshotDate,
+          };
+          logger.info("Serving stale cache after error", {
+            route: "prs/team-summary",
+            team: teamName,
+            snapshotDate: stale.snapshotDate,
+          });
+          return jsonWithCache(staleResponse);
+        }
+      } catch (cacheErr) {
+        logger.error("[snapshot] Stale fallback failed", {
+          error: cacheErr instanceof Error ? cacheErr.message : String(cacheErr),
+        });
+      }
+    }
+
     return handleApiError(error);
   }
 }

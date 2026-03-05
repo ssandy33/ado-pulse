@@ -3,7 +3,8 @@ import { getTeamMembers } from "@/lib/ado/teams";
 import { extractConfig, jsonWithCache, handleApiError } from "@/lib/ado/helpers";
 import { logger } from "@/lib/logger";
 import { batchAsync } from "@/lib/ado/client";
-import { saveTimeSnapshot, hasTimeSnapshotToday } from "@/lib/snapshots";
+import { saveTimeSnapshot, hasTimeSnapshotToday, getTimeSnapshot, getTimeSnapshotRange } from "@/lib/snapshots";
+import { today } from "@/lib/dateUtils";
 import { getExclusions } from "@/lib/settings";
 import { parseRange, resolveRange, countBusinessDays } from "@/lib/dateRange";
 import {
@@ -47,6 +48,26 @@ export async function GET(request: NextRequest) {
     if (!teamName) {
       logger.info("Request complete", { route: "timetracking/team-summary", durationMs: Date.now() - start, status: 400 });
       return jsonWithCache({ error: "No team specified" }, 0);
+    }
+
+    // ── Cache-first: check SQLite for today's _team_response_ ───
+    const cached = getTimeSnapshot(configOrError.org, today());
+    if (cached) {
+      const cachedResponse = cached.hours as TeamTimeData;
+      if (cachedResponse?.team?.name === teamName && cachedResponse?.period?.days === days) {
+        cachedResponse.data_source = {
+          origin: "cache",
+          cachedAt: cached.createdAt,
+          snapshotDate: today(),
+        };
+        logger.info("Request complete (cache hit)", {
+          route: "timetracking/team-summary",
+          team: teamName,
+          durationMs: Date.now() - start,
+          dataSource: "cache",
+        });
+        return jsonWithCache(cachedResponse, 120);
+      }
     }
 
     // 1. Check 7pace config
@@ -304,6 +325,11 @@ export async function GET(request: NextRequest) {
       wrongLevelEntries,
       sevenPaceConnected: true,
       governance,
+      data_source: {
+        origin: "live",
+        cachedAt: null,
+        snapshotDate: null,
+      },
       diagnostics: {
         sevenPaceUsersTotal: spUsers.size,
         sevenPaceUsers: spUsersList.slice(0, 20),
@@ -333,6 +359,17 @@ export async function GET(request: NextRequest) {
     // Persist daily snapshots after response is ready (fire-and-forget, deferred off request path)
     setImmediate(() => {
       try {
+        // Save full team response as _team_response_ sentinel for cache reads
+        if (!hasTimeSnapshotToday(configOrError.org, "_team_response_")) {
+          saveTimeSnapshot({
+            memberId: "_team_response_",
+            memberName: "_team_response_",
+            org: configOrError.org,
+            hours: response,
+            totalHours: 0,
+          });
+        }
+
         for (const member of memberEntries) {
           try {
             if (hasTimeSnapshotToday(configOrError.org, member.uniqueName)) continue;
@@ -360,14 +397,42 @@ export async function GET(request: NextRequest) {
 
     return jsonWithCache(response, 120);
   } catch (error) {
+    logger.error("Request error", { route: "timetracking/team-summary", durationMs: Date.now() - start, stack_trace: error instanceof Error ? error.stack : undefined });
+
+    // ── Stale fallback: serve recent cache if available ──────────
+    const teamNameFallback = request.nextUrl.searchParams.get("team") || "";
+    if (teamNameFallback) {
+      try {
+        const stale = getTimeSnapshotRange(configOrError.org, 7);
+        if (stale) {
+          const staleResponse = stale.hours as TeamTimeData;
+          if (staleResponse?.team?.name === teamNameFallback) {
+            staleResponse.data_source = {
+              origin: "cache-stale",
+              cachedAt: stale.createdAt,
+              snapshotDate: stale.snapshotDate,
+            };
+            logger.info("Serving stale cache after error", {
+              route: "timetracking/team-summary",
+              team: teamNameFallback,
+              snapshotDate: stale.snapshotDate,
+            });
+            return jsonWithCache(staleResponse, 120);
+          }
+        }
+      } catch (cacheErr) {
+        logger.error("[snapshot] Stale fallback failed", {
+          error: cacheErr instanceof Error ? cacheErr.message : String(cacheErr),
+        });
+      }
+    }
+
     if (error instanceof SevenPaceApiError) {
-      logger.error("Request error", { route: "timetracking/team-summary", durationMs: Date.now() - start, error: error.message, code: error.code });
       return NextResponse.json(
         { error: error.message, code: error.code },
         { status: error.status === 401 ? 401 : 502 }
       );
     }
-    logger.error("Request error", { route: "timetracking/team-summary", durationMs: Date.now() - start, stack_trace: error instanceof Error ? error.stack : undefined });
     return handleApiError(error);
   }
 }

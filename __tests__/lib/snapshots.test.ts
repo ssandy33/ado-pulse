@@ -18,6 +18,11 @@ import {
   getTimeSnapshots,
   hasTeamSnapshotToday,
   hasTimeSnapshotToday,
+  getTeamSnapshot,
+  getTeamSnapshotRange,
+  getTimeSnapshot,
+  getTimeSnapshotRange,
+  checkTeamCoverage,
 } from "@/lib/snapshots";
 
 beforeAll(() => {
@@ -389,5 +394,212 @@ describe("hasTimeSnapshotToday", () => {
   it("returns false for a different org", () => {
     saveTimeSnapshot({ memberId: "alice@example.com", memberName: "Alice", org: "org-a", hours: {}, totalHours: 5 });
     expect(hasTimeSnapshotToday("org-b", "alice@example.com")).toBe(false);
+  });
+});
+
+// ── getTeamSnapshot (single date lookup) ──────────────────────────────
+
+describe("getTeamSnapshot", () => {
+  it("returns metrics and createdAt for an existing snapshot", () => {
+    saveTeamSnapshot({ teamSlug: "alpha", org: "myorg", project: "proj", metrics: { totalPRs: 5 } });
+
+    const result = getTeamSnapshot("myorg", "proj", "alpha", "2026-02-25");
+    expect(result).not.toBeNull();
+    expect(result!.metrics).toEqual({ totalPRs: 5 });
+    expect(result!.createdAt).toBeDefined();
+  });
+
+  it("returns null when no snapshot exists for the date", () => {
+    const result = getTeamSnapshot("myorg", "proj", "alpha", "2026-02-25");
+    expect(result).toBeNull();
+  });
+
+  it("returns null for wrong org/project/team", () => {
+    saveTeamSnapshot({ teamSlug: "alpha", org: "myorg", project: "proj", metrics: {} });
+
+    expect(getTeamSnapshot("other-org", "proj", "alpha", "2026-02-25")).toBeNull();
+    expect(getTeamSnapshot("myorg", "other-proj", "alpha", "2026-02-25")).toBeNull();
+    expect(getTeamSnapshot("myorg", "proj", "beta", "2026-02-25")).toBeNull();
+  });
+});
+
+// ── getTeamSnapshotRange (most recent within N days) ──────────────────
+
+describe("getTeamSnapshotRange", () => {
+  it("returns the most recent snapshot within lookback window", () => {
+    saveTeamSnapshot({ teamSlug: "alpha", org: "myorg", project: "proj", metrics: { totalPRs: 10 } });
+
+    const result = getTeamSnapshotRange("myorg", "proj", "alpha", 7);
+    expect(result).not.toBeNull();
+    expect(result!.metrics).toEqual({ totalPRs: 10 });
+    expect(result!.snapshotDate).toBe("2026-02-25");
+  });
+
+  it("returns null when no snapshots exist in range", () => {
+    const result = getTeamSnapshotRange("myorg", "proj", "alpha", 7);
+    expect(result).toBeNull();
+  });
+
+  it("returns null for wrong org", () => {
+    saveTeamSnapshot({ teamSlug: "alpha", org: "myorg", project: "proj", metrics: {} });
+    expect(getTeamSnapshotRange("other-org", "proj", "alpha", 7)).toBeNull();
+  });
+});
+
+// ── getTimeSnapshot (_team_response_ sentinel) ────────────────────────
+
+describe("getTimeSnapshot", () => {
+  it("returns the _team_response_ row for a given date", () => {
+    const teamData = { team: { name: "alpha" }, summary: { totalHours: 40 } };
+    saveTimeSnapshot({
+      memberId: "_team_response_",
+      memberName: "_team_response_",
+      org: "myorg",
+      hours: teamData,
+      totalHours: 0,
+    });
+
+    const result = getTimeSnapshot("myorg", "2026-02-25");
+    expect(result).not.toBeNull();
+    expect(result!.hours).toEqual(teamData);
+    expect(result!.createdAt).toBeDefined();
+  });
+
+  it("returns null when no _team_response_ row exists", () => {
+    // Save a regular member row — should not match
+    saveTimeSnapshot({
+      memberId: "alice@example.com",
+      memberName: "Alice",
+      org: "myorg",
+      hours: {},
+      totalHours: 5,
+    });
+
+    const result = getTimeSnapshot("myorg", "2026-02-25");
+    expect(result).toBeNull();
+  });
+
+  it("returns null for wrong org", () => {
+    saveTimeSnapshot({
+      memberId: "_team_response_",
+      memberName: "_team_response_",
+      org: "myorg",
+      hours: {},
+      totalHours: 0,
+    });
+
+    expect(getTimeSnapshot("other-org", "2026-02-25")).toBeNull();
+  });
+});
+
+// ── getTimeSnapshotRange (_team_response_ within N days) ──────────────
+
+describe("getTimeSnapshotRange", () => {
+  it("returns most recent _team_response_ within lookback", () => {
+    const teamData = { team: { name: "alpha" }, summary: { totalHours: 32 } };
+    saveTimeSnapshot({
+      memberId: "_team_response_",
+      memberName: "_team_response_",
+      org: "myorg",
+      hours: teamData,
+      totalHours: 0,
+    });
+
+    const result = getTimeSnapshotRange("myorg", 7);
+    expect(result).not.toBeNull();
+    expect(result!.hours).toEqual(teamData);
+    expect(result!.snapshotDate).toBe("2026-02-25");
+  });
+
+  it("returns null when no _team_response_ exists", () => {
+    expect(getTimeSnapshotRange("myorg", 7)).toBeNull();
+  });
+
+  it("ignores regular member rows", () => {
+    saveTimeSnapshot({
+      memberId: "alice@example.com",
+      memberName: "Alice",
+      org: "myorg",
+      hours: {},
+      totalHours: 5,
+    });
+
+    expect(getTimeSnapshotRange("myorg", 7)).toBeNull();
+  });
+});
+
+// ── checkTeamCoverage ─────────────────────────────────────────────────
+
+describe("checkTeamCoverage", () => {
+  it("returns coverage object with covered dates, total, and complete flag", () => {
+    saveTeamSnapshot({ teamSlug: "alpha", org: "myorg", project: "proj", metrics: {} });
+
+    const result = checkTeamCoverage("myorg", "proj", "alpha", 30);
+    expect(result.covered).toEqual(["2026-02-25"]);
+    expect(result.total).toBe(30);
+    expect(result.complete).toBe(false);
+  });
+
+  it("returns empty covered array when no snapshots exist", () => {
+    const result = checkTeamCoverage("myorg", "proj", "alpha", 30);
+    expect(result.covered).toEqual([]);
+    expect(result.total).toBe(30);
+    expect(result.complete).toBe(false);
+  });
+
+  it("excludes snapshots from different teams", () => {
+    saveTeamSnapshot({ teamSlug: "alpha", org: "myorg", project: "proj", metrics: {} });
+    saveTeamSnapshot({ teamSlug: "beta", org: "myorg", project: "proj", metrics: {} });
+
+    const result = checkTeamCoverage("myorg", "proj", "alpha", 30);
+    expect(result.covered).toEqual(["2026-02-25"]);
+  });
+
+  it("reports complete when covered >= total", () => {
+    saveTeamSnapshot({ teamSlug: "alpha", org: "myorg", project: "proj", metrics: {} });
+
+    // days=1, 1 snapshot today → complete
+    const result = checkTeamCoverage("myorg", "proj", "alpha", 1);
+    expect(result.complete).toBe(true);
+  });
+});
+
+// ── Malformed JSON handling ───────────────────────────────────────────
+
+describe("malformed JSON in snapshots", () => {
+  function insertCorruptTeamRow(teamSlug: string, org: string, project: string) {
+    const db = getDb();
+    db.prepare(
+      `INSERT INTO team_pr_snapshots (snapshot_date, team_slug, org, project, metrics_json, source)
+       VALUES (?, ?, ?, ?, ?, ?)`
+    ).run("2026-02-25", teamSlug, org, project, "NOT_VALID_JSON{{{", "on-fetch");
+  }
+
+  function insertCorruptTimeRow(memberId: string, org: string) {
+    const db = getDb();
+    db.prepare(
+      `INSERT INTO time_tracking_snapshots (snapshot_date, member_id, member_name, org, hours_json, total_hours, source)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`
+    ).run("2026-02-25", memberId, memberId, org, "CORRUPT!!!", 0, "on-fetch");
+  }
+
+  it("getTeamSnapshot returns null for corrupt metrics_json", () => {
+    insertCorruptTeamRow("alpha", "myorg", "proj");
+    expect(getTeamSnapshot("myorg", "proj", "alpha", "2026-02-25")).toBeNull();
+  });
+
+  it("getTeamSnapshotRange skips corrupt row and returns null when no valid rows", () => {
+    insertCorruptTeamRow("alpha", "myorg", "proj");
+    expect(getTeamSnapshotRange("myorg", "proj", "alpha", 7)).toBeNull();
+  });
+
+  it("getTimeSnapshot returns null for corrupt hours_json", () => {
+    insertCorruptTimeRow("_team_response_", "myorg");
+    expect(getTimeSnapshot("myorg", "2026-02-25")).toBeNull();
+  });
+
+  it("getTimeSnapshotRange skips corrupt row and returns null when no valid rows", () => {
+    insertCorruptTimeRow("_team_response_", "myorg");
+    expect(getTimeSnapshotRange("myorg", 7)).toBeNull();
   });
 });

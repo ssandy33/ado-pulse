@@ -176,6 +176,7 @@ export interface TeamSummaryApiResponse {
   members: MemberSummary[];
   byRepo: RepoSummary[];
   diagnostics: DataDiagnostics;
+  data_source?: DataSourceMeta;
 }
 
 // ── Org Health types ──────────────────────────────────────────────
@@ -305,6 +306,14 @@ export interface AlignmentApiResponse {
   };
 }
 
+// ── Data Source metadata ──────────────────────────────────────
+
+export interface DataSourceMeta {
+  origin: "live" | "cache" | "cache-stale";
+  cachedAt: string | null;
+  snapshotDate: string | null;
+}
+
 // ── Time Tracking types ───────────────────────────────────────
 
 export type ExpenseType = "CapEx" | "OpEx" | "Unclassified";
@@ -392,4 +401,5 @@ export interface TeamTimeData {
   sevenPaceConnected: boolean;
   governance?: GovernanceData;
   diagnostics?: TimeTrackingDiagnostics;
+  data_source?: DataSourceMeta;
 }

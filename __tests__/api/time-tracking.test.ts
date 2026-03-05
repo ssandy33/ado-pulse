@@ -64,8 +64,14 @@ jest.mock("@/lib/sevenPace", () => ({
 }));
 
 // Mock snapshot persistence (uses native better-sqlite3 which can't run after teardown)
+const mockGetTimeSnapshot = jest.fn().mockReturnValue(null);
+const mockGetTimeSnapshotRange = jest.fn().mockReturnValue(null);
+
 jest.mock("@/lib/snapshots", () => ({
   saveTimeSnapshot: jest.fn(),
+  hasTimeSnapshotToday: jest.fn().mockReturnValue(false),
+  getTimeSnapshot: (...args: unknown[]) => mockGetTimeSnapshot(...args),
+  getTimeSnapshotRange: (...args: unknown[]) => mockGetTimeSnapshotRange(...args),
 }));
 
 // Mock ADO teams — return one member that maps to the 7pace user
@@ -167,5 +173,84 @@ describe("GET /api/timetracking/team-summary — date window changes with range 
     expect(mockGetWorklogsForUser).toHaveBeenCalledTimes(1);
     const [, email] = mockGetWorklogsForUser.mock.calls[0];
     expect(email).toBe("dev@test.com");
+  });
+});
+
+// ── Cache behavior ──────────────────────────────────────────────────
+
+describe("GET /api/timetracking/team-summary — cache behavior", () => {
+  beforeEach(() => jest.clearAllMocks());
+
+  it("returns cached response with data_source.origin='cache' on cache hit", async () => {
+    const cachedData = {
+      team: { name: "Partner", totalMembers: 1 },
+      period: { days: 7, from: "2026-02-18", to: "2026-02-25", label: "7d" },
+      summary: { totalHours: 40, capExHours: 30, opExHours: 10, unclassifiedHours: 0, membersLogging: 1, membersNotLogging: 0, wrongLevelCount: 0 },
+      members: [],
+      wrongLevelEntries: [],
+      sevenPaceConnected: true,
+    };
+
+    mockGetTimeSnapshot.mockReturnValue({
+      hours: cachedData,
+      createdAt: "2026-02-25T10:00:00Z",
+    });
+
+    const res = await GET(makeRequest({ range: "7", team: "Partner" }));
+    const body = await res.json();
+
+    expect(body.data_source).toBeDefined();
+    expect(body.data_source.origin).toBe("cache");
+    expect(body.data_source.cachedAt).toBe("2026-02-25T10:00:00Z");
+    // Should NOT call 7pace when cache hit
+    expect(mockGetWorklogsForUser).not.toHaveBeenCalled();
+  });
+
+  it("skips cache when team name does not match", async () => {
+    mockGetTimeSnapshot.mockReturnValue({
+      hours: { team: { name: "DifferentTeam" } },
+      createdAt: "2026-02-25T10:00:00Z",
+    });
+
+    const res = await GET(makeRequest({ range: "7", team: "Partner" }));
+    const body = await res.json();
+
+    // Should fall through to live fetch
+    expect(body.data_source.origin).toBe("live");
+    expect(mockGetWorklogsForUser).toHaveBeenCalled();
+  });
+
+  it("returns data_source.origin='live' on cache miss", async () => {
+    mockGetTimeSnapshot.mockReturnValue(null);
+
+    const res = await GET(makeRequest({ range: "7", team: "Partner" }));
+    const body = await res.json();
+
+    expect(body.data_source).toBeDefined();
+    expect(body.data_source.origin).toBe("live");
+    expect(body.data_source.cachedAt).toBeNull();
+  });
+
+  it("falls through to live fetch when cached range does not match requested range", async () => {
+    // Cached snapshot was built for range=7
+    mockGetTimeSnapshot.mockReturnValue({
+      hours: {
+        team: { name: "Partner", totalMembers: 1 },
+        period: { days: 7, from: "2026-02-18", to: "2026-02-25", label: "7d" },
+        summary: { totalHours: 40, capExHours: 30, opExHours: 10, unclassifiedHours: 0, membersLogging: 1, membersNotLogging: 0, wrongLevelCount: 0 },
+        members: [],
+        wrongLevelEntries: [],
+        sevenPaceConnected: true,
+      },
+      createdAt: "2026-02-25T10:00:00Z",
+    });
+
+    // Request with range=14 — should NOT use cache
+    const res = await GET(makeRequest({ range: "14", team: "Partner" }));
+    const body = await res.json();
+
+    expect(body.data_source.origin).toBe("live");
+    expect(body.data_source.cachedAt).toBeNull();
+    expect(mockGetWorklogsForUser).toHaveBeenCalled();
   });
 });
