@@ -115,14 +115,35 @@ if [ "$ENABLE_AUTH" = "y" ]; then
 fi
 
 # --------------------------------------------------
+# 7b. Scheduler configuration
+# --------------------------------------------------
+echo ">>> Nightly Scheduler Configuration"
+echo "  The scheduler saves daily snapshots for trend charts."
+echo ""
+read -p "  ADO Organization: " ADO_ORG
+read -p "  ADO Project: " ADO_PROJECT
+read -sp "  ADO PAT (Personal Access Token): " ADO_PAT
+echo ""
+read -p "  Teams to schedule (comma-separated, e.g. partner,cruise): " SCHEDULED_TEAMS
+ADMIN_SECRET=$(head -c 32 /dev/urandom | base64 | tr -dc 'a-zA-Z0-9' | head -c 32)
+echo "  Generated ADMIN_SECRET: ${ADMIN_SECRET}"
+echo ""
+
+# --------------------------------------------------
 # 8. Create .env file
 # --------------------------------------------------
 echo ">>> Creating .env file..."
-echo "(ADO credentials are entered in the browser — not stored on server)"
 cat > "$APP_DIR/.env" <<EOF
 DOMAIN=${DOMAIN}
 BASIC_AUTH_USER=${BASIC_AUTH_USER}
 BASIC_AUTH_PASS=${BASIC_AUTH_PASS}
+
+# Nightly scheduler
+SCHEDULED_TEAMS=${SCHEDULED_TEAMS}
+ADO_ORG=${ADO_ORG}
+ADO_PROJECT=${ADO_PROJECT}
+ADO_PAT=${ADO_PAT}
+ADMIN_SECRET=${ADMIN_SECRET}
 EOF
 
 chmod 600 "$APP_DIR/.env"

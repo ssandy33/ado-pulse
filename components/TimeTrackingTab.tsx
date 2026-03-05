@@ -8,6 +8,9 @@ import { KPICard } from "./KPICard";
 import { SkeletonKPIRow, SkeletonTable } from "./SkeletonLoader";
 import { EmailTooltip } from "./EmailTooltip";
 import { AgencyFilterDropdown } from "./AgencyFilterDropdown";
+import { WeeklyHoursChart } from "./trends/WeeklyHoursChart";
+import { TrendEmptyState } from "./trends/TrendEmptyState";
+import type { WeeklyHoursTrend } from "@/lib/trends";
 
 interface TimeTrackingTabProps {
   adoHeaders: Record<string, string>;
@@ -448,6 +451,7 @@ export function TimeTrackingTab({
   const [error, setError] = useState<string | null>(null);
   const [expandedRow, setExpandedRow] = useState<string | null>(null);
   const [breakdownView, setBreakdownView] = useState<"member" | "feature">("member");
+  const [hoursTrendData, setHoursTrendData] = useState<WeeklyHoursTrend[] | null>(null);
   const [agencyLookup, setAgencyLookup] = useState<Map<string, MemberProfile>>(new Map());
   const [agencyFilter, setAgencyFilter] = useState<Set<string>>(new Set());
 
@@ -534,6 +538,12 @@ export function TimeTrackingTab({
         setError(err instanceof Error ? err.message : "Failed to load")
       )
       .finally(() => setLoading(false));
+
+    // Fetch hours trend data (non-blocking)
+    fetch("/api/trends/time-hours", { headers: adoHeaders })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((json) => setHoursTrendData(json?.weeks ?? null))
+      .catch(() => setHoursTrendData(null));
   }, [selectedTeam, range, adoHeaders]);
 
   useEffect(() => {
@@ -712,6 +722,17 @@ export function TimeTrackingTab({
               </div>
             );
           })()}
+
+          {/* Weekly Hours Trend */}
+          {hoursTrendData && (
+            <div className="mb-6">
+              {hoursTrendData.length > 0 ? (
+                <WeeklyHoursChart data={hoursTrendData} />
+              ) : (
+                <TrendEmptyState message="Weekly hours trend data is building — check back after a few more days of snapshots." />
+              )}
+            </div>
+          )}
 
           {/* Wrong-Level Banner */}
           <WrongLevelBanner entries={data.wrongLevelEntries} org={org} project={project} />
