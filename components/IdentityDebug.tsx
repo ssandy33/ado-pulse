@@ -883,6 +883,159 @@ export function UserTimeLogLookup({
   );
 }
 
+// ── Scheduler History ─────────────────────────────────────────
+
+interface SchedulerLogEntry {
+  id: number;
+  snapshotDate: string;
+  jobType: string;
+  status: string;
+  teamsSaved: number | null;
+  errorMsg: string | null;
+  durationMs: number | null;
+  createdAt: string;
+}
+
+function SchedulerHistorySection() {
+  const [runs, setRuns] = useState<SchedulerLogEntry[]>([]);
+  const [lastRun, setLastRun] = useState<SchedulerLogEntry | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [adminSecret, setAdminSecret] = useState("");
+  const [triggering, setTriggering] = useState(false);
+  const [triggerResult, setTriggerResult] = useState<string | null>(null);
+
+  const fetchHistory = useCallback(() => {
+    setLoading(true);
+    fetch("/api/admin/scheduler/history")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((json) => {
+        if (json) {
+          setRuns(json.runs ?? []);
+          setLastRun(json.lastRun ?? null);
+        }
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  useEffect(() => {
+    fetchHistory();
+  }, [fetchHistory]);
+
+  const handleTrigger = () => {
+    if (!adminSecret.trim()) return;
+    setTriggering(true);
+    setTriggerResult(null);
+    fetch("/api/admin/scheduler/run", {
+      method: "POST",
+      headers: { "x-admin-secret": adminSecret },
+    })
+      .then(async (r) => {
+        const json = await r.json();
+        if (r.ok) {
+          setTriggerResult(`Success — ${json.durationMs}ms`);
+          fetchHistory();
+        } else {
+          setTriggerResult(`Error: ${json.error}`);
+        }
+      })
+      .catch((err) => setTriggerResult(`Error: ${err.message}`))
+      .finally(() => setTriggering(false));
+  };
+
+  function statusBadge(status: string) {
+    const colors: Record<string, string> = {
+      success: "bg-emerald-100 text-emerald-700",
+      partial: "bg-amber-100 text-amber-700",
+      error: "bg-red-100 text-red-700",
+    };
+    return (
+      <span className={`inline-block px-1.5 py-0.5 text-[10px] font-medium rounded ${colors[status] || "bg-gray-100 text-gray-600"}`}>
+        {status}
+      </span>
+    );
+  }
+
+  return (
+    <div className="p-4">
+      {/* Schedule info */}
+      <p className="text-[11px] text-pulse-muted mb-3">
+        Current schedule: Runs nightly at 2:00 AM UTC
+      </p>
+
+      {/* Last run */}
+      {lastRun && (
+        <div className="flex items-center gap-2 mb-4 text-[12px]">
+          <span className="text-pulse-muted">Last run:</span>
+          <span className="text-pulse-text">{lastRun.createdAt}</span>
+          {statusBadge(lastRun.status)}
+        </div>
+      )}
+
+      {/* Manual trigger */}
+      <div className="flex items-center gap-2 mb-4">
+        <input
+          type="password"
+          placeholder="Admin secret"
+          value={adminSecret}
+          onChange={(e) => setAdminSecret(e.target.value)}
+          className="px-2 py-1.5 text-[12px] bg-pulse-bg border border-pulse-border rounded-md w-48 text-pulse-text placeholder:text-pulse-dim"
+        />
+        <button
+          onClick={handleTrigger}
+          disabled={triggering || !adminSecret.trim()}
+          className="px-3 py-1.5 text-[12px] font-medium bg-pulse-accent text-white rounded-md hover:bg-pulse-accent/90 disabled:opacity-50 cursor-pointer"
+        >
+          {triggering ? "Running..." : "Run Now"}
+        </button>
+        {triggerResult && (
+          <span className={`text-[11px] ${triggerResult.startsWith("Error") ? "text-red-600" : "text-emerald-600"}`}>
+            {triggerResult}
+          </span>
+        )}
+      </div>
+
+      {/* History table */}
+      {loading ? (
+        <div className="text-[12px] text-pulse-muted py-4 text-center">Loading...</div>
+      ) : runs.length === 0 ? (
+        <p className="text-[12px] text-pulse-muted text-center py-4">No scheduler runs recorded yet.</p>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full text-[11px]">
+            <thead>
+              <tr className="text-left text-pulse-muted border-b border-pulse-border">
+                <th className="px-2 py-1.5 font-medium">Run At</th>
+                <th className="px-2 py-1.5 font-medium">Type</th>
+                <th className="px-2 py-1.5 font-medium">Status</th>
+                <th className="px-2 py-1.5 font-medium text-right">Teams</th>
+                <th className="px-2 py-1.5 font-medium text-right">Duration</th>
+                <th className="px-2 py-1.5 font-medium">Error</th>
+              </tr>
+            </thead>
+            <tbody>
+              {runs.map((run) => (
+                <tr key={run.id} className="border-b border-pulse-border/50 last:border-0">
+                  <td className="px-2 py-1.5 text-pulse-text whitespace-nowrap">{run.createdAt}</td>
+                  <td className="px-2 py-1.5 text-pulse-muted">{run.jobType}</td>
+                  <td className="px-2 py-1.5">{statusBadge(run.status)}</td>
+                  <td className="px-2 py-1.5 text-pulse-text text-right">{run.teamsSaved ?? "—"}</td>
+                  <td className="px-2 py-1.5 text-pulse-muted text-right">
+                    {run.durationMs !== null ? `${run.durationMs}ms` : "—"}
+                  </td>
+                  <td className="px-2 py-1.5 text-red-600 max-w-[200px] truncate" title={run.errorMsg ?? ""}>
+                    {run.errorMsg || "—"}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Main export ───────────────────────────────────────────────
 
 export function IdentityDebug({ adoHeaders, selectedTeam, range }: IdentityDebugProps) {
@@ -921,7 +1074,15 @@ export function IdentityDebug({ adoHeaders, selectedTeam, range }: IdentityDebug
 
   return (
     <>
-      {/* ── Work Item Time Log Lookup (first) ──────────────── */}
+      {/* ── Snapshot Scheduler ─────────────────────────────── */}
+      <CollapsibleSection
+        title="Snapshot Scheduler"
+        description="Nightly snapshot job status and manual trigger."
+      >
+        <SchedulerHistorySection />
+      </CollapsibleSection>
+
+      {/* ── Work Item Time Log Lookup ──────────────────────── */}
       <CollapsibleSection
         title="Work Item Time Log Lookup"
         description="Look up 7pace time entries for a specific ADO work item."

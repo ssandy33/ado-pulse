@@ -24,6 +24,12 @@ import { SettingsPage } from "./SettingsPage";
 import { TimeTrackingTab } from "./TimeTrackingTab";
 import { AlignmentKPITile } from "./AlignmentKPITile";
 import { SkeletonKPIRow, SkeletonTable } from "./SkeletonLoader";
+import { DataFreshnessIndicator } from "./DataFreshnessIndicator";
+import { PRVelocityChart } from "./trends/PRVelocityChart";
+import { AlignmentTrendChart } from "./trends/AlignmentTrendChart";
+import { SprintComparisonCards } from "./trends/SprintComparisonCards";
+import { TrendEmptyState } from "./trends/TrendEmptyState";
+import type { WeeklyPRTrend, SprintComparison } from "@/lib/trends";
 
 interface DashboardProps {
   creds: { org: string; project: string; pat: string };
@@ -46,6 +52,9 @@ export function Dashboard({ creds, onDisconnect }: DashboardProps) {
   const [validatorTeam, setValidatorTeam] = useState("");
   const [agencyLookup, setAgencyLookup] = useState<Map<string, MemberProfile>>(new Map());
   const [agencyFilter, setAgencyFilter] = useState<Set<string>>(new Set());
+  const [trendData, setTrendData] = useState<WeeklyPRTrend[] | null>(null);
+  const [sprintData, setSprintData] = useState<SprintComparison | null>(null);
+  const [trendsOpen, setTrendsOpen] = useState(true);
 
   const adoHeaders = useMemo(
     () => ({
@@ -142,6 +151,20 @@ export function Dashboard({ creds, onDisconnect }: DashboardProps) {
     } finally {
       if (requestIdRef.current === requestId) setAlignmentLoading(false);
     }
+
+    // Fetch trend data (non-blocking)
+    Promise.all([
+      fetch(`/api/trends/team-pr?team=${encodeURIComponent(selectedTeam)}`, fetchOpts)
+        .then((r) => (r.ok ? r.json() : null))
+        .catch(() => null),
+      fetch(`/api/trends/sprint-comparison?team=${encodeURIComponent(selectedTeam)}`, fetchOpts)
+        .then((r) => (r.ok ? r.json() : null))
+        .catch(() => null),
+    ]).then(([trendJson, sprintJson]) => {
+      if (requestIdRef.current !== requestId) return;
+      setTrendData(trendJson?.weeks ?? null);
+      setSprintData(sprintJson?.error ? null : sprintJson ?? null);
+    });
   }, [selectedTeam, range, adoHeaders]);
 
   useEffect(() => {
@@ -239,6 +262,12 @@ export function Dashboard({ creds, onDisconnect }: DashboardProps) {
               </div>
             </div>
             <div className="flex items-center gap-3">
+              {data?.data_source && (
+                <DataFreshnessIndicator
+                  source={data.data_source.origin === "cache-stale" ? "stale" : data.data_source.origin}
+                  snapshotDate={data.data_source.snapshotDate ?? undefined}
+                />
+              )}
               {refreshedAt && (
                 <span className="text-[11px] text-pulse-dim">
                   {refreshedAt.toLocaleDateString("en-US", {
@@ -389,6 +418,41 @@ export function Dashboard({ creds, onDisconnect }: DashboardProps) {
             {alignmentError && !alignmentLoading && (
               <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-6">
                 <p className="text-[13px] text-amber-800">{alignmentError}</p>
+              </div>
+            )}
+
+            {/* Trends Section */}
+            {data && (
+              <div className="mb-6">
+                <button
+                  type="button"
+                  onClick={() => setTrendsOpen(!trendsOpen)}
+                  className="flex items-center gap-2 text-[13px] font-semibold text-pulse-text mb-3 cursor-pointer hover:text-pulse-accent transition-colors"
+                >
+                  <svg
+                    className={`w-3.5 h-3.5 text-pulse-muted transition-transform duration-200 ${trendsOpen ? "rotate-90" : ""}`}
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    strokeWidth={2}
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                  </svg>
+                  Trends
+                </button>
+                {trendsOpen && (
+                  <>
+                    {trendData && trendData.length > 0 ? (
+                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
+                        <PRVelocityChart data={trendData} />
+                        <AlignmentTrendChart data={trendData} />
+                      </div>
+                    ) : (
+                      <TrendEmptyState />
+                    )}
+                    {sprintData && <SprintComparisonCards data={sprintData} />}
+                  </>
+                )}
               </div>
             )}
 

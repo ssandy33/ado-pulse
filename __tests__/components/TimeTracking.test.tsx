@@ -52,10 +52,12 @@ function setupMock(range = "7") {
   });
 }
 
-/** Return only the time-tracking fetch calls (exclude profiles fetch). */
+/** Return only the time-tracking team-summary fetch calls (exclude profiles + trends). */
 function timeDataCalls() {
   return mockFetch.mock.calls.filter(
-    ([url]: [string]) => !url.includes("/api/settings/members"),
+    ([url]: [string]) =>
+      !url.includes("/api/settings/members") &&
+      !url.includes("/api/trends/"),
   );
 }
 
