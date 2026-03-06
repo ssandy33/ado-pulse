@@ -9,8 +9,9 @@ const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 function isValidISODate(s: string): boolean {
   if (!ISO_DATE_RE.test(s)) return false;
-  const d = new Date(s + "T00:00:00Z");
-  return !isNaN(d.getTime());
+  const [y, m, day] = s.split("-").map(Number);
+  const d = new Date(Date.UTC(y, m - 1, day));
+  return d.getUTCFullYear() === y && d.getUTCMonth() === m - 1 && d.getUTCDate() === day;
 }
 
 export async function GET(request: NextRequest) {

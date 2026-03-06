@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import {
   ResponsiveContainer,
   LineChart,
@@ -28,6 +28,7 @@ interface PRVelocityChartProps {
   viewMode?: ViewMode;
   onViewModeChange?: (mode: ViewMode) => void;
   perPersonData?: PerPersonDailyPoint[];
+  perPersonLoading?: boolean;
   members?: Array<{ uniqueName: string; displayName: string }>;
   visibleMembers?: Set<string>;
   onVisibleMembersChange?: (visible: Set<string>) => void;
@@ -40,6 +41,7 @@ export function PRVelocityChart({
   viewMode = "team",
   onViewModeChange,
   perPersonData,
+  perPersonLoading,
   members,
   visibleMembers,
   onVisibleMembersChange,
@@ -51,9 +53,10 @@ export function PRVelocityChart({
     onGranularityChange?.(g);
   };
 
-  const isPerPerson = viewMode === "per-person" && perPersonData && members;
+  const isPerPerson = viewMode === "per-person";
+  const hasPerPersonData = Boolean(perPersonData && members);
 
-  const chartData = isPerPerson ? perPersonData : data;
+  const chartData = isPerPerson && hasPerPersonData ? perPersonData! : isPerPerson ? [] : data;
   const labelKey = isPerPerson
     ? "dateLabel"
     : granularity === "daily"
@@ -61,16 +64,29 @@ export function PRVelocityChart({
       : "weekLabel";
 
   const periodLabel = isPerPerson
-    ? `Per Person — ${perPersonData!.length} Days`
+    ? hasPerPersonData
+      ? `Per Person — ${perPersonData!.length} Days`
+      : "Per Person"
     : granularity === "daily"
       ? `Last ${data.length} Days`
       : `Last ${data.length} Weeks`;
 
   const xInterval = chartData.length > 14 ? Math.ceil(chartData.length / 7) - 1 : 0;
 
-  // Visible member names for per-person lines
-  const visibleNames = isPerPerson
-    ? members!.filter((m) => !visibleMembers || visibleMembers.has(m.displayName)).map((m) => m.displayName)
+  // Stable color map: assign color by member index in the full members array (not filtered)
+  const colorMap = useMemo(() => {
+    const map = new Map<string, string>();
+    if (members) {
+      members.forEach((m, i) => {
+        map.set(m.displayName, MEMBER_COLORS[i % MEMBER_COLORS.length]);
+      });
+    }
+    return map;
+  }, [members]);
+
+  // Visible member names for per-person lines — filtered from full members list to preserve order
+  const visibleNames = isPerPerson && members
+    ? members.filter((m) => !visibleMembers || visibleMembers.has(m.displayName)).map((m) => m.displayName)
     : [];
 
   return (
@@ -137,8 +153,8 @@ export function PRVelocityChart({
         </div>
       </div>
 
-      {/* Contributor filter — only in per-person mode */}
-      {isPerPerson && visibleMembers && onVisibleMembersChange && (
+      {/* Contributor filter — only in per-person mode with data */}
+      {isPerPerson && hasPerPersonData && visibleMembers && onVisibleMembersChange && (
         <div className="mb-3">
           <ContributorFilter
             members={members!}
@@ -148,56 +164,66 @@ export function PRVelocityChart({
         </div>
       )}
 
-      <div style={{ width: "100%", height: 220 }}>
-        <ResponsiveContainer>
-          <LineChart data={chartData} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-            <XAxis
-              dataKey={labelKey}
-              tick={{ fontSize: 11, fill: "#6b7280" }}
-              tickLine={false}
-              interval={xInterval}
-            />
-            <YAxis
-              tick={{ fontSize: 11, fill: "#6b7280" }}
-              tickLine={false}
-              axisLine={false}
-              allowDecimals={false}
-            />
-            <Tooltip
-              contentStyle={{
-                fontSize: 12,
-                borderRadius: 8,
-                border: "1px solid #e5e7eb",
-              }}
-            />
-            {isPerPerson ? (
-              visibleNames.map((name, i) => (
-                <Line
-                  key={name}
-                  type="monotone"
-                  dataKey={name}
-                  name={name}
-                  stroke={MEMBER_COLORS[i % MEMBER_COLORS.length]}
-                  strokeWidth={2}
-                  dot={{ r: perPersonData!.length > 14 ? 2 : 3, fill: MEMBER_COLORS[i % MEMBER_COLORS.length] }}
-                  activeDot={{ r: 5 }}
-                />
-              ))
-            ) : (
-              <Line
-                type="monotone"
-                dataKey="totalPRs"
-                name="PRs Merged"
-                stroke="#6366f1"
-                strokeWidth={2}
-                dot={{ r: granularity === "daily" && data.length > 14 ? 2 : 4, fill: "#6366f1" }}
-                activeDot={{ r: 6 }}
+      {/* Loading state for per-person mode */}
+      {isPerPerson && perPersonLoading && (
+        <div className="flex items-center justify-center" style={{ height: 220 }}>
+          <p className="text-[12px] text-pulse-muted animate-pulse">Loading contributor data...</p>
+        </div>
+      )}
+
+      {/* Chart */}
+      {!(isPerPerson && perPersonLoading) && (
+        <div style={{ width: "100%", height: 220 }}>
+          <ResponsiveContainer>
+            <LineChart data={chartData} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+              <XAxis
+                dataKey={labelKey}
+                tick={{ fontSize: 11, fill: "#6b7280" }}
+                tickLine={false}
+                interval={xInterval}
               />
-            )}
-          </LineChart>
-        </ResponsiveContainer>
-      </div>
+              <YAxis
+                tick={{ fontSize: 11, fill: "#6b7280" }}
+                tickLine={false}
+                axisLine={false}
+                allowDecimals={false}
+              />
+              <Tooltip
+                contentStyle={{
+                  fontSize: 12,
+                  borderRadius: 8,
+                  border: "1px solid #e5e7eb",
+                }}
+              />
+              {isPerPerson && hasPerPersonData ? (
+                visibleNames.map((name) => (
+                  <Line
+                    key={name}
+                    type="monotone"
+                    dataKey={name}
+                    name={name}
+                    stroke={colorMap.get(name) ?? "#6b7280"}
+                    strokeWidth={2}
+                    dot={{ r: perPersonData!.length > 14 ? 2 : 3, fill: colorMap.get(name) ?? "#6b7280" }}
+                    activeDot={{ r: 5 }}
+                  />
+                ))
+              ) : !isPerPerson ? (
+                <Line
+                  type="monotone"
+                  dataKey="totalPRs"
+                  name="PRs Merged"
+                  stroke="#6366f1"
+                  strokeWidth={2}
+                  dot={{ r: granularity === "daily" && data.length > 14 ? 2 : 4, fill: "#6366f1" }}
+                  activeDot={{ r: 6 }}
+                />
+              ) : null}
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+      )}
     </div>
   );
 }

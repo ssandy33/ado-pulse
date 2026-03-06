@@ -237,6 +237,9 @@ export function Dashboard({ creds, onDisconnect }: DashboardProps) {
       return;
     }
     setPerPersonLoading(true);
+    setPerPersonData(null);
+    setPerPersonMembers([]);
+    setVisibleMembers(new Set());
     const controller = new AbortController();
     const fetchOpts = { headers: adoHeaders, cache: "no-store" as RequestCache, signal: controller.signal };
 
@@ -248,9 +251,11 @@ export function Dashboard({ creds, onDisconnect }: DashboardProps) {
     }
 
     fetch(`/api/trends/team-pr-by-member?team=${encodeURIComponent(selectedTeam)}&${params}`, fetchOpts)
-      .then((r) => (r.ok ? r.json() : null))
+      .then((r) => {
+        if (!r.ok) throw new Error("Failed to load per-person trend data");
+        return r.json();
+      })
       .then((json) => {
-        if (!json) return;
         setPerPersonData(json.points ?? null);
         setPerPersonMembers(json.members ?? []);
         // Auto-select members with activity, or all if none have activity
@@ -261,7 +266,11 @@ export function Dashboard({ creds, onDisconnect }: DashboardProps) {
         );
         setVisibleMembers(new Set(activeNames.length > 0 ? activeNames : memberNames));
       })
-      .catch(() => {})
+      .catch(() => {
+        setPerPersonData(null);
+        setPerPersonMembers([]);
+        setVisibleMembers(new Set());
+      })
       .finally(() => setPerPersonLoading(false));
 
     return () => controller.abort();
@@ -555,6 +564,7 @@ export function Dashboard({ creds, onDisconnect }: DashboardProps) {
                           viewMode={prViewMode}
                           onViewModeChange={setPrViewMode}
                           perPersonData={perPersonData ?? undefined}
+                          perPersonLoading={perPersonLoading}
                           members={perPersonMembers.length > 0 ? perPersonMembers : undefined}
                           visibleMembers={visibleMembers}
                           onVisibleMembersChange={setVisibleMembers}

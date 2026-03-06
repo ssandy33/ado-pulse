@@ -154,4 +154,50 @@ describe("GET /api/trends/team-pr-by-member", () => {
     );
     expect(res.status).toBe(400);
   });
+
+  it("rejects invalid calendar date (rollover)", async () => {
+    mockGetTeamMembers.mockResolvedValue(mockMembers);
+    mockGetPullRequests.mockResolvedValue([]);
+    mockBuildPerPersonBuckets.mockReturnValue([]);
+
+    const res = await GET(
+      makeRequest(
+        { team: "alpha", startDate: "2026-02-30", endDate: "2026-03-01" },
+        validHeaders
+      )
+    );
+    // Invalid date falls back to days-based range (not treated as explicit range)
+    expect(res.status).toBe(200);
+    expect(mockBuildPerPersonBuckets).toHaveBeenCalled();
+  });
+
+  it("falls back to days when only startDate provided", async () => {
+    mockGetTeamMembers.mockResolvedValue(mockMembers);
+    mockGetPullRequests.mockResolvedValue([]);
+    mockBuildPerPersonBuckets.mockReturnValue([]);
+
+    const res = await GET(
+      makeRequest(
+        { team: "alpha", startDate: "2026-03-01" },
+        validHeaders
+      )
+    );
+    // Missing endDate — falls back to days-based range
+    expect(res.status).toBe(200);
+  });
+
+  it("falls back to days when only endDate provided", async () => {
+    mockGetTeamMembers.mockResolvedValue(mockMembers);
+    mockGetPullRequests.mockResolvedValue([]);
+    mockBuildPerPersonBuckets.mockReturnValue([]);
+
+    const res = await GET(
+      makeRequest(
+        { team: "alpha", endDate: "2026-03-01" },
+        validHeaders
+      )
+    );
+    // Missing startDate — falls back to days-based range
+    expect(res.status).toBe(200);
+  });
 });

@@ -108,6 +108,44 @@ describe("PRVelocityChart", () => {
     expect(onViewModeChange).toHaveBeenCalledWith("per-person");
   });
 
+  it("calls onViewModeChange with 'team' when Team is clicked in per-person mode", () => {
+    const onViewModeChange = jest.fn();
+    const perPersonData = [
+      { date: "2026-03-01", dateLabel: "Mar 1", Alice: 2 },
+    ];
+    const members = [
+      { uniqueName: "alice@example.com", displayName: "Alice" },
+    ];
+
+    render(
+      <PRVelocityChart
+        data={dailyData}
+        viewMode="per-person"
+        onViewModeChange={onViewModeChange}
+        perPersonData={perPersonData}
+        members={members}
+        visibleMembers={new Set(["Alice"])}
+        onVisibleMembersChange={jest.fn()}
+      />
+    );
+
+    fireEvent.click(screen.getByText("Team"));
+    expect(onViewModeChange).toHaveBeenCalledWith("team");
+  });
+
+  it("shows loading state when perPersonLoading is true", () => {
+    render(
+      <PRVelocityChart
+        data={dailyData}
+        viewMode="per-person"
+        onViewModeChange={jest.fn()}
+        perPersonLoading={true}
+      />
+    );
+
+    expect(screen.getByText("Loading contributor data...")).toBeInTheDocument();
+  });
+
   it("renders per-person lines when in per-person mode", () => {
     const perPersonData = [
       { date: "2026-03-01", dateLabel: "Mar 1", Alice: 2, Bob: 1 },

@@ -1,4 +1,4 @@
-import { buildPerPersonBuckets, PerPersonDailyPoint } from "@/lib/trends";
+import { buildPerPersonBuckets } from "@/lib/trends";
 
 describe("buildPerPersonBuckets", () => {
   const members = [

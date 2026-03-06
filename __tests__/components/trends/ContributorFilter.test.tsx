@@ -126,6 +126,48 @@ describe("ContributorFilter", () => {
     expect(screen.queryByText("3")).not.toBeInTheDocument();
   });
 
+  it("navigates with ArrowDown and ArrowUp keys", () => {
+    render(
+      <ContributorFilter
+        members={members}
+        visible={new Set(["Alice", "Bob", "Carlos"])}
+        onChange={jest.fn()}
+      />
+    );
+
+    fireEvent.click(screen.getByText("Contributors"));
+    const menu = screen.getByRole("menu");
+
+    fireEvent.keyDown(menu, { key: "ArrowDown" });
+    // First item (Select All) should receive focus
+    expect(document.activeElement).toBe(screen.getByText("Select All"));
+
+    fireEvent.keyDown(menu, { key: "ArrowDown" });
+    expect(document.activeElement).toBe(screen.getByText("Clear All"));
+
+    fireEvent.keyDown(menu, { key: "ArrowUp" });
+    expect(document.activeElement).toBe(screen.getByText("Select All"));
+  });
+
+  it("closes on outside click", () => {
+    render(
+      <div>
+        <span data-testid="outside">Outside</span>
+        <ContributorFilter
+          members={members}
+          visible={new Set(["Alice", "Bob", "Carlos"])}
+          onChange={jest.fn()}
+        />
+      </div>
+    );
+
+    fireEvent.click(screen.getByText("Contributors"));
+    expect(screen.getByText("Alice")).toBeInTheDocument();
+
+    fireEvent.mouseDown(screen.getByTestId("outside"));
+    expect(screen.queryByText("Alice")).not.toBeInTheDocument();
+  });
+
   it("closes on Escape key", () => {
     render(
       <ContributorFilter
