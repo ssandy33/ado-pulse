@@ -197,7 +197,11 @@ export function Dashboard({ creds, onDisconnect }: DashboardProps) {
 
   // Separate effect for trend data — responds to granularity/range changes without full refetch
   useEffect(() => {
-    if (!selectedTeam) return;
+    if (!selectedTeam) {
+      setTrendData(null);
+      return;
+    }
+    setTrendData(null);
     const controller = new AbortController();
     const fetchOpts = { headers: adoHeaders, cache: "no-store" as RequestCache, signal: controller.signal };
 
