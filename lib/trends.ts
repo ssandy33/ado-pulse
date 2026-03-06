@@ -46,6 +46,12 @@ export interface WeeklyHoursTrend {
   opExHours: number;
 }
 
+export interface PerPersonDailyPoint {
+  date: string;
+  dateLabel: string;
+  [memberDisplayName: string]: string | number;
+}
+
 // ── Helpers ──────────────────────────────────────────────────────
 
 function safeJsonParse(json: string): unknown {
@@ -65,13 +71,72 @@ function getISOMonday(dateStr: string): string {
   return d.toISOString().slice(0, 10);
 }
 
-function formatWeekLabel(dateStr: string): string {
+export function formatWeekLabel(dateStr: string): string {
   const d = new Date(dateStr + "T00:00:00Z");
   return d.toLocaleDateString("en-US", {
     month: "short",
     day: "numeric",
     timeZone: "UTC",
   });
+}
+
+// ── Per-Person Buckets ───────────────────────────────────────────
+
+export function buildPerPersonBuckets(
+  prs: Array<{ closedDate: string; createdBy: { uniqueName: string; displayName: string } }>,
+  members: Array<{ uniqueName: string; displayName: string }>,
+  startDate: string,
+  endDate: string
+): PerPersonDailyPoint[] {
+  // Build uniqueName → displayName map (use first seen displayName per uniqueName)
+  const nameMap = new Map<string, string>();
+  for (const m of members) {
+    const key = m.uniqueName.toLowerCase();
+    if (!nameMap.has(key)) nameMap.set(key, m.displayName);
+  }
+
+  // Group PRs by date + uniqueName
+  const counts = new Map<string, Map<string, number>>();
+  for (const pr of prs) {
+    if (!pr.closedDate) continue;
+    const date = pr.closedDate.slice(0, 10);
+    if (date < startDate || date > endDate) continue;
+    const key = pr.createdBy.uniqueName.toLowerCase();
+    if (!nameMap.has(key)) continue;
+    if (!counts.has(date)) counts.set(date, new Map());
+    const dayMap = counts.get(date)!;
+    dayMap.set(key, (dayMap.get(key) ?? 0) + 1);
+  }
+
+  // Collect unique display names
+  const displayNames = [...new Set(nameMap.values())];
+
+  // Zero-fill all dates for all members
+  const result: PerPersonDailyPoint[] = [];
+  const start = new Date(startDate + "T00:00:00Z");
+  const end = new Date(endDate + "T00:00:00Z");
+
+  for (let d = new Date(start); d <= end; d.setUTCDate(d.getUTCDate() + 1)) {
+    const dateStr = d.toISOString().slice(0, 10);
+    const dayMap = counts.get(dateStr);
+    const point: PerPersonDailyPoint = {
+      date: dateStr,
+      dateLabel: formatWeekLabel(dateStr),
+    };
+    // Sum counts for all uniqueNames that share the same displayName
+    for (const dn of displayNames) {
+      let total = 0;
+      if (dayMap) {
+        for (const [uniqueKey, displayName] of nameMap) {
+          if (displayName === dn) total += dayMap.get(uniqueKey) ?? 0;
+        }
+      }
+      point[dn] = total;
+    }
+    result.push(point);
+  }
+
+  return result;
 }
 
 // ── PR Trends ────────────────────────────────────────────────────

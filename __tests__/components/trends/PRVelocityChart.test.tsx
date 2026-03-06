@@ -12,7 +12,7 @@ jest.mock("recharts", () => {
       React.createElement("div", { "data-testid": "responsive-container" }, children),
     LineChart: ({ children, data }: { children: React.ReactNode; data: unknown[] }) =>
       React.createElement("div", { "data-testid": "line-chart", "data-count": data.length }, children),
-    Line: () => React.createElement("div", { "data-testid": "line" }),
+    Line: ({ name }: { name: string }) => React.createElement("div", { "data-testid": "line", "data-name": name }),
     XAxis: () => null,
     YAxis: () => null,
     CartesianGrid: () => null,
@@ -76,5 +76,138 @@ describe("PRVelocityChart", () => {
     render(<PRVelocityChart data={dailyData} />);
     expect(screen.getByText("Daily")).toBeInTheDocument();
     expect(screen.getByText("Weekly")).toBeInTheDocument();
+  });
+
+  it("renders Team and Per Person toggle when onViewModeChange provided", () => {
+    render(
+      <PRVelocityChart
+        data={dailyData}
+        onViewModeChange={jest.fn()}
+      />
+    );
+    expect(screen.getByText("Team")).toBeInTheDocument();
+    expect(screen.getByText("Per Person")).toBeInTheDocument();
+  });
+
+  it("does not render view mode toggle without onViewModeChange", () => {
+    render(<PRVelocityChart data={dailyData} />);
+    expect(screen.queryByText("Team")).not.toBeInTheDocument();
+    expect(screen.queryByText("Per Person")).not.toBeInTheDocument();
+  });
+
+  it("calls onViewModeChange when Per Person is clicked", () => {
+    const onViewModeChange = jest.fn();
+    render(
+      <PRVelocityChart
+        data={dailyData}
+        onViewModeChange={onViewModeChange}
+      />
+    );
+
+    fireEvent.click(screen.getByText("Per Person"));
+    expect(onViewModeChange).toHaveBeenCalledWith("per-person");
+  });
+
+  it("renders per-person lines when in per-person mode", () => {
+    const perPersonData = [
+      { date: "2026-03-01", dateLabel: "Mar 1", Alice: 2, Bob: 1 },
+      { date: "2026-03-02", dateLabel: "Mar 2", Alice: 1, Bob: 3 },
+    ];
+    const members = [
+      { uniqueName: "alice@example.com", displayName: "Alice" },
+      { uniqueName: "bob@example.com", displayName: "Bob" },
+    ];
+
+    render(
+      <PRVelocityChart
+        data={dailyData}
+        viewMode="per-person"
+        onViewModeChange={jest.fn()}
+        perPersonData={perPersonData}
+        members={members}
+        visibleMembers={new Set(["Alice", "Bob"])}
+        onVisibleMembersChange={jest.fn()}
+      />
+    );
+
+    const lines = screen.getAllByTestId("line");
+    expect(lines).toHaveLength(2);
+    expect(lines[0]).toHaveAttribute("data-name", "Alice");
+    expect(lines[1]).toHaveAttribute("data-name", "Bob");
+  });
+
+  it("only renders lines for visible members", () => {
+    const perPersonData = [
+      { date: "2026-03-01", dateLabel: "Mar 1", Alice: 2, Bob: 1 },
+    ];
+    const members = [
+      { uniqueName: "alice@example.com", displayName: "Alice" },
+      { uniqueName: "bob@example.com", displayName: "Bob" },
+    ];
+
+    render(
+      <PRVelocityChart
+        data={dailyData}
+        viewMode="per-person"
+        onViewModeChange={jest.fn()}
+        perPersonData={perPersonData}
+        members={members}
+        visibleMembers={new Set(["Alice"])}
+        onVisibleMembersChange={jest.fn()}
+      />
+    );
+
+    const lines = screen.getAllByTestId("line");
+    expect(lines).toHaveLength(1);
+    expect(lines[0]).toHaveAttribute("data-name", "Alice");
+  });
+
+  it("hides granularity toggle in per-person mode", () => {
+    const perPersonData = [
+      { date: "2026-03-01", dateLabel: "Mar 1", Alice: 2 },
+    ];
+    const members = [
+      { uniqueName: "alice@example.com", displayName: "Alice" },
+    ];
+
+    render(
+      <PRVelocityChart
+        data={dailyData}
+        viewMode="per-person"
+        onViewModeChange={jest.fn()}
+        perPersonData={perPersonData}
+        members={members}
+        visibleMembers={new Set(["Alice"])}
+        onVisibleMembersChange={jest.fn()}
+      />
+    );
+
+    expect(screen.queryByText("Daily")).not.toBeInTheDocument();
+    expect(screen.queryByText("Weekly")).not.toBeInTheDocument();
+  });
+
+  it("shows per-person period label", () => {
+    const perPersonData = [
+      { date: "2026-03-01", dateLabel: "Mar 1", Alice: 2 },
+      { date: "2026-03-02", dateLabel: "Mar 2", Alice: 1 },
+      { date: "2026-03-03", dateLabel: "Mar 3", Alice: 0 },
+    ];
+    const members = [
+      { uniqueName: "alice@example.com", displayName: "Alice" },
+    ];
+
+    render(
+      <PRVelocityChart
+        data={dailyData}
+        viewMode="per-person"
+        onViewModeChange={jest.fn()}
+        perPersonData={perPersonData}
+        members={members}
+        visibleMembers={new Set(["Alice"])}
+        onVisibleMembersChange={jest.fn()}
+      />
+    );
+
+    expect(screen.getByText(/Per Person — 3 Days/)).toBeInTheDocument();
   });
 });

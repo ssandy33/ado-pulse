@@ -10,20 +10,39 @@ import {
   CartesianGrid,
   Tooltip,
 } from "recharts";
-import type { WeeklyPRTrend, DailyPRTrend } from "@/lib/trends";
+import type { WeeklyPRTrend, DailyPRTrend, PerPersonDailyPoint } from "@/lib/trends";
+import { ContributorFilter } from "./ContributorFilter";
 
 type Granularity = "daily" | "weekly";
+type ViewMode = "team" | "per-person";
+
+const MEMBER_COLORS = [
+  "#6366f1", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6",
+  "#06b6d4", "#ec4899", "#14b8a6", "#f97316", "#6b7280",
+];
 
 interface PRVelocityChartProps {
   data: DailyPRTrend[] | WeeklyPRTrend[];
   defaultGranularity?: Granularity;
   onGranularityChange?: (g: Granularity) => void;
+  viewMode?: ViewMode;
+  onViewModeChange?: (mode: ViewMode) => void;
+  perPersonData?: PerPersonDailyPoint[];
+  members?: Array<{ uniqueName: string; displayName: string }>;
+  visibleMembers?: Set<string>;
+  onVisibleMembersChange?: (visible: Set<string>) => void;
 }
 
 export function PRVelocityChart({
   data,
   defaultGranularity = "daily",
   onGranularityChange,
+  viewMode = "team",
+  onViewModeChange,
+  perPersonData,
+  members,
+  visibleMembers,
+  onVisibleMembersChange,
 }: PRVelocityChartProps) {
   const [granularity, setGranularity] = useState<Granularity>(defaultGranularity);
 
@@ -32,49 +51,106 @@ export function PRVelocityChart({
     onGranularityChange?.(g);
   };
 
-  const labelKey = granularity === "daily" ? "dateLabel" : "weekLabel";
-  const periodLabel =
-    granularity === "daily"
+  const isPerPerson = viewMode === "per-person" && perPersonData && members;
+
+  const chartData = isPerPerson ? perPersonData : data;
+  const labelKey = isPerPerson
+    ? "dateLabel"
+    : granularity === "daily"
+      ? "dateLabel"
+      : "weekLabel";
+
+  const periodLabel = isPerPerson
+    ? `Per Person — ${perPersonData!.length} Days`
+    : granularity === "daily"
       ? `Last ${data.length} Days`
       : `Last ${data.length} Weeks`;
 
-  // For daily views with many points, show fewer XAxis labels
-  const xInterval = data.length > 14 ? Math.ceil(data.length / 7) - 1 : 0;
+  const xInterval = chartData.length > 14 ? Math.ceil(chartData.length / 7) - 1 : 0;
+
+  // Visible member names for per-person lines
+  const visibleNames = isPerPerson
+    ? members!.filter((m) => !visibleMembers || visibleMembers.has(m.displayName)).map((m) => m.displayName)
+    : [];
 
   return (
     <div className="bg-pulse-card border border-pulse-border rounded-lg p-4 shadow-sm">
-      <div className="flex items-center justify-between mb-3">
+      <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
         <h4 className="text-[13px] font-semibold text-pulse-text">
           PR Velocity — {periodLabel}
         </h4>
-        <div className="flex rounded-md border border-pulse-border overflow-hidden" role="group" aria-label="Granularity toggle">
-          <button
-            type="button"
-            onClick={() => handleToggle("daily")}
-            className={`px-2.5 py-1 text-[11px] font-medium transition-colors cursor-pointer ${
-              granularity === "daily"
-                ? "bg-pulse-accent text-white"
-                : "bg-pulse-card text-pulse-muted hover:text-pulse-text"
-            }`}
-          >
-            Daily
-          </button>
-          <button
-            type="button"
-            onClick={() => handleToggle("weekly")}
-            className={`px-2.5 py-1 text-[11px] font-medium transition-colors cursor-pointer ${
-              granularity === "weekly"
-                ? "bg-pulse-accent text-white"
-                : "bg-pulse-card text-pulse-muted hover:text-pulse-text"
-            }`}
-          >
-            Weekly
-          </button>
+        <div className="flex items-center gap-2">
+          {/* View mode toggle */}
+          {onViewModeChange && (
+            <div className="flex rounded-md border border-pulse-border overflow-hidden" role="group" aria-label="View mode toggle">
+              <button
+                type="button"
+                onClick={() => onViewModeChange("team")}
+                className={`px-2.5 py-1 text-[11px] font-medium transition-colors cursor-pointer ${
+                  viewMode === "team"
+                    ? "bg-pulse-accent text-white"
+                    : "bg-pulse-card text-pulse-muted hover:text-pulse-text"
+                }`}
+              >
+                Team
+              </button>
+              <button
+                type="button"
+                onClick={() => onViewModeChange("per-person")}
+                className={`px-2.5 py-1 text-[11px] font-medium transition-colors cursor-pointer ${
+                  viewMode === "per-person"
+                    ? "bg-pulse-accent text-white"
+                    : "bg-pulse-card text-pulse-muted hover:text-pulse-text"
+                }`}
+              >
+                Per Person
+              </button>
+            </div>
+          )}
+          {/* Granularity toggle — only in team mode */}
+          {viewMode === "team" && (
+            <div className="flex rounded-md border border-pulse-border overflow-hidden" role="group" aria-label="Granularity toggle">
+              <button
+                type="button"
+                onClick={() => handleToggle("daily")}
+                className={`px-2.5 py-1 text-[11px] font-medium transition-colors cursor-pointer ${
+                  granularity === "daily"
+                    ? "bg-pulse-accent text-white"
+                    : "bg-pulse-card text-pulse-muted hover:text-pulse-text"
+                }`}
+              >
+                Daily
+              </button>
+              <button
+                type="button"
+                onClick={() => handleToggle("weekly")}
+                className={`px-2.5 py-1 text-[11px] font-medium transition-colors cursor-pointer ${
+                  granularity === "weekly"
+                    ? "bg-pulse-accent text-white"
+                    : "bg-pulse-card text-pulse-muted hover:text-pulse-text"
+                }`}
+              >
+                Weekly
+              </button>
+            </div>
+          )}
         </div>
       </div>
+
+      {/* Contributor filter — only in per-person mode */}
+      {isPerPerson && visibleMembers && onVisibleMembersChange && (
+        <div className="mb-3">
+          <ContributorFilter
+            members={members!}
+            visible={visibleMembers}
+            onChange={onVisibleMembersChange}
+          />
+        </div>
+      )}
+
       <div style={{ width: "100%", height: 220 }}>
         <ResponsiveContainer>
-          <LineChart data={data} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
+          <LineChart data={chartData} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
             <XAxis
               dataKey={labelKey}
@@ -95,15 +171,30 @@ export function PRVelocityChart({
                 border: "1px solid #e5e7eb",
               }}
             />
-            <Line
-              type="monotone"
-              dataKey="totalPRs"
-              name="PRs Merged"
-              stroke="#6366f1"
-              strokeWidth={2}
-              dot={{ r: granularity === "daily" && data.length > 14 ? 2 : 4, fill: "#6366f1" }}
-              activeDot={{ r: 6 }}
-            />
+            {isPerPerson ? (
+              visibleNames.map((name, i) => (
+                <Line
+                  key={name}
+                  type="monotone"
+                  dataKey={name}
+                  name={name}
+                  stroke={MEMBER_COLORS[i % MEMBER_COLORS.length]}
+                  strokeWidth={2}
+                  dot={{ r: perPersonData!.length > 14 ? 2 : 3, fill: MEMBER_COLORS[i % MEMBER_COLORS.length] }}
+                  activeDot={{ r: 5 }}
+                />
+              ))
+            ) : (
+              <Line
+                type="monotone"
+                dataKey="totalPRs"
+                name="PRs Merged"
+                stroke="#6366f1"
+                strokeWidth={2}
+                dot={{ r: granularity === "daily" && data.length > 14 ? 2 : 4, fill: "#6366f1" }}
+                activeDot={{ r: 6 }}
+              />
+            )}
           </LineChart>
         </ResponsiveContainer>
       </div>
