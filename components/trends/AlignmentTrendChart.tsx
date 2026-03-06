@@ -10,17 +10,17 @@ import {
   Tooltip,
   ReferenceLine,
 } from "recharts";
-import type { WeeklyPRTrend } from "@/lib/trends";
+import type { WeeklyPRTrend, DailyPRTrend } from "@/lib/trends";
 
 interface AlignmentTrendChartProps {
-  data: WeeklyPRTrend[];
+  data: DailyPRTrend[] | WeeklyPRTrend[];
 }
 
 function CustomDot(props: Record<string, unknown>) {
   const { cx, cy, payload } = props as {
     cx: number;
     cy: number;
-    payload: WeeklyPRTrend;
+    payload: DailyPRTrend | WeeklyPRTrend;
   };
   const score = payload.alignmentScore;
   if (score === null) return null;
@@ -32,17 +32,21 @@ export function AlignmentTrendChart({ data }: AlignmentTrendChartProps) {
   const hasAlignment = data.some((d) => d.alignmentScore !== null);
   if (!hasAlignment) return null;
 
+  const isDaily = data.length > 0 && "dateLabel" in data[0];
+  const labelKey = isDaily ? "dateLabel" : "weekLabel";
+  const periodLabel = isDaily ? `Last ${data.length} Days` : `Last ${data.length} Weeks`;
+
   return (
     <div className="bg-pulse-card border border-pulse-border rounded-lg p-4 shadow-sm">
       <h4 className="text-[13px] font-semibold text-pulse-text mb-3">
-        Alignment Score — Last {data.length} Weeks
+        Alignment Score — {periodLabel}
       </h4>
       <div style={{ width: "100%", height: 220 }}>
         <ResponsiveContainer>
           <LineChart data={data} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
             <XAxis
-              dataKey="weekLabel"
+              dataKey={labelKey}
               tick={{ fontSize: 11, fill: "#6b7280" }}
               tickLine={false}
             />

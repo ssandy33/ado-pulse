@@ -13,6 +13,7 @@ jest.mock("better-sqlite3", () => {
 import { getDb, closeDb } from "@/lib/db";
 import {
   aggregateWeeklyPRTrends,
+  aggregateDailyPRTrends,
   aggregateSprintComparison,
   aggregateWeeklyHoursTrends,
 } from "@/lib/trends";
@@ -90,6 +91,47 @@ describe("aggregateWeeklyPRTrends", () => {
     const result = aggregateWeeklyPRTrends("myorg", "myproject", "alpha", 4);
     expect(result).toHaveLength(1);
     expect(result[0].alignmentScore).toBeNull();
+  });
+});
+
+describe("aggregateDailyPRTrends", () => {
+  it("groups snapshots by day and uses latest per day", () => {
+    insertPRSnapshot("2026-03-01", { team: { totalPRs: 5, activeContributors: 2 } });
+    insertPRSnapshot("2026-03-02", { team: { totalPRs: 10, activeContributors: 3 } });
+
+    const result = aggregateDailyPRTrends("myorg", "myproject", "alpha", 3);
+    const mar1 = result.find((r) => r.date === "2026-03-01");
+    const mar2 = result.find((r) => r.date === "2026-03-02");
+    expect(mar1?.totalPRs).toBe(5);
+    expect(mar2?.totalPRs).toBe(10);
+  });
+
+  it("zero-fills missing days", () => {
+    insertPRSnapshot("2026-03-01", { team: { totalPRs: 5, activeContributors: 2 } });
+    // No data for Mar 2
+
+    const result = aggregateDailyPRTrends("myorg", "myproject", "alpha", 3);
+    // Should have days: Feb 28, Mar 1, Mar 2, Mar 3
+    expect(result.length).toBeGreaterThanOrEqual(3);
+    const mar2 = result.find((r) => r.date === "2026-03-02");
+    expect(mar2).toBeDefined();
+    expect(mar2?.totalPRs).toBe(0);
+    expect(mar2?.activeContributors).toBe(0);
+    expect(mar2?.alignmentScore).toBeNull();
+  });
+
+  it("returns zero-filled array when no data", () => {
+    const result = aggregateDailyPRTrends("myorg", "myproject", "alpha", 3);
+    expect(result.length).toBeGreaterThanOrEqual(3);
+    expect(result.every((r) => r.totalPRs === 0)).toBe(true);
+  });
+
+  it("includes dateLabel formatted like 'Mar 1'", () => {
+    insertPRSnapshot("2026-03-01", { team: { totalPRs: 5, activeContributors: 2 } });
+
+    const result = aggregateDailyPRTrends("myorg", "myproject", "alpha", 3);
+    const mar1 = result.find((r) => r.date === "2026-03-01");
+    expect(mar1?.dateLabel).toBe("Mar 1");
   });
 });
 

@@ -11,6 +11,14 @@ export interface WeeklyPRTrend {
   alignmentScore: number | null;
 }
 
+export interface DailyPRTrend {
+  date: string; // YYYY-MM-DD
+  dateLabel: string; // e.g. "Feb 17"
+  totalPRs: number;
+  activeContributors: number;
+  alignmentScore: number | null;
+}
+
 export interface SprintComparison {
   current: SprintMetrics;
   previous: SprintMetrics;
@@ -136,6 +144,75 @@ export function aggregateWeeklyPRTrends(
           ? data.alignment[data.alignment.length - 1]
           : null,
     }));
+}
+
+// ── Daily PR Trends ─────────────────────────────────────────────
+
+export function aggregateDailyPRTrends(
+  org: string,
+  project: string,
+  team: string,
+  days = 14
+): DailyPRTrend[] {
+  const db = getDb();
+  const cutoff = dateDaysAgo(days);
+
+  const rows = db
+    .prepare(
+      `SELECT snapshot_date, metrics_json
+       FROM team_pr_snapshots
+       WHERE org = ? AND project = ? AND team_slug = ? AND snapshot_date >= ?
+       ORDER BY snapshot_date ASC`
+    )
+    .all(org, project, team, cutoff) as Array<{
+    snapshot_date: string;
+    metrics_json: string;
+  }>;
+
+  // Group by calendar date, keep latest snapshot per day
+  const dayMap = new Map<
+    string,
+    { totalPRs: number; activeContributors: number; alignmentScore: number | null }
+  >();
+
+  for (const row of rows) {
+    const date = row.snapshot_date;
+    const metrics = safeJsonParse(row.metrics_json) as Record<string, unknown> | null;
+    if (!metrics) continue;
+
+    const teamData = (metrics.team as Record<string, unknown>) ?? metrics;
+    const totalPRs = typeof teamData.totalPRs === "number" ? teamData.totalPRs : 0;
+    const activeContributors =
+      typeof teamData.activeContributors === "number" ? teamData.activeContributors : 0;
+    const alignmentScore =
+      typeof metrics.alignmentScore === "number"
+        ? metrics.alignmentScore
+        : typeof teamData.alignmentScore === "number"
+          ? teamData.alignmentScore
+          : null;
+
+    // Overwrite — rows are ordered ASC, so last write = latest snapshot
+    dayMap.set(date, { totalPRs, activeContributors, alignmentScore });
+  }
+
+  // Zero-fill all dates in the range
+  const result: DailyPRTrend[] = [];
+  const startDate = new Date(cutoff + "T00:00:00Z");
+  const endDate = new Date(dateDaysAgo(0) + "T00:00:00Z");
+
+  for (let d = new Date(startDate); d <= endDate; d.setUTCDate(d.getUTCDate() + 1)) {
+    const dateStr = d.toISOString().slice(0, 10);
+    const existing = dayMap.get(dateStr);
+    result.push({
+      date: dateStr,
+      dateLabel: formatWeekLabel(dateStr),
+      totalPRs: existing?.totalPRs ?? 0,
+      activeContributors: existing?.activeContributors ?? 0,
+      alignmentScore: existing?.alignmentScore ?? null,
+    });
+  }
+
+  return result;
 }
 
 // ── Sprint Comparison ────────────────────────────────────────────

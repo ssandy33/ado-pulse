@@ -29,7 +29,7 @@ import { PRVelocityChart } from "./trends/PRVelocityChart";
 import { AlignmentTrendChart } from "./trends/AlignmentTrendChart";
 import { SprintComparisonCards } from "./trends/SprintComparisonCards";
 import { TrendEmptyState } from "./trends/TrendEmptyState";
-import type { WeeklyPRTrend, SprintComparison } from "@/lib/trends";
+import type { WeeklyPRTrend, DailyPRTrend, SprintComparison } from "@/lib/trends";
 
 interface DashboardProps {
   creds: { org: string; project: string; pat: string };
@@ -52,9 +52,24 @@ export function Dashboard({ creds, onDisconnect }: DashboardProps) {
   const [validatorTeam, setValidatorTeam] = useState("");
   const [agencyLookup, setAgencyLookup] = useState<Map<string, MemberProfile>>(new Map());
   const [agencyFilter, setAgencyFilter] = useState<Set<string>>(new Set());
-  const [trendData, setTrendData] = useState<WeeklyPRTrend[] | null>(null);
+  const [trendData, setTrendData] = useState<DailyPRTrend[] | WeeklyPRTrend[] | null>(null);
+  const [trendGranularity, setTrendGranularity] = useState<"daily" | "weekly">("daily");
   const [sprintData, setSprintData] = useState<SprintComparison | null>(null);
   const [trendsOpen, setTrendsOpen] = useState(true);
+
+  const trendDays = useMemo(() => {
+    if (range === "7") return 7;
+    if (range === "14") return 14;
+    if (range === "mtd") {
+      const now = new Date();
+      return now.getUTCDate(); // days since 1st of month
+    }
+    if (range === "pm") {
+      const now = new Date();
+      return new Date(now.getUTCFullYear(), now.getUTCMonth(), 0).getUTCDate(); // days in prev month
+    }
+    return 14;
+  }, [range]);
 
   const adoHeaders = useMemo(
     () => ({
@@ -152,24 +167,35 @@ export function Dashboard({ creds, onDisconnect }: DashboardProps) {
       if (requestIdRef.current === requestId) setAlignmentLoading(false);
     }
 
-    // Fetch trend data (non-blocking)
-    Promise.all([
-      fetch(`/api/trends/team-pr?team=${encodeURIComponent(selectedTeam)}`, fetchOpts)
-        .then((r) => (r.ok ? r.json() : null))
-        .catch(() => null),
-      fetch(`/api/trends/sprint-comparison?team=${encodeURIComponent(selectedTeam)}`, fetchOpts)
-        .then((r) => (r.ok ? r.json() : null))
-        .catch(() => null),
-    ]).then(([trendJson, sprintJson]) => {
-      if (requestIdRef.current !== requestId) return;
-      setTrendData(trendJson?.weeks ?? null);
-      setSprintData(sprintJson?.error ? null : sprintJson ?? null);
-    });
+    // Fetch trend data (non-blocking) — sprint comparison only
+    fetch(`/api/trends/sprint-comparison?team=${encodeURIComponent(selectedTeam)}`, fetchOpts)
+      .then((r) => (r.ok ? r.json() : null))
+      .catch(() => null)
+      .then((sprintJson) => {
+        if (requestIdRef.current !== requestId) return;
+        setSprintData(sprintJson?.error ? null : sprintJson ?? null);
+      });
   }, [selectedTeam, range, adoHeaders]);
 
   useEffect(() => {
     fetchData();
   }, [fetchData]);
+
+  // Separate effect for trend data — responds to granularity/range changes without full refetch
+  useEffect(() => {
+    if (!selectedTeam) return;
+    const fetchOpts = { headers: adoHeaders, cache: "no-store" as RequestCache };
+    const trendParams = trendGranularity === "weekly"
+      ? `granularity=weekly&weeks=${Math.ceil(trendDays / 7)}`
+      : `granularity=daily&days=${trendDays}`;
+
+    fetch(`/api/trends/team-pr?team=${encodeURIComponent(selectedTeam)}&${trendParams}`, fetchOpts)
+      .then((r) => (r.ok ? r.json() : null))
+      .catch(() => null)
+      .then((trendJson) => {
+        setTrendData(trendJson?.points ?? trendJson?.weeks ?? null);
+      });
+  }, [selectedTeam, trendGranularity, trendDays, adoHeaders]);
 
   const loadMemberProfiles = useCallback(() => {
     fetch("/api/settings/members")
@@ -444,7 +470,11 @@ export function Dashboard({ creds, onDisconnect }: DashboardProps) {
                   <>
                     {trendData && trendData.length > 0 ? (
                       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
-                        <PRVelocityChart data={trendData} />
+                        <PRVelocityChart
+                          data={trendData}
+                          defaultGranularity={trendGranularity}
+                          onGranularityChange={setTrendGranularity}
+                        />
                         <AlignmentTrendChart data={trendData} />
                       </div>
                     ) : (
