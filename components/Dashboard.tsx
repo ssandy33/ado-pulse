@@ -57,12 +57,6 @@ export function Dashboard({ creds, onDisconnect }: DashboardProps) {
   const [sprintData, setSprintData] = useState<SprintComparison | null>(null);
   const [trendsOpen, setTrendsOpen] = useState(true);
 
-  const trendDays = useMemo(() => {
-    if (range === "7") return 7;
-    if (range === "14") return 14;
-    return 14; // fallback for mtd/pm (overridden by trendDateRange)
-  }, [range]);
-
   const trendDateRange = useMemo<{ startDate: string; endDate: string } | null>(() => {
     const now = new Date();
     const pad = (n: number) => String(n).padStart(2, "0");
@@ -79,6 +73,17 @@ export function Dashboard({ creds, onDisconnect }: DashboardProps) {
     }
     return null;
   }, [range]);
+
+  const trendDays = useMemo(() => {
+    if (range === "7") return 7;
+    if (range === "14") return 14;
+    if (trendDateRange) {
+      const startMs = new Date(trendDateRange.startDate + "T00:00:00Z").getTime();
+      const endMs = new Date(trendDateRange.endDate + "T00:00:00Z").getTime();
+      return Math.round((endMs - startMs) / (1000 * 60 * 60 * 24)) + 1;
+    }
+    return 14;
+  }, [range, trendDateRange]);
 
   const adoHeaders = useMemo(
     () => ({

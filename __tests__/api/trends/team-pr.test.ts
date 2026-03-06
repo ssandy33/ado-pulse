@@ -100,6 +100,26 @@ describe("GET /api/trends/team-pr", () => {
     expect(mockAggregateDailyPRTrends).toHaveBeenCalledWith("myorg", "myproject", "alpha", 14, undefined);
   });
 
+  it("returns 400 when startDate is after endDate", async () => {
+    const res = await GET(makeRequest(
+      { team: "alpha", startDate: "2026-03-10", endDate: "2026-03-01" },
+      validHeaders
+    ));
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.error).toMatch(/startDate.*before/i);
+  });
+
+  it("returns 400 when date range exceeds 90 days", async () => {
+    const res = await GET(makeRequest(
+      { team: "alpha", startDate: "2025-01-01", endDate: "2025-12-31" },
+      validHeaders
+    ));
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.error).toMatch(/90 days/i);
+  });
+
   it("returns weekly points with granularity=weekly (backward compat)", async () => {
     mockAggregateWeeklyPRTrends.mockReturnValue([
       { weekStart: "2026-02-17", weekLabel: "Feb 17", totalPRs: 10, activeContributors: 3, alignmentScore: 70 },
