@@ -29,7 +29,7 @@ import { PRVelocityChart } from "./trends/PRVelocityChart";
 import { AlignmentTrendChart } from "./trends/AlignmentTrendChart";
 import { SprintComparisonCards } from "./trends/SprintComparisonCards";
 import { TrendEmptyState } from "./trends/TrendEmptyState";
-import type { WeeklyPRTrend, DailyPRTrend, SprintComparison } from "@/lib/trends";
+import type { WeeklyPRTrend, DailyPRTrend, SprintComparison, PerPersonDailyPoint } from "@/lib/trends";
 
 interface DashboardProps {
   creds: { org: string; project: string; pat: string };
@@ -56,6 +56,11 @@ export function Dashboard({ creds, onDisconnect }: DashboardProps) {
   const [trendGranularity, setTrendGranularity] = useState<"daily" | "weekly">("daily");
   const [sprintData, setSprintData] = useState<SprintComparison | null>(null);
   const [trendsOpen, setTrendsOpen] = useState(true);
+  const [prViewMode, setPrViewMode] = useState<"team" | "per-person">("team");
+  const [perPersonData, setPerPersonData] = useState<PerPersonDailyPoint[] | null>(null);
+  const [perPersonMembers, setPerPersonMembers] = useState<Array<{ uniqueName: string; displayName: string }>>([]);
+  const [visibleMembers, setVisibleMembers] = useState<Set<string>>(new Set());
+  const [perPersonLoading, setPerPersonLoading] = useState(false);
 
   const trendDateRange = useMemo<{ startDate: string; endDate: string } | null>(() => {
     const now = new Date();
@@ -225,6 +230,59 @@ export function Dashboard({ creds, onDisconnect }: DashboardProps) {
 
     return () => controller.abort();
   }, [selectedTeam, trendGranularity, trendDays, trendDateRange, adoHeaders]);
+
+  // Fetch per-person data when switching to per-person mode
+  useEffect(() => {
+    if (prViewMode !== "per-person" || !selectedTeam) {
+      return;
+    }
+    setPerPersonLoading(true);
+    setPerPersonData(null);
+    setPerPersonMembers([]);
+    setVisibleMembers(new Set());
+    const controller = new AbortController();
+    const fetchOpts = { headers: adoHeaders, cache: "no-store" as RequestCache, signal: controller.signal };
+
+    let params: string;
+    if (trendDateRange) {
+      params = `startDate=${trendDateRange.startDate}&endDate=${trendDateRange.endDate}`;
+    } else {
+      params = `days=${trendDays}`;
+    }
+
+    fetch(`/api/trends/team-pr-by-member?team=${encodeURIComponent(selectedTeam)}&${params}`, fetchOpts)
+      .then((r) => {
+        if (!r.ok) throw new Error("Failed to load per-person trend data");
+        return r.json();
+      })
+      .then((json) => {
+        setPerPersonData(json.points ?? null);
+        setPerPersonMembers(json.members ?? []);
+        // Auto-select members with activity, or all if none have activity
+        const points: PerPersonDailyPoint[] = json.points ?? [];
+        const memberNames: string[] = (json.members ?? []).map((m: { displayName: string }) => m.displayName);
+        const activeNames = memberNames.filter((name) =>
+          points.some((p) => typeof p[name] === "number" && (p[name] as number) > 0)
+        );
+        setVisibleMembers(new Set(activeNames.length > 0 ? activeNames : memberNames));
+      })
+      .catch(() => {
+        setPerPersonData(null);
+        setPerPersonMembers([]);
+        setVisibleMembers(new Set());
+      })
+      .finally(() => setPerPersonLoading(false));
+
+    return () => controller.abort();
+  }, [prViewMode, selectedTeam, trendDays, trendDateRange, adoHeaders]);
+
+  // Reset per-person state when team or range changes
+  useEffect(() => {
+    setPrViewMode("team");
+    setPerPersonData(null);
+    setPerPersonMembers([]);
+    setVisibleMembers(new Set());
+  }, [selectedTeam, range]);
 
   const loadMemberProfiles = useCallback(() => {
     fetch("/api/settings/members")
@@ -503,6 +561,13 @@ export function Dashboard({ creds, onDisconnect }: DashboardProps) {
                           data={trendData}
                           defaultGranularity={trendGranularity}
                           onGranularityChange={setTrendGranularity}
+                          viewMode={prViewMode}
+                          onViewModeChange={setPrViewMode}
+                          perPersonData={perPersonData ?? undefined}
+                          perPersonLoading={perPersonLoading}
+                          members={perPersonMembers.length > 0 ? perPersonMembers : undefined}
+                          visibleMembers={visibleMembers}
+                          onVisibleMembersChange={setVisibleMembers}
                         />
                         <AlignmentTrendChart data={trendData} />
                       </div>
