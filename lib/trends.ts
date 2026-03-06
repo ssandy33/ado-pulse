@@ -152,19 +152,23 @@ export function aggregateDailyPRTrends(
   org: string,
   project: string,
   team: string,
-  days = 14
+  days = 14,
+  opts?: { startDate?: string; endDate?: string }
 ): DailyPRTrend[] {
   const db = getDb();
-  const cutoff = dateDaysAgo(days);
+
+  // Calendar-anchored range takes precedence over trailing-day window
+  const rangeStart = opts?.startDate ?? dateDaysAgo(days - 1);
+  const rangeEnd = opts?.endDate ?? dateDaysAgo(0);
 
   const rows = db
     .prepare(
       `SELECT snapshot_date, metrics_json
        FROM team_pr_snapshots
-       WHERE org = ? AND project = ? AND team_slug = ? AND snapshot_date >= ?
+       WHERE org = ? AND project = ? AND team_slug = ? AND snapshot_date >= ? AND snapshot_date <= ?
        ORDER BY snapshot_date ASC`
     )
-    .all(org, project, team, cutoff) as Array<{
+    .all(org, project, team, rangeStart, rangeEnd) as Array<{
     snapshot_date: string;
     metrics_json: string;
   }>;
@@ -195,10 +199,10 @@ export function aggregateDailyPRTrends(
     dayMap.set(date, { totalPRs, activeContributors, alignmentScore });
   }
 
-  // Zero-fill all dates in the range
+  // Zero-fill all dates in the range (inclusive)
   const result: DailyPRTrend[] = [];
-  const startDate = new Date(cutoff + "T00:00:00Z");
-  const endDate = new Date(dateDaysAgo(0) + "T00:00:00Z");
+  const startDate = new Date(rangeStart + "T00:00:00Z");
+  const endDate = new Date(rangeEnd + "T00:00:00Z");
 
   for (let d = new Date(startDate); d <= endDate; d.setUTCDate(d.getUTCDate() + 1)) {
     const dateStr = d.toISOString().slice(0, 10);

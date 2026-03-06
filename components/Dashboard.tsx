@@ -60,15 +60,24 @@ export function Dashboard({ creds, onDisconnect }: DashboardProps) {
   const trendDays = useMemo(() => {
     if (range === "7") return 7;
     if (range === "14") return 14;
+    return 14; // fallback for mtd/pm (overridden by trendDateRange)
+  }, [range]);
+
+  const trendDateRange = useMemo<{ startDate: string; endDate: string } | null>(() => {
+    const now = new Date();
+    const pad = (n: number) => String(n).padStart(2, "0");
+    const fmt = (d: Date) => `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`;
+
     if (range === "mtd") {
-      const now = new Date();
-      return now.getUTCDate(); // days since 1st of month
+      const start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+      return { startDate: fmt(start), endDate: fmt(now) };
     }
     if (range === "pm") {
-      const now = new Date();
-      return new Date(now.getUTCFullYear(), now.getUTCMonth(), 0).getUTCDate(); // days in prev month
+      const start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, 1));
+      const end = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 0)); // last day of prev month
+      return { startDate: fmt(start), endDate: fmt(end) };
     }
-    return 14;
+    return null;
   }, [range]);
 
   const adoHeaders = useMemo(
@@ -184,18 +193,29 @@ export function Dashboard({ creds, onDisconnect }: DashboardProps) {
   // Separate effect for trend data — responds to granularity/range changes without full refetch
   useEffect(() => {
     if (!selectedTeam) return;
-    const fetchOpts = { headers: adoHeaders, cache: "no-store" as RequestCache };
-    const trendParams = trendGranularity === "weekly"
-      ? `granularity=weekly&weeks=${Math.ceil(trendDays / 7)}`
-      : `granularity=daily&days=${trendDays}`;
+    const controller = new AbortController();
+    const fetchOpts = { headers: adoHeaders, cache: "no-store" as RequestCache, signal: controller.signal };
+
+    let trendParams: string;
+    if (trendGranularity === "weekly") {
+      trendParams = `granularity=weekly&weeks=${Math.ceil(trendDays / 7)}`;
+    } else if (trendDateRange) {
+      trendParams = `granularity=daily&startDate=${trendDateRange.startDate}&endDate=${trendDateRange.endDate}`;
+    } else {
+      trendParams = `granularity=daily&days=${trendDays}`;
+    }
 
     fetch(`/api/trends/team-pr?team=${encodeURIComponent(selectedTeam)}&${trendParams}`, fetchOpts)
       .then((r) => (r.ok ? r.json() : null))
-      .catch(() => null)
       .then((trendJson) => {
         setTrendData(trendJson?.points ?? trendJson?.weeks ?? null);
+      })
+      .catch(() => {
+        // Aborted or network error — ignore
       });
-  }, [selectedTeam, trendGranularity, trendDays, adoHeaders]);
+
+    return () => controller.abort();
+  }, [selectedTeam, trendGranularity, trendDays, trendDateRange, adoHeaders]);
 
   const loadMemberProfiles = useCallback(() => {
     fetch("/api/settings/members")

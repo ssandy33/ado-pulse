@@ -61,7 +61,7 @@ describe("GET /api/trends/team-pr", () => {
     expect(body.points).toHaveLength(3);
     expect(body.hasEnoughData).toBe(true);
     expect(body.data_source).toBe("cache");
-    expect(mockAggregateDailyPRTrends).toHaveBeenCalledWith("myorg", "myproject", "alpha", 14);
+    expect(mockAggregateDailyPRTrends).toHaveBeenCalledWith("myorg", "myproject", "alpha", 14, undefined);
   });
 
   it("returns daily points with days param", async () => {
@@ -72,7 +72,32 @@ describe("GET /api/trends/team-pr", () => {
     const res = await GET(makeRequest({ team: "alpha", granularity: "daily", days: "7" }, validHeaders));
     const body = await res.json();
     expect(body.granularity).toBe("daily");
-    expect(mockAggregateDailyPRTrends).toHaveBeenCalledWith("myorg", "myproject", "alpha", 7);
+    expect(mockAggregateDailyPRTrends).toHaveBeenCalledWith("myorg", "myproject", "alpha", 7, undefined);
+  });
+
+  it("passes startDate/endDate for calendar-anchored windows", async () => {
+    mockAggregateDailyPRTrends.mockReturnValue([]);
+
+    await GET(makeRequest(
+      { team: "alpha", startDate: "2026-02-01", endDate: "2026-02-28" },
+      validHeaders
+    ));
+
+    expect(mockAggregateDailyPRTrends).toHaveBeenCalledWith(
+      "myorg", "myproject", "alpha", 14,
+      { startDate: "2026-02-01", endDate: "2026-02-28" }
+    );
+  });
+
+  it("ignores invalid date params and falls back to days", async () => {
+    mockAggregateDailyPRTrends.mockReturnValue([]);
+
+    await GET(makeRequest(
+      { team: "alpha", startDate: "not-a-date", endDate: "2026-02-28" },
+      validHeaders
+    ));
+
+    expect(mockAggregateDailyPRTrends).toHaveBeenCalledWith("myorg", "myproject", "alpha", 14, undefined);
   });
 
   it("returns weekly points with granularity=weekly (backward compat)", async () => {

@@ -2,6 +2,14 @@ import { NextRequest, NextResponse } from "next/server";
 import { extractConfig, handleApiError } from "@/lib/ado/helpers";
 import { aggregateWeeklyPRTrends, aggregateDailyPRTrends } from "@/lib/trends";
 
+const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+function isValidISODate(s: string): boolean {
+  if (!ISO_DATE_RE.test(s)) return false;
+  const d = new Date(s + "T00:00:00Z");
+  return !isNaN(d.getTime());
+}
+
 export async function GET(request: NextRequest) {
   const configOrError = await extractConfig(request);
   if (configOrError instanceof NextResponse) return configOrError;
@@ -35,7 +43,11 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    // Default: daily
+    // Default: daily — support explicit date range or trailing-day window
+    const rawStart = searchParams.get("startDate");
+    const rawEnd = searchParams.get("endDate");
+    const hasDateRange = rawStart && rawEnd && isValidISODate(rawStart) && isValidISODate(rawEnd);
+
     const parsedDays = parseInt(searchParams.get("days") ?? "", 10);
     const days = Math.min(Math.max(Number.isNaN(parsedDays) ? 14 : parsedDays, 1), 90);
 
@@ -43,7 +55,8 @@ export async function GET(request: NextRequest) {
       configOrError.org,
       configOrError.project,
       team,
-      days
+      days,
+      hasDateRange ? { startDate: rawStart, endDate: rawEnd } : undefined
     );
 
     return NextResponse.json({
