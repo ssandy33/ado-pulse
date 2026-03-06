@@ -5,9 +5,11 @@ jest.mock("@/lib/logger", () => ({
 }));
 
 const mockAggregateWeeklyPRTrends = jest.fn();
+const mockAggregateDailyPRTrends = jest.fn();
 
 jest.mock("@/lib/trends", () => ({
   aggregateWeeklyPRTrends: (...args: unknown[]) => mockAggregateWeeklyPRTrends(...args),
+  aggregateDailyPRTrends: (...args: unknown[]) => mockAggregateDailyPRTrends(...args),
 }));
 
 jest.mock("@/lib/settings", () => ({
@@ -44,25 +46,101 @@ describe("GET /api/trends/team-pr", () => {
     expect(res.status).toBe(400);
   });
 
-  it("returns weekly trends", async () => {
-    mockAggregateWeeklyPRTrends.mockReturnValue([
-      { weekStart: "2026-02-17", weekLabel: "Feb 17", totalPRs: 10, activeContributors: 3, alignmentScore: 70 },
-      { weekStart: "2026-02-24", weekLabel: "Feb 24", totalPRs: 12, activeContributors: 4, alignmentScore: 75 },
-      { weekStart: "2026-03-03", weekLabel: "Mar 3", totalPRs: 15, activeContributors: 5, alignmentScore: 80 },
+  it("defaults to daily granularity", async () => {
+    mockAggregateDailyPRTrends.mockReturnValue([
+      { date: "2026-03-01", dateLabel: "Mar 1", totalPRs: 10, activeContributors: 3, alignmentScore: 70 },
+      { date: "2026-03-02", dateLabel: "Mar 2", totalPRs: 12, activeContributors: 4, alignmentScore: 75 },
+      { date: "2026-03-03", dateLabel: "Mar 3", totalPRs: 15, activeContributors: 5, alignmentScore: 80 },
     ]);
 
     const res = await GET(makeRequest({ team: "alpha" }, validHeaders));
     expect(res.status).toBe(200);
 
     const body = await res.json();
+    expect(body.granularity).toBe("daily");
+    expect(body.points).toHaveLength(3);
+    expect(body.hasEnoughData).toBe(true);
+    expect(body.data_source).toBe("cache");
+    expect(mockAggregateDailyPRTrends).toHaveBeenCalledWith("myorg", "myproject", "alpha", 14, undefined);
+  });
+
+  it("returns daily points with days param", async () => {
+    mockAggregateDailyPRTrends.mockReturnValue([
+      { date: "2026-02-26", dateLabel: "Feb 26", totalPRs: 5, activeContributors: 2, alignmentScore: null },
+    ]);
+
+    const res = await GET(makeRequest({ team: "alpha", granularity: "daily", days: "7" }, validHeaders));
+    const body = await res.json();
+    expect(body.granularity).toBe("daily");
+    expect(mockAggregateDailyPRTrends).toHaveBeenCalledWith("myorg", "myproject", "alpha", 7, undefined);
+  });
+
+  it("passes startDate/endDate for calendar-anchored windows", async () => {
+    mockAggregateDailyPRTrends.mockReturnValue([]);
+
+    await GET(makeRequest(
+      { team: "alpha", startDate: "2026-02-01", endDate: "2026-02-28" },
+      validHeaders
+    ));
+
+    expect(mockAggregateDailyPRTrends).toHaveBeenCalledWith(
+      "myorg", "myproject", "alpha", 14,
+      { startDate: "2026-02-01", endDate: "2026-02-28" }
+    );
+  });
+
+  it("ignores invalid date params and falls back to days", async () => {
+    mockAggregateDailyPRTrends.mockReturnValue([]);
+
+    await GET(makeRequest(
+      { team: "alpha", startDate: "not-a-date", endDate: "2026-02-28" },
+      validHeaders
+    ));
+
+    expect(mockAggregateDailyPRTrends).toHaveBeenCalledWith("myorg", "myproject", "alpha", 14, undefined);
+  });
+
+  it("returns 400 when startDate is after endDate", async () => {
+    const res = await GET(makeRequest(
+      { team: "alpha", startDate: "2026-03-10", endDate: "2026-03-01" },
+      validHeaders
+    ));
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.error).toMatch(/startDate.*before/i);
+  });
+
+  it("returns 400 when date range exceeds 90 days", async () => {
+    const res = await GET(makeRequest(
+      { team: "alpha", startDate: "2025-01-01", endDate: "2025-12-31" },
+      validHeaders
+    ));
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.error).toMatch(/90 days/i);
+  });
+
+  it("returns weekly points with granularity=weekly (backward compat)", async () => {
+    mockAggregateWeeklyPRTrends.mockReturnValue([
+      { weekStart: "2026-02-17", weekLabel: "Feb 17", totalPRs: 10, activeContributors: 3, alignmentScore: 70 },
+      { weekStart: "2026-02-24", weekLabel: "Feb 24", totalPRs: 12, activeContributors: 4, alignmentScore: 75 },
+      { weekStart: "2026-03-03", weekLabel: "Mar 3", totalPRs: 15, activeContributors: 5, alignmentScore: 80 },
+    ]);
+
+    const res = await GET(makeRequest({ team: "alpha", granularity: "weekly" }, validHeaders));
+    expect(res.status).toBe(200);
+
+    const body = await res.json();
+    expect(body.granularity).toBe("weekly");
     expect(body.weeks).toHaveLength(3);
+    expect(body.points).toHaveLength(3);
     expect(body.hasEnoughData).toBe(true);
     expect(body.data_source).toBe("cache");
   });
 
   it("returns hasEnoughData:false with insufficient data", async () => {
-    mockAggregateWeeklyPRTrends.mockReturnValue([
-      { weekStart: "2026-03-03", weekLabel: "Mar 3", totalPRs: 5, activeContributors: 2, alignmentScore: null },
+    mockAggregateDailyPRTrends.mockReturnValue([
+      { date: "2026-03-03", dateLabel: "Mar 3", totalPRs: 5, activeContributors: 2, alignmentScore: null },
     ]);
 
     const res = await GET(makeRequest({ team: "alpha" }, validHeaders));

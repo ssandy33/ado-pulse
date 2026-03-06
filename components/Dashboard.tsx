@@ -29,7 +29,7 @@ import { PRVelocityChart } from "./trends/PRVelocityChart";
 import { AlignmentTrendChart } from "./trends/AlignmentTrendChart";
 import { SprintComparisonCards } from "./trends/SprintComparisonCards";
 import { TrendEmptyState } from "./trends/TrendEmptyState";
-import type { WeeklyPRTrend, SprintComparison } from "@/lib/trends";
+import type { WeeklyPRTrend, DailyPRTrend, SprintComparison } from "@/lib/trends";
 
 interface DashboardProps {
   creds: { org: string; project: string; pat: string };
@@ -52,9 +52,38 @@ export function Dashboard({ creds, onDisconnect }: DashboardProps) {
   const [validatorTeam, setValidatorTeam] = useState("");
   const [agencyLookup, setAgencyLookup] = useState<Map<string, MemberProfile>>(new Map());
   const [agencyFilter, setAgencyFilter] = useState<Set<string>>(new Set());
-  const [trendData, setTrendData] = useState<WeeklyPRTrend[] | null>(null);
+  const [trendData, setTrendData] = useState<DailyPRTrend[] | WeeklyPRTrend[] | null>(null);
+  const [trendGranularity, setTrendGranularity] = useState<"daily" | "weekly">("daily");
   const [sprintData, setSprintData] = useState<SprintComparison | null>(null);
   const [trendsOpen, setTrendsOpen] = useState(true);
+
+  const trendDateRange = useMemo<{ startDate: string; endDate: string } | null>(() => {
+    const now = new Date();
+    const pad = (n: number) => String(n).padStart(2, "0");
+    const fmt = (d: Date) => `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`;
+
+    if (range === "mtd") {
+      const start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+      return { startDate: fmt(start), endDate: fmt(now) };
+    }
+    if (range === "pm") {
+      const start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, 1));
+      const end = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 0)); // last day of prev month
+      return { startDate: fmt(start), endDate: fmt(end) };
+    }
+    return null;
+  }, [range]);
+
+  const trendDays = useMemo(() => {
+    if (range === "7") return 7;
+    if (range === "14") return 14;
+    if (trendDateRange) {
+      const startMs = new Date(trendDateRange.startDate + "T00:00:00Z").getTime();
+      const endMs = new Date(trendDateRange.endDate + "T00:00:00Z").getTime();
+      return Math.round((endMs - startMs) / (1000 * 60 * 60 * 24)) + 1;
+    }
+    return 14;
+  }, [range, trendDateRange]);
 
   const adoHeaders = useMemo(
     () => ({
@@ -152,24 +181,50 @@ export function Dashboard({ creds, onDisconnect }: DashboardProps) {
       if (requestIdRef.current === requestId) setAlignmentLoading(false);
     }
 
-    // Fetch trend data (non-blocking)
-    Promise.all([
-      fetch(`/api/trends/team-pr?team=${encodeURIComponent(selectedTeam)}`, fetchOpts)
-        .then((r) => (r.ok ? r.json() : null))
-        .catch(() => null),
-      fetch(`/api/trends/sprint-comparison?team=${encodeURIComponent(selectedTeam)}`, fetchOpts)
-        .then((r) => (r.ok ? r.json() : null))
-        .catch(() => null),
-    ]).then(([trendJson, sprintJson]) => {
-      if (requestIdRef.current !== requestId) return;
-      setTrendData(trendJson?.weeks ?? null);
-      setSprintData(sprintJson?.error ? null : sprintJson ?? null);
-    });
+    // Fetch sprint comparison (non-blocking)
+    fetch(`/api/trends/sprint-comparison?team=${encodeURIComponent(selectedTeam)}`, fetchOpts)
+      .then((r) => (r.ok ? r.json() : null))
+      .catch(() => null)
+      .then((sprintJson) => {
+        if (requestIdRef.current !== requestId) return;
+        setSprintData(sprintJson?.error ? null : sprintJson ?? null);
+      });
   }, [selectedTeam, range, adoHeaders]);
 
   useEffect(() => {
     fetchData();
   }, [fetchData]);
+
+  // Separate effect for trend data — responds to granularity/range changes without full refetch
+  useEffect(() => {
+    if (!selectedTeam) {
+      setTrendData(null);
+      return;
+    }
+    setTrendData(null);
+    const controller = new AbortController();
+    const fetchOpts = { headers: adoHeaders, cache: "no-store" as RequestCache, signal: controller.signal };
+
+    let trendParams: string;
+    if (trendGranularity === "weekly") {
+      trendParams = `granularity=weekly&weeks=${Math.ceil(trendDays / 7)}`;
+    } else if (trendDateRange) {
+      trendParams = `granularity=daily&startDate=${trendDateRange.startDate}&endDate=${trendDateRange.endDate}`;
+    } else {
+      trendParams = `granularity=daily&days=${trendDays}`;
+    }
+
+    fetch(`/api/trends/team-pr?team=${encodeURIComponent(selectedTeam)}&${trendParams}`, fetchOpts)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((trendJson) => {
+        setTrendData(trendJson?.points ?? trendJson?.weeks ?? null);
+      })
+      .catch(() => {
+        // Aborted or network error — ignore
+      });
+
+    return () => controller.abort();
+  }, [selectedTeam, trendGranularity, trendDays, trendDateRange, adoHeaders]);
 
   const loadMemberProfiles = useCallback(() => {
     fetch("/api/settings/members")
@@ -444,7 +499,11 @@ export function Dashboard({ creds, onDisconnect }: DashboardProps) {
                   <>
                     {trendData && trendData.length > 0 ? (
                       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
-                        <PRVelocityChart data={trendData} />
+                        <PRVelocityChart
+                          data={trendData}
+                          defaultGranularity={trendGranularity}
+                          onGranularityChange={setTrendGranularity}
+                        />
                         <AlignmentTrendChart data={trendData} />
                       </div>
                     ) : (

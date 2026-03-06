@@ -13,6 +13,7 @@ jest.mock("better-sqlite3", () => {
 import { getDb, closeDb } from "@/lib/db";
 import {
   aggregateWeeklyPRTrends,
+  aggregateDailyPRTrends,
   aggregateSprintComparison,
   aggregateWeeklyHoursTrends,
 } from "@/lib/trends";
@@ -90,6 +91,87 @@ describe("aggregateWeeklyPRTrends", () => {
     const result = aggregateWeeklyPRTrends("myorg", "myproject", "alpha", 4);
     expect(result).toHaveLength(1);
     expect(result[0].alignmentScore).toBeNull();
+  });
+});
+
+describe("aggregateDailyPRTrends", () => {
+  // System time is 2026-03-03T12:00:00Z, so dateDaysAgo(0) = "2026-03-03"
+  // Requesting 3 days → Mar 1, Mar 2, Mar 3
+
+  it("returns exactly N points for N days", () => {
+    const result = aggregateDailyPRTrends("myorg", "myproject", "alpha", 3);
+    expect(result).toHaveLength(3);
+    expect(result.map((r) => r.date)).toEqual(["2026-03-01", "2026-03-02", "2026-03-03"]);
+  });
+
+  it("groups snapshots by day and uses latest per day", () => {
+    // Insert two snapshots for Mar 1 — only the latest (last inserted) should be used
+    // SQLite UNIQUE on (snapshot_date, team_slug, org, project) means we use a
+    // different approach: insert via metrics_json that the first call sets, then
+    // the second overwrites because of INSERT OR REPLACE
+    const db = getDb();
+    db.prepare(
+      `INSERT OR REPLACE INTO team_pr_snapshots
+         (snapshot_date, team_slug, org, project, metrics_json, source)
+       VALUES (?, ?, ?, ?, ?, ?)`
+    ).run("2026-03-01", "alpha", "myorg", "myproject",
+      JSON.stringify({ team: { totalPRs: 3, activeContributors: 1 } }), "on-fetch");
+    db.prepare(
+      `INSERT OR REPLACE INTO team_pr_snapshots
+         (snapshot_date, team_slug, org, project, metrics_json, source)
+       VALUES (?, ?, ?, ?, ?, ?)`
+    ).run("2026-03-01", "alpha", "myorg", "myproject",
+      JSON.stringify({ team: { totalPRs: 7, activeContributors: 4 } }), "on-fetch");
+    insertPRSnapshot("2026-03-02", { team: { totalPRs: 10, activeContributors: 3 } });
+
+    const result = aggregateDailyPRTrends("myorg", "myproject", "alpha", 3);
+    expect(result).toHaveLength(3);
+    // Mar 1 should reflect the latest INSERT OR REPLACE value
+    expect(result[0]).toEqual(expect.objectContaining({ date: "2026-03-01", totalPRs: 7, activeContributors: 4 }));
+    expect(result[1]).toEqual(expect.objectContaining({ date: "2026-03-02", totalPRs: 10 }));
+    expect(result[2]).toEqual(expect.objectContaining({ date: "2026-03-03", totalPRs: 0 }));
+  });
+
+  it("zero-fills missing days with correct count", () => {
+    insertPRSnapshot("2026-03-01", { team: { totalPRs: 5, activeContributors: 2 } });
+    // No data for Mar 2 or Mar 3
+
+    const result = aggregateDailyPRTrends("myorg", "myproject", "alpha", 3);
+    expect(result).toHaveLength(3);
+    expect(result.map((r) => r.date)).toEqual(["2026-03-01", "2026-03-02", "2026-03-03"]);
+    expect(result[0].totalPRs).toBe(5);
+    expect(result[1].totalPRs).toBe(0);
+    expect(result[1].activeContributors).toBe(0);
+    expect(result[1].alignmentScore).toBeNull();
+    expect(result[2].totalPRs).toBe(0);
+  });
+
+  it("returns zero-filled array when no data", () => {
+    const result = aggregateDailyPRTrends("myorg", "myproject", "alpha", 3);
+    expect(result).toHaveLength(3);
+    expect(result.every((r) => r.totalPRs === 0)).toBe(true);
+  });
+
+  it("includes dateLabel formatted like 'Mar 1'", () => {
+    const result = aggregateDailyPRTrends("myorg", "myproject", "alpha", 3);
+    expect(result[0].dateLabel).toBe("Mar 1");
+  });
+
+  it("supports explicit startDate/endDate for calendar windows", () => {
+    insertPRSnapshot("2026-02-01", { team: { totalPRs: 8, activeContributors: 3 } });
+    insertPRSnapshot("2026-02-28", { team: { totalPRs: 12, activeContributors: 5 } });
+
+    const result = aggregateDailyPRTrends("myorg", "myproject", "alpha", 14, {
+      startDate: "2026-02-01",
+      endDate: "2026-02-28",
+    });
+    expect(result).toHaveLength(28);
+    expect(result[0].date).toBe("2026-02-01");
+    expect(result[0].totalPRs).toBe(8);
+    expect(result[27].date).toBe("2026-02-28");
+    expect(result[27].totalPRs).toBe(12);
+    // Mid-month zero-filled
+    expect(result[14].totalPRs).toBe(0);
   });
 });
 
