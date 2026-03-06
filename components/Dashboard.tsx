@@ -167,7 +167,7 @@ export function Dashboard({ creds, onDisconnect }: DashboardProps) {
       if (requestIdRef.current === requestId) setAlignmentLoading(false);
     }
 
-    // Fetch trend data (non-blocking) — sprint comparison only
+    // Fetch sprint comparison (non-blocking)
     fetch(`/api/trends/sprint-comparison?team=${encodeURIComponent(selectedTeam)}`, fetchOpts)
       .then((r) => (r.ok ? r.json() : null))
       .catch(() => null)
